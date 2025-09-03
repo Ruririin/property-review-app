@@ -149,7 +149,7 @@ const SlidePreview = ({ slide, index, isActive, onClick, onDelete, canDelete, mu
           backgroundColor: '#2d5016',
           borderColor: '#2d5016',
           color: 'white',
-          top: "5px", right: "5px", // Moved inside the container
+          bottom: "5px", right: "5px", // Moved to bottom-right corner
           width: "20px", height: "20px",
           fontSize: "12px", padding: 0,
           borderRadius: "50%",
