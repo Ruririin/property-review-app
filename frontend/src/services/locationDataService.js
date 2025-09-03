@@ -14,32 +14,50 @@ class LocationDataService {
   initializeFromProject(projectData, multipleLocationsMode) {
     this.locationData.clear();
     
+    console.log('🏗️ Initializing location data service...', { 
+      multipleLocationsMode, 
+      premiseLocation: projectData.formData?.premiseLocation 
+    });
+    
     if (multipleLocationsMode) {
       // Parse multiple locations from premise location text
       const premiseLocation = projectData.formData?.premiseLocation || '';
       const locations = this.parseLocationsFromText(premiseLocation);
       
+      console.log('📍 Parsed locations:', locations);
+      
       // Initialize each location with separate data
       locations.forEach((location, index) => {
-        this.locationData.set(index, {
+        const locationData = {
           ...projectData.formData,
-          premiseLocation: location,
+          premiseLocation: location.trim(),
           // Initialize location-specific fields
           insuredName: projectData.formData?.insuredName || '',
           website: projectData.formData?.website || '',
           description: projectData.formData?.description || '',
           lineBusiness: projectData.formData?.lineBusiness || '',
-        });
+          websiteInfo: projectData.formData?.websiteInfo || '',
+        };
+        
+        this.locationData.set(index, locationData);
+        console.log(`📍 Set location ${index + 1}:`, locationData);
       });
       
       // Ensure at least one location exists
       if (this.locationData.size === 0) {
-        this.locationData.set(0, { ...projectData.formData });
+        console.log('⚠️ No locations found, creating default location');
+        this.locationData.set(0, { 
+          ...projectData.formData,
+          premiseLocation: projectData.formData?.premiseLocation || ''
+        });
       }
     } else {
       // Single location mode - use location 0
+      console.log('🏠 Single location mode');
       this.locationData.set(0, { ...projectData.formData });
     }
+    
+    console.log('✅ Location data service initialized with', this.locationData.size, 'locations');
   }
 
   /**

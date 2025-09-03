@@ -75,7 +75,7 @@ const BUTTON_STYLES = {
   }
 };
 
-const SlidePreview = ({ slide, index, isActive, onClick, onDelete, canDelete }) => (
+const SlidePreview = ({ slide, index, isActive, onClick, onDelete, canDelete, multipleLocationsMode, slideLocationIndex }) => (
   <div
     className={`position-relative cursor-pointer border ${isActive ? "border-primary border-2" : "border-light"}`}
     onClick={() => onClick(slide.id)}
@@ -91,6 +91,26 @@ const SlidePreview = ({ slide, index, isActive, onClick, onDelete, canDelete }) 
       transition: "all 0.2s ease"
     }}
   >
+    {/* Location indicator for multiple locations mode */}
+    {multipleLocationsMode && slideLocationIndex !== undefined && (
+      <div
+        style={{
+          position: "absolute",
+          top: "4px",
+          right: "4px",
+          backgroundColor: "#8B9A5B",
+          color: "white",
+          fontSize: "10px",
+          padding: "2px 6px",
+          borderRadius: "10px",
+          fontWeight: "bold",
+          zIndex: 10
+        }}
+      >
+        L{slideLocationIndex + 1}
+      </div>
+    )}
+    
     <div className="h-100 d-flex align-items-center justify-content-center p-2">
       <small 
         className="text-center" 
@@ -763,6 +783,19 @@ export default function Editor({ sessionUser }) {
     }
   }, [globalLocationData.premiseLocation]);
 
+  // Initialize location data service when multiple locations mode is enabled
+  useEffect(() => {
+    if (multipleLocationsMode && globalLocationData.premiseLocation) {
+      // Ensure location data service is properly initialized
+      if (locationDataService.getLocationCount() === 0) {
+        console.log('🔄 Auto-initializing location data service');
+        locationDataService.initializeFromProject({
+          formData: globalLocationData
+        }, multipleLocationsMode);
+      }
+    }
+  }, [multipleLocationsMode, globalLocationData]);
+
   const slideOptions = [
     'Aerial View - Google', 'Aerial View - Bing', 'Street View', 'Interior', 'Online Presence',
     'Comments', 'Nearest Fire Station', 'Fire Hazard', 'Crime Rate', 'Ratings', 'Website'
@@ -1207,16 +1240,47 @@ export default function Editor({ sessionUser }) {
       }
     };
     
-    // Use location-specific data when in multiple locations mode
+    // Determine which location data to use
     let locationData;
-    if (multipleLocationsMode && selectedLocationIndex !== undefined) {
-      // Get data for the currently selected location, but only if location service has data
-      const hasLocationData = locationDataService.getLocationCount() > 0;
+    let slideLocationIndex = selectedLocationIndex; // Default to current selection
+    
+    // Check if slide has a specific location assigned
+    if (slideSpecific.locationIndex !== undefined) {
+      slideLocationIndex = slideSpecific.locationIndex;
+    }
+    
+    if (multipleLocationsMode && slideLocationIndex !== undefined) {
+      // Ensure location data service is initialized
+      if (locationDataService.getLocationCount() === 0) {
+        locationDataService.initializeFromProject({
+          formData: globalLocationData
+        }, multipleLocationsMode);
+      }
+      
+      // Get data for the slide's location
+      const hasLocationData = locationDataService.getLocationCount() > slideLocationIndex;
       if (hasLocationData) {
-        locationData = locationDataService.getLocationData(selectedLocationIndex);
+        locationData = locationDataService.getLocationData(slideLocationIndex);
+        
+        // If location data is empty, populate it from global data
+        if (!locationData || Object.keys(locationData).length === 0) {
+          const premiseLocation = getLocationFromPremiseText(globalLocationData.premiseLocation, slideLocationIndex);
+          locationData = {
+            ...globalLocationData,
+            premiseLocation: premiseLocation
+          };
+          
+          // Update location data service
+          Object.entries(locationData).forEach(([field, value]) => {
+            locationDataService.updateLocationData(slideLocationIndex, field, value);
+          });
+        }
+        
+        console.log(`📍 Using location data for slide ${slideId}, location ${slideLocationIndex + 1}:`, locationData);
       } else {
-        // Location service not properly initialized, use global data
+        // Location service not properly initialized or index out of range, use global data
         locationData = globalLocationData;
+        console.warn(`⚠️ Location ${slideLocationIndex} not found, using global data`);
       }
     } else if (slideSpecific.specificLocation) {
       // Use specific location for this slide if available
@@ -1241,7 +1305,9 @@ export default function Editor({ sessionUser }) {
     
     return {
       ...slideSpecific,
-      formData: combinedFormData
+      formData: combinedFormData,
+      // Store which location this slide is for
+      locationIndex: slideLocationIndex
     };
   };
 
@@ -1750,23 +1816,55 @@ export default function Editor({ sessionUser }) {
         street_view: newCount
       }));
     }
-    
+
     const newSlide = {
       id: nextSlideId,
       type: actualSlideType,
-      title: slideTitle
+      title: slideTitle,
+      // Track which location this slide is for
+      locationIndex: multipleLocationsMode ? selectedLocationIndex : 0
     };
     
     // Initialize data for new slide - use location-specific data if in multiple locations mode
-    const initialFormData = multipleLocationsMode && selectedLocationIndex !== undefined
-      ? locationDataService.getLocationData(selectedLocationIndex)
-      : {
-          insuredName: "",
-          website: "",
-          description: "",
-          lineBusiness: "",
-          websiteInfo: "",
+    let initialFormData;
+    
+    if (multipleLocationsMode && selectedLocationIndex !== undefined) {
+      // Ensure location data service is properly initialized
+      if (locationDataService.getLocationCount() === 0) {
+        locationDataService.initializeFromProject({
+          formData: globalLocationData
+        }, multipleLocationsMode);
+      }
+      
+      // Get data for the selected location
+      initialFormData = locationDataService.getLocationData(selectedLocationIndex);
+      
+      // If no specific data exists for this location, use global data as fallback
+      if (!initialFormData || Object.keys(initialFormData).length === 0) {
+        initialFormData = {
+          ...globalLocationData,
+          // Parse the specific location from premise location if available
+          premiseLocation: getLocationFromPremiseText(globalLocationData.premiseLocation, selectedLocationIndex)
         };
+        
+        // Update location data service with this data
+        Object.entries(initialFormData).forEach(([field, value]) => {
+          locationDataService.updateLocationData(selectedLocationIndex, field, value);
+        });
+      }
+    } else {
+      // Single location mode or fallback
+      initialFormData = {
+        insuredName: globalLocationData.insuredName || "",
+        website: globalLocationData.website || "",
+        description: globalLocationData.description || "",
+        lineBusiness: globalLocationData.lineBusiness || "",
+        websiteInfo: globalLocationData.websiteInfo || "",
+        premiseLocation: globalLocationData.premiseLocation || "",
+      };
+    }
+
+    console.log(`🆕 Creating new slide for Location ${selectedLocationIndex + 1}:`, initialFormData);
 
     setSlideData(prev => ({
       ...prev,
@@ -1774,7 +1872,9 @@ export default function Editor({ sessionUser }) {
         formData: initialFormData,
         imageData: null,
         imagePosition: { top: 300, left: 400 },
-        drawings: []
+        drawings: [],
+        // Store the location index this slide belongs to
+        locationIndex: newSlide.locationIndex
       }
     }));
     
@@ -1784,7 +1884,13 @@ export default function Editor({ sessionUser }) {
     setShowPopupDropdown(false);
   };
 
-  const deleteSlide = (slideId) => {
+  // Helper function to get specific location from premise location text
+  const getLocationFromPremiseText = (premiseLocationText, locationIndex) => {
+    if (!premiseLocationText || !multipleLocationsMode) return premiseLocationText;
+    
+    const lines = premiseLocationText.split('\n').filter(line => line.trim());
+    return lines[locationIndex] || lines[0] || premiseLocationText;
+  };  const deleteSlide = (slideId) => {
     if (slides.length > 1) {
       const slideToDelete = slides.find(slide => slide.id === slideId);
       const updatedSlides = slides.filter(slide => slide.id !== slideId);
@@ -2292,11 +2398,30 @@ export default function Editor({ sessionUser }) {
           : 'Single Location'
         }
         onLocationChange={(newIndex) => {
+          console.log(`🔄 Switching to location ${newIndex + 1}`);
           setSelectedLocationIndex(newIndex);
-          // Initialize location data service for the new location
-          locationDataService.initializeFromProject({
-            formData: globalLocationData
-          }, multipleLocationsMode);
+          
+          // Initialize location data service for all locations if not already done
+          if (locationDataService.getLocationCount() === 0) {
+            locationDataService.initializeFromProject({
+              formData: globalLocationData
+            }, multipleLocationsMode);
+          }
+          
+          // Force re-render of current slide with new location data
+          if (currentSlide) {
+            const currentSlideData = slideData[currentSlide];
+            if (currentSlideData) {
+              // Update the slide's location index
+              setSlideData(prev => ({
+                ...prev,
+                [currentSlide]: {
+                  ...currentSlideData,
+                  locationIndex: newIndex
+                }
+              }));
+            }
+          }
         }}
       />
 
@@ -2692,9 +2817,29 @@ export default function Editor({ sessionUser }) {
                 id="toggleMultipleLocations"
                 checked={multipleLocationsMode}
                 onChange={() => {
-                  setMultipleLocationsMode(!multipleLocationsMode);
-                  if (multipleLocationsMode) {
+                  const newMode = !multipleLocationsMode;
+                  setMultipleLocationsMode(newMode);
+                  
+                  if (newMode) {
+                    // Enabling multiple locations mode
+                    console.log('🏢 Enabling multiple locations mode');
                     setSelectedLocationIndex(0);
+                    
+                    // Initialize location data service with current global data
+                    locationDataService.initializeFromProject({
+                      formData: globalLocationData
+                    }, true);
+                    
+                    console.log('📍 Initialized location service with', locationDataService.getLocationCount(), 'locations');
+                  } else {
+                    // Disabling multiple locations mode
+                    console.log('🏠 Disabling multiple locations mode');
+                    setSelectedLocationIndex(0);
+                    
+                    // Clear location data service
+                    locationDataService.initializeFromProject({
+                      formData: globalLocationData
+                    }, false);
                   }
                 }}
               />
@@ -2754,16 +2899,16 @@ export default function Editor({ sessionUser }) {
             const currentSlideData = slides.find(s => s.id === currentSlide);
             if (currentSlideData && currentSlideData.type === 'comments') {
               const commentOptions = [
-                { key: 'fireHydrantWithin', label: 'Hydrant Within', text: 'The nearest fire hydrant is within the premise' },
-                { key: 'fireHydrantAway', label: 'Hydrant Away', text: 'The nearest fire hydrant is (distance) away from the premise' },
+                { key: 'fireHydrantWithin', label: 'Hydrant Within', text: 'The nearest fire hydrant is within the premise.' },
+                { key: 'fireHydrantAway', label: 'Hydrant Away', text: 'The nearest fire hydrant is (distance) away from the premise.' },
                 { key: 'matureTree', label: 'Mature Tree', text: 'There is a mature tree beside the premise.' },
-                { key: 'handrailsStairs', label: 'Handrails Stairs', text: 'The premise has handrails for stairs' },
-                { key: 'guardRailsBalcony', label: 'Guard Rails Balcony', text: 'The premise has guard rails for the balcony' },
+                { key: 'handrailsStairs', label: 'Handrails Stairs', text: 'The premise has handrails for stairs.' },
+                { key: 'guardRailsBalcony', label: 'Guard Rails Balcony', text: 'The premise has guard rails for the balcony.' },
                 { key: 'handrailsGuardRails', label: 'Handrails & Guard Rails', text: 'The premise has handrails for stairs and guard rails for the balcony.' },
                 { key: 'pwdProvisions', label: 'PWD Provisions', text: 'The premise has PWD provisions' },
                 { key: 'cctvCameras', label: 'CCTV Cameras', text: 'There are CCTV cameras present on the property.' },
                 { key: 'poolGateFence', label: 'Pool Gate & Fence', text: 'There is a gate and fence around the pool.' },
-                { key: 'vandalism', label: 'Vandalism', text: 'Vandalism is present on the premise' }
+                { key: 'vandalism', label: 'Vandalism', text: 'Vandalism is present on the premise.' }
               ];
 
               return (
@@ -3146,9 +3291,9 @@ export default function Editor({ sessionUser }) {
             if (currentSlideData && currentSlideData.type === 'fire_hazard') {
               const fireHazardOptions = [
                 { key: 'notWithinFireZone', label: 'Not Within Fire Zone', text: 'The property is not within the fire severity zone.' },
-                { key: 'veryHighFireZone', label: 'Very High Fire Zone', text: 'The property is within the Very High fire severity zone' },
-                { key: 'highFireZone', label: 'High Fire Zone', text: 'The property is within the high fire severity zone' },
-                { key: 'moderateFireZone', label: 'Moderate Fire Zone', text: 'The property is within the moderate fire severity zone' }
+                { key: 'veryHighFireZone', label: 'Very High Fire Zone', text: 'The property is within the Very High fire severity zone.' },
+                { key: 'highFireZone', label: 'High Fire Zone', text: 'The property is within the high fire severity zone.' },
+                { key: 'moderateFireZone', label: 'Moderate Fire Zone', text: 'The property is within the moderate fire severity zone.' }
               ];
 
               return (
@@ -3830,17 +3975,22 @@ export default function Editor({ sessionUser }) {
             maxWidth: "100%"
           }}
         >
-          {slides.map((slide, index) => (
-            <SlidePreview
-              key={slide.id}
-              slide={slide}
-              index={index}
-              isActive={currentSlide === slide.id}
-              onClick={setCurrentSlide}
-              onDelete={deleteSlide}
-              canDelete={slides.length > 1}
-            />
-          ))}
+          {slides.map((slide, index) => {
+            const currentSlideData = getSlideData(slide.id);
+            return (
+              <SlidePreview
+                key={slide.id}
+                slide={slide}
+                index={index}
+                isActive={currentSlide === slide.id}
+                onClick={setCurrentSlide}
+                onDelete={deleteSlide}
+                canDelete={slides.length > 1}
+                multipleLocationsMode={multipleLocationsMode}
+                slideLocationIndex={currentSlideData.locationIndex}
+              />
+            );
+          })}
 
           {/* Add Slide Button */}
           <div style={{ position: "relative", flexShrink: 0 }}>

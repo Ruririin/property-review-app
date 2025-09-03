@@ -19,7 +19,12 @@ const FireHazard = forwardRef(({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [draggingField, setDraggingField] = useState(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizingField, setResizingField] = useState(null);
+  const [resizeMode, setResizeMode] = useState('');
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   
+  const stablePositionsRef = useRef({});
   const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
 
   // Expose method to sync current state positions to DOM for PDF export
@@ -30,6 +35,16 @@ const FireHazard = forwardRef(({
       }
     }
   }));
+
+  // Update stable positions when fieldPositions prop changes
+  useEffect(() => {
+    if (fieldPositions) {
+      stablePositionsRef.current = { 
+        ...stablePositionsRef.current,
+        ...fieldPositions 
+      };
+    }
+  }, [fieldPositions]);
 
   // Auto-resize all textareas when formData changes
   useEffect(() => {
@@ -43,7 +58,8 @@ const FireHazard = forwardRef(({
 
   const handleChange = (field, value) => {
     if (setFormData) {
-      setFormData({ [field]: value || "" }); // Ensure value is always a string
+      const stringValue = String(value || "");
+      setFormData({ [field]: stringValue });
     }
   };
 
@@ -52,6 +68,7 @@ const FireHazard = forwardRef(({
     el.style.height = el.scrollHeight + "px"; 
   };
 
+  // Drag functionality - same as Comments
   const handleFieldMouseDown = (e, field) => {
     e.stopPropagation();
     e.preventDefault();
@@ -59,87 +76,137 @@ const FireHazard = forwardRef(({
     setIsDragging(true);
     setDraggingField(field);
     
-    // Get the container element (the div that wraps bullet + textarea)
-    const fieldContainer = e.currentTarget.parentElement;
+    const fieldContainer = e.currentTarget.tagName === 'TEXTAREA' 
+      ? e.currentTarget.parentElement 
+      : e.currentTarget;
     const fieldRect = fieldContainer.getBoundingClientRect();
     const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
     
-    // Account for zoom level when calculating offset
     const zoomFactor = (zoomLevel || 100) / 100;
     
-    // Calculate offset from cursor to field container's position relative to main container
     setDragOffset({
       x: (e.clientX - fieldRect.left) / zoomFactor,
       y: (e.clientY - fieldRect.top) / zoomFactor,
     });
   };
 
+  // Resize functionality - same as Comments
+  const handleResizeMouseDown = (e, field, mode) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    setIsResizing(true);
+    setResizingField(field);
+    setResizeMode(mode);
+    
+    const fieldElement = e.currentTarget.parentElement.querySelector('textarea');
+    const rect = fieldElement.getBoundingClientRect();
+    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    
+    const zoomFactor = (zoomLevel || 100) / 100;
+    
+    setResizeStart({
+      x: (e.clientX - containerRect.left) / zoomFactor,
+      y: (e.clientY - containerRect.top) / zoomFactor,
+      width: rect.width / zoomFactor,
+      height: rect.height / zoomFactor,
+    });
+  };
+
   const handleMouseMove = (e) => {
     if (isDragging && draggingField && imageHandler.containerRef.current) {
       const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
-      
-      // Account for zoom level when calculating new position
       const zoomFactor = (zoomLevel || 100) / 100;
       
-      // Calculate new field position maintaining the original offset
       const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
       const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
       
       if (setFieldPositions) {
+        const existingField = fieldPositions?.[draggingField] || {};
+        const stableField = stablePositionsRef.current[draggingField] || {};
         const newPosition = {
+          ...existingField,
+          ...stableField,
           top: Math.max(0, newTop),
-          left: Math.max(0, Math.min(newLeft, 1000)), // Keep within reasonable bounds
+          left: Math.max(0, Math.min(newLeft, 1000)),
         };
         
-        const updatedPositions = {
+        stablePositionsRef.current[draggingField] = newPosition;
+        
+        setFieldPositions({
           ...(fieldPositions || {}),
           [draggingField]: newPosition
+        });
+      }
+    } else if (isResizing && resizingField && imageHandler.containerRef.current) {
+      const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+      const zoomFactor = (zoomLevel || 100) / 100;
+      
+      const currentX = (e.clientX - containerRect.left) / zoomFactor;
+      const currentY = (e.clientY - containerRect.top) / zoomFactor;
+      
+      let newWidth = resizeStart.width;
+      let newHeight = resizeStart.height;
+      
+      if (resizeMode.includes('right')) {
+        newWidth = Math.max(200, resizeStart.width + (currentX - resizeStart.x));
+      }
+      if (resizeMode.includes('left')) {
+        newWidth = Math.max(200, resizeStart.width - (currentX - resizeStart.x));
+      }
+      if (resizeMode.includes('bottom')) {
+        newHeight = Math.max(60, resizeStart.height + (currentY - resizeStart.y));
+      }
+      if (resizeMode.includes('top')) {
+        newHeight = Math.max(60, resizeStart.height - (currentY - resizeStart.y));
+      }
+      
+      if (setFieldPositions) {
+        const existingField = fieldPositions?.[resizingField] || {};
+        const updatedField = {
+          ...existingField,
+          width: newWidth,
+          height: newHeight
         };
         
-        setFieldPositions(updatedPositions);
+        stablePositionsRef.current[resizingField] = updatedField;
+        
+        setFieldPositions({
+          ...(fieldPositions || {}),
+          [resizingField]: updatedField
+        });
       }
     }
   };
 
   const handleMouseUp = () => {
+    if (isDragging && draggingField && fieldPositions?.[draggingField]) {
+      stablePositionsRef.current[draggingField] = fieldPositions[draggingField];
+    }
+    
     setIsDragging(false);
     setDraggingField(null);
+    setIsResizing(false);
+    setResizingField(null);
+    setResizeMode('');
   };
 
-  // Add document event listeners for dragging
+  // Document event listeners for dragging and resizing - same as Comments
   useEffect(() => {
     const handleDocumentMouseMove = (e) => {
-      if (isDragging && draggingField && imageHandler.containerRef.current) {
-        const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
-        
-        // Account for zoom level when calculating new position
-        const zoomFactor = (zoomLevel || 100) / 100;
-        
-        // Calculate new field position maintaining the original offset
-        const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
-        const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
-        
-        if (setFieldPositions) {
-          setFieldPositions({
-            ...(fieldPositions || {}),
-            [draggingField]: {
-              top: Math.max(0, newTop),
-              left: Math.max(0, Math.min(newLeft, 1000)), // Keep within reasonable bounds
-            }
-          });
-        }
+      if ((isDragging || isResizing) && imageHandler.containerRef.current) {
+        handleMouseMove(e);
         e.preventDefault();
       }
     };
 
     const handleDocumentMouseUp = () => {
-      if (isDragging) {
-        setIsDragging(false);
-        setDraggingField(null);
+      if (isDragging || isResizing) {
+        handleMouseUp();
       }
     };
     
-    if (isDragging) {
+    if (isDragging || isResizing) {
       document.addEventListener('mousemove', handleDocumentMouseMove);
       document.addEventListener('mouseup', handleDocumentMouseUp);
       
@@ -148,44 +215,48 @@ const FireHazard = forwardRef(({
         document.removeEventListener('mouseup', handleDocumentMouseUp);
       };
     }
-  }, [isDragging, draggingField, dragOffset, zoomLevel, fieldPositions, setFieldPositions, imageHandler.containerRef]);
+  }, [isDragging, isResizing, draggingField, resizingField, dragOffset, resizeStart, zoomLevel, fieldPositions, setFieldPositions]);
 
+  // Render bullet text field with Comments-style drag and resize
   const renderBulletTextbox = (field, content, defaultTop = 200) => {
     const isActive = selectedField === field;
     
-    // Get position from fieldPositions or use default (centered)
-    const defaultFieldPositions = {
-      [field]: { top: defaultTop, left: 500 }, // Center horizontally (slide width 1280px, so ~500px is roughly center)
+    const propsField = fieldPositions?.[field] || {};
+    const stableField = stablePositionsRef.current[field] || {};
+    const mergedField = { ...propsField, ...stableField };
+    
+    const position = {
+      top: mergedField.top ?? defaultTop,
+      left: mergedField.left ?? 150,
+      width: mergedField.width ?? 400,
+      height: mergedField.height ?? 80,
+      ...mergedField
     };
-    const position = (fieldPositions && fieldPositions[field]) || defaultFieldPositions[field];
     
     return (
       <div
         key={field}
-        onClick={(e) => e.stopPropagation()} // Prevent deselection when clicking on text field area
         style={{
           position: "absolute",
           top: position.top,
           left: position.left,
-          display: "flex",
-          alignItems: "flex-start",
-          gap: "8px",
-          // No background when inactive - completely invisible
-          background: "transparent",
-          borderRadius: "6px",
-          padding: "0",
+          width: position.width + 30, // Add space for bullet
+          height: position.height,
         }}
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag handle (bullet point) */}
+        {/* Drag handle (bullet point) - positioned absolutely, hidden in print/export */}
         <span 
           onMouseDown={(e) => handleFieldMouseDown(e, field)}
+          className="no-print-bullet"
           style={{
+            position: "absolute",
+            left: "-20px",
+            top: "12px",
             color: "#8B9A5B",
             fontFamily: "'Montserrat', sans-serif",
-            fontSize: fontSizes[field] || 16,
+            fontSize: fontSizes[field] || 35,
             fontWeight: "bold",
-            marginTop: "10px", // Align with first line of text
-            flexShrink: 0,
             cursor: isActive ? "move" : "default",
             padding: "2px",
             borderRadius: "3px",
@@ -202,7 +273,6 @@ const FireHazard = forwardRef(({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              // Remove the field data and position
               if (setFormData) {
                 setFormData({ [field]: "" });
               }
@@ -211,7 +281,6 @@ const FireHazard = forwardRef(({
                 delete updatedPositions[field];
                 setFieldPositions(updatedPositions);
               }
-              // Deselect the field
               onSelect(null);
             }}
             style={{
@@ -237,60 +306,147 @@ const FireHazard = forwardRef(({
           </button>
         )}
         
-        {/* Free-form textbox - no positioning constraints */}
-        <textarea
-          value={(formData?.[field] || "").toString()}
-          onChange={(e) => handleChange(field, e.target.value)}
-          placeholder={content}
-          onFocus={() => onSelect(field)}
-          onKeyDown={(e) => {
-            // Allow Delete key to delete the entire field when empty
-            if (e.key === 'Delete' && e.target.value === "" && e.ctrlKey) {
-              e.preventDefault();
-              // Remove the field data and position
-              if (setFormData) {
-                setFormData({ [field]: "" });
+        {/* Text field container with resize handles */}
+        <div style={{ position: "relative", width: "100%", height: "100%" }}>
+          <textarea
+            className="resizable-textarea"
+            data-field={field}
+            value={formData?.[field] || ""}
+            onChange={(e) => handleChange(field, e.target.value)}
+            onInput={(e) => autoResize(e.target)}
+            placeholder={content}
+            onFocus={() => {
+              if (selectedField !== field) {
+                onSelect(field);
               }
-              if (setFieldPositions) {
-                const updatedPositions = { ...(fieldPositions || {}) };
-                delete updatedPositions[field];
-                setFieldPositions(updatedPositions);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseMove={(e) => {
+              if (selectedField === field) {
+                const rect = e.target.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                const borderThickness = 8;
+                
+                const isOnLeftEdge = clickX <= borderThickness;
+                const isOnRightEdge = clickX >= rect.width - borderThickness;
+                const isOnTopEdge = clickY <= borderThickness;
+                const isOnBottomEdge = clickY >= rect.height - borderThickness;
+                
+                if (isOnLeftEdge || isOnRightEdge || isOnTopEdge || isOnBottomEdge) {
+                  e.target.style.cursor = "move";
+                } else {
+                  e.target.style.cursor = "text";
+                }
               }
-              // Deselect the field
-              onSelect(null);
-            }
-          }}
-          style={{
-            width: "400px", // Default width - fully resizable by user
-            minWidth: "200px",
-            maxWidth: "none", // Remove max width constraint
-            height: "80px", // Default height - fully resizable by user  
-            minHeight: "60px",
-            maxHeight: "none", // Remove max height constraint
-            resize: "both", // Enable full resizing
-            fontFamily: "'Montserrat', sans-serif",
-            fontSize: fontSizes[field] || 16,
-            color: "#8B9A5B",
-            backgroundColor: isActive ? "rgba(255, 255, 255, 0.95)" : "transparent",
-            border: isActive ? "2px solid rgba(0, 123, 255, 0.8)" : "1px solid transparent",
-            borderRadius: "6px",
-            padding: "12px",
-            outline: "none",
-            lineHeight: "1.4",
-            overflow: "auto",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            boxShadow: isActive ? "0 0 0 2px rgba(0, 123, 255, 0.1)" : "none",
-            transition: "border-color 0.2s ease, box-shadow 0.2s ease",
-            cursor: "text",
-            // Remove all positioning constraints
-            position: "relative",
-            top: "auto",
-            left: "auto",
-            right: "auto",
-            bottom: "auto",
-          }}
-        />
+            }}
+            onMouseDown={(e) => {
+              if (selectedField === field) {
+                const rect = e.target.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                const borderThickness = 8;
+                
+                const isOnLeftEdge = clickX <= borderThickness;
+                const isOnRightEdge = clickX >= rect.width - borderThickness;
+                const isOnTopEdge = clickY <= borderThickness;
+                const isOnBottomEdge = clickY >= rect.height - borderThickness;
+                
+                if (isOnLeftEdge || isOnRightEdge || isOnTopEdge || isOnBottomEdge) {
+                  e.preventDefault();
+                  handleFieldMouseDown(e, field);
+                }
+              }
+            }}
+            style={{
+              width: `${position.width}px`,
+              height: `${position.height}px`,
+              minWidth: "200px",
+              minHeight: "60px",
+              fontFamily: "'Montserrat', sans-serif",
+              fontSize: fontSizes[field] || 35,
+              color: "#8B9A5B",
+              backgroundColor: isActive ? "rgba(255, 255, 255, 0.95)" : "transparent",
+              border: isActive ? "2px solid rgba(0, 123, 255, 0.8)" : "1px solid transparent",
+              borderRadius: "6px",
+              padding: "12px",
+              outline: "none",
+              lineHeight: "1.4",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              boxShadow: isActive ? "0 0 0 2px rgba(0, 123, 255, 0.1)" : "none",
+              resize: "none", // Disable default resize, use custom handles
+              cursor: "text",
+            }}
+          />
+          
+          {/* Resize handles - only show when active */}
+          {isActive && (
+            <>
+              {/* Corner resize handles */}
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
+                style={{
+                  position: "absolute",
+                  bottom: "-4px",
+                  right: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "nw-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
+                style={{
+                  position: "absolute",
+                  bottom: "-4px",
+                  left: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "ne-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-right')}
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  right: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "ne-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-left')}
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  left: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "nw-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+            </>
+          )}
+        </div>
       </div>
     );
   };
@@ -336,6 +492,21 @@ const FireHazard = forwardRef(({
         }
       }}
     >
+      {/* CSS for hiding bullets during print/export */}
+      <style>
+        {`
+          @media print, screen and (min-resolution: 300dpi) {
+            .no-print-bullet {
+              display: none !important;
+            }
+          }
+          
+          /* Hide bullets when parent has export class */
+          .export-mode .no-print-bullet {
+            display: none !important;
+          }
+        `}
+      </style>
       {/* Fire Hazard Options - only show if they have content */}
       {formData && formData.notWithinFireZone && renderBulletTextbox('notWithinFireZone', 'The property is not within the fire severity zone.', 300)}
       {formData && formData.veryHighFireZone && renderBulletTextbox('veryHighFireZone', 'The property is within the Very High fire severity zone', 300)}
