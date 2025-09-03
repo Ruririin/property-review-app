@@ -1,0 +1,733 @@
+/**
+ * Enhanced Project Save Service - Database + localStorage hybrid
+ * Prioritizes database storage with localStorage fallback
+ */
+
+import apiService from './apiService.js';
+
+class ProjectSaveService {
+  constructor() {
+    this.projects = new Map(); // In-memory cache
+    this.currentProjectId = null;
+    this.useDatabase = true; // Try database first
+    this.isOnline = true;
+    this.savingProjects = new Set(); // Track projects currently being saved to prevent race conditions
+    
+    this.init();
+  }
+
+  async init() {
+    // Check if backend is available
+    this.isOnline = await apiService.healthCheck();
+    console.log(`🌐 Backend status: ${this.isOnline ? 'ONLINE (Database)' : 'OFFLINE (localStorage fallback)'}`);
+    
+    // Load projects from appropriate source
+    if (this.isOnline) {
+      await this.loadProjectsFromDatabase();
+    } else {
+      this.loadProjectsFromLocalStorage();
+    }
+    
+    this.loadCurrentProject();
+  }
+
+  /**
+   * Save project - Database first, localStorage fallback
+   */
+  async saveProject(projectId, projectData) {
+    // Prevent multiple saves of the same project running simultaneously
+    if (this.savingProjects.has(projectId)) {
+      console.log(`⏳ DUPLICATE SAVE BLOCKED for project ${projectId} (race condition prevented)`);
+      return this.projects.get(projectId);
+    }
+    
+    console.log(`🚀 SAVE PROJECT CALLED with projectId: ${projectId}`);
+    
+    console.log(`🎯 STARTING SAVE for project ${projectId} (${this.savingProjects.size} saves already in progress)`);
+    this.savingProjects.add(projectId);
+    const saveData = {
+      id: projectId,
+      title: projectData.title || projectData.insuredName || 'Untitled Project',
+      insuredName: projectData.insuredName || '',
+      premiseLocation: projectData.premiseLocation || '',
+      description: projectData.description || '',
+      website: projectData.website || '',
+      sessionUser: projectData.sessionUser,
+      slides: projectData.slides || [],
+      slideData: projectData.slideData || {},
+      formData: projectData.formData || {},
+      fieldPositions: projectData.fieldPositions || {},
+      fontSizes: projectData.fontSizes || {},
+      showWebsite: projectData.showWebsite || false,
+      multipleLocationsMode: projectData.multipleLocationsMode || false,
+      selectedLocationIndex: projectData.selectedLocationIndex || 0,
+      status: projectData.status || this.projects.get(projectId)?.status || 'editing',
+      currentSlide: projectData.currentSlide || 1,
+      totalSlides: projectData.totalSlides || (projectData.slides?.length || 1),
+      exportCount: projectData.exportCount || this.projects.get(projectId)?.exportCount || 0,
+      lastExportTime: projectData.lastExportTime || this.projects.get(projectId)?.lastExportTime || null,
+      originalLroFormId: projectData.originalLroFormId || this.projects.get(projectId)?.originalLroFormId || null,
+      completedBy: projectData.completedBy || null,
+      completedAt: projectData.completedAt || null,
+      lastModified: Date.now(),
+      created: this.projects.has(projectId) ? this.projects.get(projectId).created : Date.now()
+    };
+
+    // Debug logging for slideData
+    console.log('📊 SAVE DEBUG - slideData keys:', Object.keys(saveData.slideData));
+    console.log('📊 SAVE DEBUG - formData:', saveData.formData);
+    if (Object.keys(saveData.slideData).length > 0) {
+      console.log('📊 SAVE DEBUG - first slide data:', saveData.slideData[Object.keys(saveData.slideData)[0]]);
+    }
+
+    // Save to memory cache
+    this.projects.set(projectId, saveData);
+    this.setCurrentProject(projectId);
+
+    try {
+      if (this.isOnline && this.useDatabase) {
+        await this.saveProjectToDatabase(projectId, saveData);
+        console.log(`💾 Project saved to DATABASE: ${saveData.title} (${projectId})`);
+      } else {
+        this.saveProjectToLocalStorage(projectId, saveData);
+        console.log(`💾 Project saved to localStorage: ${saveData.title} (${projectId})`);
+      }
+    } catch (error) {
+      console.error('❌ Database save failed, using localStorage fallback:', error);
+      this.saveProjectToLocalStorage(projectId, saveData);
+    } finally {
+      // Always remove the lock when save completes
+      console.log(`✅ SAVE COMPLETED for project ${projectId} (removing lock)`);
+      this.savingProjects.delete(projectId);
+    }
+
+    return saveData;
+  }
+
+  /**
+   * Save project to database
+   */
+  async saveProjectToDatabase(projectId, saveData) {
+    try {
+      // Prepare the data for API
+      const apiData = {
+        title: saveData.title || saveData.insuredName || 'Untitled Project',
+        name: saveData.title || saveData.insuredName || 'Untitled Project',
+        description: saveData.description || `Property review for ${saveData.insuredName || 'Unknown'}`,
+        formData: saveData.formData || {},
+        slideData: saveData.slideData || {},
+        status: saveData.status || 'editing'
+      };
+
+      let dbProject;
+      const existingProject = this.projects.get(projectId);
+      
+      try {
+        if (existingProject?.databaseId) {
+          // Update existing project in database using the stored databaseId
+          dbProject = await apiService.updateProject(existingProject.databaseId, apiData);
+          console.log('✅ Updated existing project in database:', existingProject.databaseId);
+        } else {
+          // Check if this looks like a UUID and if we have it stored as a database ID
+          const isDatabaseId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
+          
+          if (isDatabaseId && this.projects.has(projectId)) {
+            // This looks like a database ID and we have it in cache, try to update
+            try {
+              dbProject = await apiService.updateProject(projectId, apiData);
+              console.log('✅ Updated existing database project:', projectId);
+            } catch (updateError) {
+              // If update fails, create new
+              if (updateError.message.includes('404') || updateError.message.includes('DoesNotExist')) {
+                dbProject = await apiService.createProject(apiData);
+                console.log('✅ Created new project after 404:', dbProject.id);
+              } else {
+                throw updateError;
+              }
+            }
+          } else {
+            // Either not a UUID or we don't have it in cache - create new
+            dbProject = await apiService.createProject(apiData);
+            console.log('✅ Created new project:', dbProject.id);
+          }
+        }
+
+        // Update memory cache with database info
+        const updatedProject = {
+          ...saveData,
+          id: dbProject.id,
+          databaseId: dbProject.id,
+          title: dbProject.title,
+          description: dbProject.description,
+          lastModified: Date.now()
+        };
+
+        // Use the database ID as the primary ID and update the URL
+        // This ensures consistency between frontend and database
+        updatedProject.id = dbProject.id;
+        updatedProject.databaseId = dbProject.id;
+        
+        // If the projectId changed, remove the old entry and update current project
+        if (projectId !== dbProject.id) {
+          this.projects.delete(projectId);
+          // Update URL to reflect the correct database ID
+          if (window.location.pathname === '/editor' || window.location.pathname.startsWith('/editor')) {
+            const newUrl = `/editor?projectId=${dbProject.id}`;
+            window.history.replaceState({}, '', newUrl);
+          }
+        }
+        
+        this.projects.set(dbProject.id, updatedProject);
+        this.setCurrentProject(dbProject.id);
+
+        return dbProject;
+      } catch (error) {
+        console.error('❌ Primary save strategy failed:', error);
+        throw error;
+      }
+
+      // Skip slides saving since we disabled that functionality
+      // await this.saveProjectSlidesToDatabase(projectId, saveData);
+
+      return dbProject;
+    } catch (error) {
+      console.error('❌ Database save error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save slides and images to database
+   */
+  async saveProjectSlidesToDatabase(projectId, saveData) {
+    if (!saveData.slides || !saveData.slideData) return;
+
+    for (const slide of saveData.slides) {
+      const slideNumber = slide.id || slide.slideNumber;
+      const slideContent = saveData.slideData[slideNumber] || {};
+      
+      const slideData = {
+        slideNumber: slideNumber,
+        title: slide.title || '',
+        content: {
+          formData: slideContent.formData || {},
+          fieldPositions: slideContent.fieldPositions || {},
+          drawings: slideContent.drawings || [],
+          ...slideContent
+        },
+        type: slide.type || 'standard',
+        fieldPositions: slideContent.fieldPositions || {},
+      };
+
+      try {
+        // Try to update existing slide, create if doesn't exist
+        let dbSlide;
+        try {
+          const existingSlides = await apiService.getProjectSlides(projectId);
+          dbSlide = existingSlides.find(s => s.slide_number === slideNumber);
+          
+          if (dbSlide) {
+            await apiService.updateSlide(dbSlide.id, slideData);
+          } else {
+            dbSlide = await apiService.createSlide(projectId, slideData);
+          }
+        } catch (slideError) {
+          dbSlide = await apiService.createSlide(projectId, slideData);
+        }
+
+        // Handle image uploads
+        if (slideContent.imageData && dbSlide) {
+          await this.handleImageUpload(dbSlide.id, slideContent.imageData, slideContent.imagePosition);
+        }
+
+      } catch (error) {
+        console.warn(`⚠️ Failed to save slide ${slideNumber}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Handle image upload to database
+   */
+  async handleImageUpload(slideId, imageData, imagePosition = {}) {
+    if (!imageData || !imageData.startsWith('data:image/')) return;
+
+    try {
+      const imageFile = apiService.base64ToFile(imageData, `slide-${slideId}-image.png`);
+      const uploadResult = await apiService.uploadImage(slideId, imageFile, {
+        positionX: imagePosition.x || 0,
+        positionY: imagePosition.y || 0,
+        width: imagePosition.width || 100,
+        height: imagePosition.height || 100,
+        altText: `Slide ${slideId} image`
+      });
+      
+      console.log('✅ Image uploaded:', uploadResult);
+      return uploadResult;
+    } catch (error) {
+      console.error('❌ Image upload failed:', error);
+    }
+  }
+
+  /**
+   * Save to localStorage (fallback method)
+   */
+  saveProjectToLocalStorage(projectId, saveData) {
+    try {
+      const stored = localStorage.getItem('savedProjects');
+      const projects = stored ? JSON.parse(stored) : {};
+      
+      // Strip images for localStorage to avoid quota issues
+      const lightweightData = { ...saveData };
+      if (lightweightData.slideData) {
+        lightweightData.slideData = {};
+        for (const [slideId, slideInfo] of Object.entries(saveData.slideData)) {
+          lightweightData.slideData[slideId] = {
+            ...slideInfo,
+            imageData: null, // Strip images
+            drawings: slideInfo.drawings || []
+          };
+        }
+      }
+      
+      projects[projectId] = lightweightData;
+      localStorage.setItem('savedProjects', JSON.stringify(projects));
+    } catch (error) {
+      console.error('❌ localStorage save failed:', error);
+    }
+  }
+
+  /**
+   * Load project - Database first, localStorage fallback
+   */
+  async loadProject(projectId) {
+    // Try memory cache first
+    if (this.projects.has(projectId)) {
+      return this.projects.get(projectId);
+    }
+
+    try {
+      if (this.isOnline && this.useDatabase) {
+        return await this.loadProjectFromDatabase(projectId);
+      } else {
+        return this.loadProjectFromLocalStorage(projectId);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load project, trying localStorage:', error);
+      return this.loadProjectFromLocalStorage(projectId);
+    }
+  }
+
+  /**
+   * Load project from database
+   */
+  async loadProjectFromDatabase(projectId) {
+    try {
+      const dbProject = await apiService.getProject(projectId);
+      const dbSlides = await apiService.getProjectSlides(projectId);
+      
+      // Convert database format to frontend format
+      console.log('🔄 LOAD DEBUG - dbProject from API:', dbProject);
+      console.log('🔄 LOAD DEBUG - dbSlides from API:', dbSlides);
+      
+      const projectData = {
+        id: dbProject.id,
+        title: dbProject.title || dbProject.name || 'Untitled Project',
+        insuredName: dbProject.title || dbProject.name || 'Untitled Project',
+        description: dbProject.description || '',
+        sessionUser: 'database-user', // TODO: Get from auth
+        slides: (dbSlides && Array.isArray(dbSlides)) ? dbSlides.map(slide => ({
+          id: slide.slide_number,
+          title: slide.title,
+          type: slide.template_type
+        })) : [], // Default to empty array if slides endpoint is disabled
+        slideData: dbProject.slideData || {}, // Load slideData from project
+        formData: dbProject.formData || {}, // Load formData from project
+        fieldPositions: {},
+        fontSizes: {},
+        showWebsite: false,
+        multipleLocationsMode: false,
+        selectedLocationIndex: 0,
+        status: dbProject.status || 'editing',
+        currentSlide: 1,
+        totalSlides: (dbSlides && Array.isArray(dbSlides)) ? dbSlides.length : 0,
+        lastModified: dbProject.updated_at ? new Date(dbProject.updated_at).getTime() : Date.now(),
+        created: dbProject.created_at ? new Date(dbProject.created_at).getTime() : Date.now()
+      };
+
+      console.log('📊 LOAD DEBUG - slideData loaded:', Object.keys(projectData.slideData));
+      console.log('📊 LOAD DEBUG - formData loaded:', projectData.formData);
+
+      // Process slides data (only if slides exist and are iterable)
+      if (dbSlides && Array.isArray(dbSlides)) {
+          for (const slide of dbSlides) {
+            projectData.slideData[slide.slide_number] = {
+              formData: slide.content?.formData || {},
+              fieldPositions: slide.field_dimensions || {},
+              drawings: slide.content?.drawings || [],
+              ...slide.content
+            };
+          }
+        }
+
+      this.projects.set(projectId, projectData);
+      console.log('✅ Project loaded from database:', projectData);
+      return projectData;
+      
+    } catch (error) {
+      console.error('❌ Database load failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Load projects from database
+   */
+  async loadProjectsFromDatabase() {
+    try {
+      const dbProjects = await apiService.listProjects();
+      this.projects.clear(); // Clear existing cache
+      
+      for (const dbProject of dbProjects.results || dbProjects) {
+        // Load basic project info into cache
+        const projectData = {
+          id: dbProject.id,
+          databaseId: dbProject.id,
+          title: dbProject.title || dbProject.name || 'Untitled Project',
+          insuredName: dbProject.title || dbProject.name || 'Untitled Project',
+          description: dbProject.description || '',
+          sessionUser: 'database-user',
+          lastModified: dbProject.updated_at ? new Date(dbProject.updated_at).getTime() : 
+                       dbProject.created_at ? new Date(dbProject.created_at).getTime() : Date.now(),
+          created: dbProject.created_at ? new Date(dbProject.created_at).getTime() : Date.now(),
+          status: dbProject.status || 'editing',
+          formData: dbProject.formData || {},
+          slideData: dbProject.slideData || {},
+          slides: [],
+          fieldPositions: {},
+          fontSizes: {}
+        };
+        
+        // Try to load project slides
+        try {
+          const slides = await apiService.getProjectSlides(dbProject.id);
+          if (slides && Array.isArray(slides)) {
+            projectData.slides = slides.map(slide => ({
+              id: slide.slide_number,
+              title: slide.title,
+              type: slide.template_type
+            }));
+            projectData.slideData = slides.reduce((acc, slide) => {
+              acc[slide.slide_number] = {
+                formData: slide.content?.formData || {},
+                fieldPositions: slide.field_dimensions || {},
+                drawings: slide.content?.drawings || [],
+                ...slide.content
+              };
+              return acc;
+            }, {});
+          }
+        } catch (error) {
+          console.warn(`⚠️ Could not load slides for project ${dbProject.id}:`, error);
+        }
+        
+        this.projects.set(dbProject.id, projectData);
+      }
+      
+      console.log(`📂 Loaded ${this.projects.size} projects from database`);
+    } catch (error) {
+      console.error('❌ Failed to load projects from database:', error);
+      this.loadProjectsFromLocalStorage();
+    }
+  }
+
+  /**
+   * Load from localStorage (fallback method)
+   */
+  loadProjectFromLocalStorage(projectId) {
+    try {
+      const stored = localStorage.getItem('savedProjects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        return projects[projectId] || null;
+      }
+    } catch (error) {
+      console.error('❌ localStorage load failed:', error);
+    }
+    return null;
+  }
+
+  /**
+   * Load all projects from localStorage (fallback method)
+   */
+  loadProjectsFromLocalStorage() {
+    try {
+      const stored = localStorage.getItem('savedProjects');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        this.projects = new Map(Object.entries(parsed));
+        console.log(`📂 Loaded ${this.projects.size} projects from localStorage`);
+      }
+    } catch (error) {
+      console.error('❌ localStorage load failed:', error);
+      this.projects = new Map();
+    }
+  }
+
+  /**
+   * Delete project - from both database and localStorage
+   */
+  async deleteProject(projectId) {
+    const project = this.projects.get(projectId);
+    if (!project) return false;
+
+    try {
+      if (this.isOnline && this.useDatabase) {
+        await apiService.deleteProject(projectId);
+      }
+    } catch (error) {
+      console.warn('⚠️ Database delete failed:', error);
+    }
+
+    // Always remove from cache and localStorage
+    this.projects.delete(projectId);
+    
+    try {
+      const stored = localStorage.getItem('savedProjects');
+      if (stored) {
+        const projects = JSON.parse(stored);
+        delete projects[projectId];
+        localStorage.setItem('savedProjects', JSON.stringify(projects));
+      }
+    } catch (error) {
+      console.warn('⚠️ localStorage delete failed:', error);
+    }
+
+    console.log(`🗑️ Project deleted: ${project.title} (${projectId})`);
+    return true;
+  }
+
+  // Keep existing methods for compatibility
+  getUserProjects(sessionUser, includeCompleted = true) {
+    const userProjects = [];
+    for (const [id, project] of this.projects) {
+      if (project.sessionUser === sessionUser) {
+        if (includeCompleted || project.status !== 'completed') {
+          userProjects.push(project);
+        }
+      }
+    }
+    return userProjects.sort((a, b) => b.lastModified - a.lastModified);
+  }
+
+  getAllActiveProjects() {
+    const allProjects = [];
+    for (const [id, project] of this.projects) {
+      if (project.status !== 'completed') {
+        allProjects.push(project);
+      }
+    }
+    return allProjects.sort((a, b) => b.lastModified - a.lastModified);
+  }
+
+  getAllCompletedProjects() {
+    const allProjects = [];
+    for (const [id, project] of this.projects) {
+      if (project.status === 'completed') {
+        allProjects.push(project);
+      }
+    }
+    return allProjects.sort((a, b) => (b.completedAt || b.lastModified) - (a.completedAt || a.lastModified));
+  }
+
+  getUserProjects(sessionUser, includeCompleted = true) {
+    const userProjects = [];
+    for (const [id, project] of this.projects) {
+      if (project.sessionUser === sessionUser) {
+        if (includeCompleted || project.status !== 'completed') {
+          userProjects.push(project);
+        }
+      }
+    }
+    return userProjects.sort((a, b) => b.lastModified - a.lastModified);
+  }
+
+  getUserActiveProjects(sessionUser) {
+    return this.getUserProjects(sessionUser, false);
+  }
+
+  getUserCompletedProjects(sessionUser) {
+    const userProjects = [];
+    for (const [id, project] of this.projects) {
+      if (project.sessionUser === sessionUser && project.status === 'completed') {
+        userProjects.push(project);
+      }
+    }
+    return userProjects.sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+  }
+
+  getAllProjects() {
+    return Array.from(this.projects.values())
+      .sort((a, b) => b.lastModified - a.lastModified);
+  }
+
+  markProjectCompleted(projectId, sessionUser) {
+    const project = this.projects.get(projectId);
+    if (project) {
+      project.status = 'completed';
+      project.completedBy = sessionUser;
+      project.completedAt = Date.now();
+      project.lastModified = Date.now();
+      
+      // Try to save to database
+      this.saveProject(projectId, project);
+      return true;
+    }
+    return false;
+  }
+
+  updateProjectStatus(projectId, statusData) {
+    const project = this.projects.get(projectId);
+    if (project) {
+      if (statusData.status) project.status = statusData.status;
+      if (statusData.currentSlide) project.currentSlide = statusData.currentSlide;
+      if (statusData.totalSlides) project.totalSlides = statusData.totalSlides;
+      if (statusData.exportCount !== undefined) project.exportCount = statusData.exportCount;
+      if (statusData.lastExportTime) project.lastExportTime = statusData.lastExportTime;
+      
+      project.lastModified = Date.now();
+      this.saveProject(projectId, project);
+      return true;
+    }
+    return false;
+  }
+
+  recordPdfExport(projectId) {
+    const project = this.projects.get(projectId);
+    if (project) {
+      project.exportCount = (project.exportCount || 0) + 1;
+      project.lastExportTime = Date.now();
+      project.lastModified = Date.now();
+      
+      // Auto-update status based on export activity
+      if (project.status === 'editing' && project.exportCount >= 1) {
+        project.status = 'finalizing';
+      }
+      
+      this.saveProject(projectId, project);
+      return true;
+    }
+    return false;
+  }
+
+  updateLastModified(projectId) {
+    const project = this.projects.get(projectId);
+    if (project) {
+      project.lastModified = Date.now();
+      this.saveProject(projectId, project);
+    }
+  }
+
+  generatePreview(project) {
+    return {
+      id: project.id,
+      title: project.title,
+      insuredName: project.insuredName,
+      premiseLocation: project.premiseLocation,
+      lastModified: project.lastModified,
+      created: project.created,
+      sessionUser: project.sessionUser,
+      slideData: project.slideData,
+      formData: project.formData
+    };
+  }
+
+  autoSave(projectId, currentData) {
+    if (this.projects.has(projectId)) {
+      this.updateLastModified(projectId);
+      
+      // Update key fields that might have changed
+      const project = this.projects.get(projectId);
+      project.formData = { ...project.formData, ...currentData.formData };
+      project.slideData = { ...project.slideData, ...currentData.slideData };
+      
+      this.saveProject(projectId, project);
+    }
+  }
+
+  generateProjectId(formId = null, sessionUser = '') {
+    // Generate a proper UUID v4
+    return crypto.randomUUID();
+  }
+
+  projectExists(projectId) {
+    return this.projects.has(projectId);
+  }
+
+  setCurrentProject(projectId) {
+    this.currentProjectId = projectId;
+    try {
+      localStorage.setItem('currentProjectId', projectId);
+    } catch (error) {
+      console.warn('Failed to save current project ID:', error);
+    }
+  }
+
+  getCurrentProject() {
+    return this.currentProjectId;
+  }
+
+  loadCurrentProject() {
+    try {
+      const currentId = localStorage.getItem('currentProjectId');
+      if (currentId && this.projectExists(currentId)) {
+        this.currentProjectId = currentId;
+      }
+    } catch (error) {
+      console.warn('Failed to load current project ID:', error);
+    }
+  }
+
+  clearCurrentProject() {
+    this.currentProjectId = null;
+    try {
+      localStorage.removeItem('currentProjectId');
+    } catch (error) {
+      console.warn('Failed to clear current project ID:', error);
+    }
+  }
+
+  // Storage analytics
+  getStorageAnalytics() {
+    return {
+      backendStatus: this.isOnline ? 'ONLINE' : 'OFFLINE',
+      storageType: this.isOnline && this.useDatabase ? 'Database' : 'localStorage',
+      totalProjects: this.projects.size,
+      cacheSize: JSON.stringify(Array.from(this.projects.entries())).length
+    };
+  }
+
+  /**
+   * Force refresh projects from database - useful after operations that might be out of sync
+   */
+  async refreshFromDatabase() {
+    if (this.isOnline && this.useDatabase) {
+      try {
+        console.log('🔄 Refreshing projects from database...');
+        this.projects.clear(); // Clear cache
+        await this.loadProjectsFromDatabase();
+        console.log(`✅ Refreshed: ${this.projects.size} projects loaded from database`);
+        return true;
+      } catch (error) {
+        console.error('❌ Failed to refresh from database:', error);
+        return false;
+      }
+    }
+    return false;
+  }
+}
+
+// Create singleton instance
+const projectSaveService = new ProjectSaveService();
+
+export default projectSaveService;

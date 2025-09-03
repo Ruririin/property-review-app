@@ -1,0 +1,208 @@
+.session-picker-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  padding: 20px;
+}
+
+.session-picker-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.125);
+  padding: 40px;
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+}
+
+.session-header {
+  margin-bottom: 30px;
+}
+
+.logo-container {
+  margin-bottom: 20px;
+}
+
+.session-logo {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+}
+
+.session-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #212529;
+  margin-bottom: 8px;
+}
+
+.session-subtitle {
+  color: #6c757d;
+  font-size: 16px;
+  margin: 0;
+}
+
+.recent-users-section {
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.recent-users-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #212529;
+  margin-bottom: 15px;
+}
+
+.recent-users-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.user-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px 10px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-button:hover {
+  background: #e9ecef;
+  border-color: #198754;
+  transform: translateY(-1px);
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background: #198754;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.user-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #212529;
+  text-align: center;
+  word-break: break-word;
+}
+
+.user-input-section {
+  margin-bottom: 30px;
+}
+
+.input-toggle {
+  display: flex;
+  background: #f8f9fa;
+  border-radius: 0.375rem;
+  margin-bottom: 20px;
+  padding: 4px;
+}
+
+.toggle-button {
+  flex: 1;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 0.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #6c757d;
+}
+
+.toggle-button.active {
+  background: white;
+  color: #198754;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.user-select,
+.name-input {
+  width: 100%;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
+  font-size: 16px;
+  margin-bottom: 20px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.user-select:focus,
+.name-input:focus {
+  outline: none;
+  border-color: #86efac;
+  box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.25);
+}
+
+.start-session-button {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: #198754;
+  color: white;
+  border: 1px solid #198754;
+  border-radius: 0.375rem;
+  font-size: 16px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.start-session-button:hover:not(:disabled) {
+  background: #157347;
+  border-color: #146c43;
+}
+
+.start-session-button:disabled {
+  background: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.session-info {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 0.375rem;
+  border-left: 0.25rem solid #198754;
+}
+
+.info-text {
+  font-size: 14px;
+  color: #495057;
+  margin: 0;
+  line-height: 1.5;
+  text-align: left;
+}
+
+@media (max-width: 640px) {
+  .session-picker-card {
+    padding: 30px 20px;
+    margin: 10px;
+  }
+  
+  .recent-users-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+  }
+  
+  .session-title {
+    font-size: 24px;
+  }
+}
