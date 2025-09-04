@@ -18,6 +18,7 @@ const NearestFireStation = forwardRef(({
   isActiveSlide,
   multipleLocationsMode,
   selectedLocationIndex,
+  currentProjectId,
 }, ref) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -471,6 +472,7 @@ const NearestFireStation = forwardRef(({
           Location {selectedLocationIndex + 1} Fire Station Data
         </div>
       )}
+      
       
       {/* Image Component for paste functionality */}
       <ImageComponent

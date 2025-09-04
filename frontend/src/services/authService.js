@@ -10,19 +10,25 @@ class AuthService {
     this.baseURL = API_BASE_URL;
   }
 
+
   /**
    * Generic API request with session cookies
    */
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
     const config = {
       credentials: 'include', // Include cookies for session management
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers,
       ...options,
     };
+
+    // Log the request for debugging
+    console.log('Auth service request:', { endpoint, method: config.method || 'GET' });
 
     try {
       const response = await fetch(url, config);
@@ -39,6 +45,7 @@ class AuthService {
       throw error;
     }
   }
+
 
   /**
    * Start a session with a display name

@@ -100,9 +100,13 @@ export const useImageHandler = (slideData, updateSlideData, zoomLevel, isActiveS
     return () => window.removeEventListener("paste", handlePaste);
   }, [updateSlideData, isActiveSlide]);
 
-  // Mouse down on image - start dragging
+  // Mouse down on image - start dragging (only if not already resizing)
   const handleMouseDownImage = (e) => {
     e.stopPropagation();
+    
+    // Don't start dragging if we're already in resize mode
+    if (isResizingImage) return;
+    
     setIsDraggingImage(true);
     setIsImageSelected(true);
     const rect = e.currentTarget.getBoundingClientRect();
@@ -136,23 +140,14 @@ export const useImageHandler = (slideData, updateSlideData, zoomLevel, isActiveS
     }
 
     if (isResizingImage && resizeStart && imageData && containerRef.current) {
-      // Get container bounds for proper coordinate calculation
-      const containerRect = containerRef.current.getBoundingClientRect();
+      // Simple resize based on mouse movement from start position
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
       
-      // Account for zoom level when calculating resize delta
-      const zoomFactor = (zoomLevel || 100) / 100;
-      
-      // Calculate mouse position relative to container
-      const currentMouseX = (e.clientX - containerRect.left) / zoomFactor;
-      const currentMouseY = (e.clientY - containerRect.top) / zoomFactor;
-      
-      // Calculate the distance from the resize start point
-      const deltaX = currentMouseX - resizeStart.mouseStartX;
-      const deltaY = currentMouseY - resizeStart.mouseStartY;
-      
-      // Use the larger of the two deltas to maintain aspect ratio
+      // Use the larger delta for resizing (horizontal or vertical movement)
       const delta = Math.max(deltaX, deltaY);
       
+      // Calculate new width and height maintaining aspect ratio
       const newWidth = Math.max(50, resizeStart.startWidth + delta);
       const newHeight = newWidth / imageData.aspectRatio;
       
@@ -175,23 +170,20 @@ export const useImageHandler = (slideData, updateSlideData, zoomLevel, isActiveS
 
   // Start resizing
   const handleResizeMouseDown = (e) => {
+    e.preventDefault();
     e.stopPropagation();
+    
+    // Make sure we're not in drag mode
+    setIsDraggingImage(false);
     setIsResizingImage(true);
     setIsImageSelected(true);
     
-    if (containerRef.current) {
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const zoomFactor = (zoomLevel || 100) / 100;
-      
-      setResizeStart({
-        x: e.clientX,
-        y: e.clientY,
-        mouseStartX: (e.clientX - containerRect.left) / zoomFactor,
-        mouseStartY: (e.clientY - containerRect.top) / zoomFactor,
-        startWidth: imageData.width,
-        startHeight: imageData.height,
-      });
-    }
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      startWidth: imageData.width,
+      startHeight: imageData.height,
+    });
   };
 
   // Delete image

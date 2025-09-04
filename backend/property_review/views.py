@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.exceptions import ValidationError
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
@@ -339,11 +339,35 @@ def get_textbox_dimensions_view(request, slide_id):
     """
     Get textbox dimensions for a specific slide
     """
-    # Always return empty dimensions to avoid encoding issues for now
-    return Response({
-        'slide_id': str(slide_id),
-        'field_dimensions': {}
-    })
+    try:
+        # Validate UUID format
+        try:
+            uuid.UUID(str(slide_id))
+        except (ValueError, TypeError):
+            return Response({
+                'slide_id': str(slide_id),
+                'field_dimensions': {}
+            })
+
+        # Try to get the slide
+        try:
+            slide = PropertySlide.objects.get(id=slide_id)
+            field_dimensions = slide.field_dimensions or {}
+            return Response({
+                'slide_id': str(slide_id),
+                'field_dimensions': field_dimensions
+            })
+        except PropertySlide.DoesNotExist:
+            return Response({
+                'slide_id': str(slide_id),
+                'field_dimensions': {}
+            })
+    except:
+        # Any error - return empty dimensions with 200 status
+        return Response({
+            'slide_id': str(slide_id),
+            'field_dimensions': {}
+        })
 
 # Image Upload and Management Views
 @api_view(['POST'])
@@ -542,6 +566,19 @@ def session_logout_view(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+def get_csrf_token_view(request):
+    """
+    Get CSRF token
+    """
+    from django.middleware.csrf import get_token
+    token = get_token(request)
+    return Response({
+        'csrfToken': token
+    }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@ensure_csrf_cookie
 def session_status_view(request):
     """
     Check session status
@@ -551,8 +588,13 @@ def session_status_view(request):
         username = request.session.get('session_user', None)
         
         return Response({
-            'is_authenticated': is_authenticated,
+            'authenticated': is_authenticated,  # Use 'authenticated' to match frontend
             'username': username,
+            'user': {
+                'username': username,
+                'display_name': username
+            } if username else None,
+            'recent_users': [],  # Add this for compatibility
             'session_id': request.session.session_key
         }, status=status.HTTP_200_OK)
         
@@ -715,6 +757,103 @@ def search_business_view(request):
             'success': True,
             'location': location,
             'url': business_search_url
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Comments and Fire Hazard Slide Management APIs
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def update_slide_content_view(request):
+    """
+    Update slide content and field positions for Comments, Fire Hazard, and other slides
+    Handles both content updates and textbox positioning
+    """
+    try:
+        project_id = request.data.get('project_id')
+        slide_id = request.data.get('slide_id')
+        slide_type = request.data.get('slide_type')  # 'comments', 'fire_hazard', etc.
+        content_updates = request.data.get('content', {})
+        field_positions = request.data.get('field_positions', {})
+        
+        if not all([project_id, slide_id, slide_type]):
+            return Response({
+                'error': 'project_id, slide_id, and slide_type are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get project
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response({
+                'error': 'Project not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Update project slideData with the new content and positions
+        slide_data = project.slideData or {}
+        
+        # Initialize slide-specific data if it doesn't exist (ensure slide_id is string)
+        slide_id_str = str(slide_id)
+        if slide_id_str not in slide_data:
+            slide_data[slide_id_str] = {}
+        
+        # Update content (comments, fire hazard data, etc.)
+        if content_updates:
+            slide_data[slide_id_str]['content'] = {
+                **slide_data[slide_id_str].get('content', {}),
+                **content_updates
+            }
+        
+        # Update field positions (textbox dimensions and positions)
+        if field_positions:
+            slide_data[slide_id_str]['fieldPositions'] = {
+                **slide_data[slide_id_str].get('fieldPositions', {}),
+                **field_positions
+            }
+        
+        # Save back to project
+        project.slideData = slide_data
+        project.save()
+        
+        return Response({
+            'success': True,
+            'message': f'{slide_type} slide updated successfully',
+            'slide_data': slide_data[slide_id_str]
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_slide_content_view(request, project_id, slide_id):
+    """
+    Get slide content and field positions for Comments, Fire Hazard, and other slides
+    """
+    try:
+        # Get project
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response({
+                'error': 'Project not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get slide data
+        slide_data = project.slideData or {}
+        slide_content = slide_data.get(str(slide_id), {})  # Ensure slide_id is string
+        
+        return Response({
+            'slide_id': slide_id,
+            'content': slide_content.get('content', {}),
+            'field_positions': slide_content.get('fieldPositions', {}),
+            'slide_data': slide_content
         }, status=status.HTTP_200_OK)
         
     except Exception as e:

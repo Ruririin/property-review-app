@@ -7,6 +7,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('check-auth/', views.check_auth_view, name='check_auth'),
     
+    
     # Simple session-based authentication
     path('session/login/', views.session_login_view, name='session_login'),
     path('session/status/', views.session_status_view, name='session_status'),

@@ -1,62 +1,7 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useImageHandler } from "../../hooks/useImageHandler";
 import ImageComponent from "../../components/ImageComponent";
-
-// Backend API functions for textbox dimensions
-const saveTextboxDimensions = async (slideId, fieldDimensions) => {
-  try {
-    const response = await fetch('http://localhost:8000/api/textbox-dimensions/save/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        slide_id: slideId,
-        field_dimensions: fieldDimensions
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to save textbox dimensions:', error);
-    throw error;
-  }
-};
-
-const getTextboxDimensions = async (slideId) => {
-  try {
-    console.log('Fetching dimensions for slide:', slideId);
-    
-    if (!slideId) {
-      console.warn('No slideId provided to getTextboxDimensions');
-      return { field_dimensions: {} };
-    }
-
-    // Use the Django backend URL
-    const url = `http://localhost:8000/api/textbox-dimensions/${slideId}/`;
-    console.log('Fetching from URL:', url);
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Server response:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-    }
-    
-    const result = await response.json();
-    console.log('Received dimensions:', result);
-    return result;
-  } catch (error) {
-    console.error('Failed to get textbox dimensions:', error);
-    // Return empty dimensions but don't fail completely
-    return { field_dimensions: {} };
-  }
-};
+import slideApiService from "../../services/slideApiService";
 
 const Comments = forwardRef(({
   formData,
@@ -72,6 +17,7 @@ const Comments = forwardRef(({
   updateSlideData,
   isActiveSlide,
   slideId = 'comments_slide',
+  currentProjectId,
 }, ref) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -103,41 +49,48 @@ const Comments = forwardRef(({
     }
   }, [fieldPositions]);
 
-  // Load textbox dimensions from backend on component mount
+  // Load slide content and field positions from backend
   useEffect(() => {
-    const loadDimensions = async () => {
-      if (!slideId) {
-        console.log('No slideId provided, skipping dimension load');
+    const loadSlideData = async () => {
+      if (!slideId || !currentProjectId) {
+        console.warn('Missing slideId or currentProjectId for loading slide data');
         return;
       }
 
-      // Add a small delay to prevent rapid repeated calls
-      await new Promise(resolve => setTimeout(resolve, 100));
-
       try {
-        const result = await getTextboxDimensions(slideId);
-        if (result.field_dimensions && Object.keys(result.field_dimensions).length > 0) {
+        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+        
+        // Load field positions if they exist
+        if (result.field_positions && Object.keys(result.field_positions).length > 0) {
           if (setFieldPositions) {
             setFieldPositions(prev => ({
               ...prev,
-              ...result.field_dimensions
+              ...result.field_positions
             }));
           }
-        } else {
-          console.log('No dimensions found for slide:', slideId);
         }
+
+        // Load comments content if it exists
+        if (result.content && result.content.comments && setFormData) {
+          setFormData(prev => ({
+            ...prev,
+            ...result.content.comments
+          }));
+        }
+
+        console.log('Loaded slide data from backend for slide:', slideId);
       } catch (error) {
-        console.warn('Failed to load textbox dimensions:', error);
+        console.warn('Failed to load slide data from backend:', error);
       }
     };
 
-    loadDimensions();
-  }, [slideId, setFieldPositions]);
+    loadSlideData();
+  }, [slideId, currentProjectId, setFieldPositions, setFormData]);
 
-  // Save dimensions to backend when fieldPositions change
+  // Save field positions to backend when they change
   useEffect(() => {
     const saveDimensions = async () => {
-      if (!fieldPositions || Object.keys(fieldPositions).length === 0) {
+      if (!fieldPositions || Object.keys(fieldPositions).length === 0 || !currentProjectId) {
         return;
       }
 
@@ -157,16 +110,36 @@ const Comments = forwardRef(({
 
       if (Object.keys(dimensionsToSave).length > 0) {
         try {
-          await saveTextboxDimensions(slideId, dimensionsToSave);
+          await slideApiService.updateFieldPositions(currentProjectId, slideId, 'comments', dimensionsToSave);
+          console.log('Saved field positions to backend for slide:', slideId);
         } catch (error) {
-          console.warn('Failed to save textbox dimensions:', error);
+          console.warn('Failed to save field positions to backend:', error);
         }
       }
     };
 
     const timeoutId = setTimeout(saveDimensions, 1000);
     return () => clearTimeout(timeoutId);
-  }, [fieldPositions, slideId]);
+  }, [fieldPositions, slideId, currentProjectId]);
+
+  // Save comments content to backend when formData changes
+  useEffect(() => {
+    const saveComments = async () => {
+      if (!formData || !currentProjectId) {
+        return;
+      }
+
+      try {
+        await slideApiService.updateContent(currentProjectId, slideId, 'comments', { comments: formData });
+        console.log('Saved comments content to backend for slide:', slideId);
+      } catch (error) {
+        console.warn('Failed to save comments content to backend:', error);
+      }
+    };
+
+    const timeoutId = setTimeout(saveComments, 2000); // Longer delay for content
+    return () => clearTimeout(timeoutId);
+  }, [formData, slideId, currentProjectId]);
 
   const handleChange = (field, value) => {
     if (setFormData) {

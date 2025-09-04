@@ -22,6 +22,7 @@ urlpatterns = [
     path('slides/<uuid:project_id>/<str:slide_id>/delete-image/', views.delete_slide_image_view, name='delete_slide_image'),
     
     # Session authentication endpoints
+    path('auth/csrf-token/', views.get_csrf_token_view, name='get_csrf_token'),
     path('auth/session-login/', views.session_login_view, name='session_login'),
     path('auth/session-logout/', views.session_logout_view, name='session_logout'),
     path('auth/session-status/', views.session_status_view, name='session_status'),
@@ -30,5 +31,10 @@ urlpatterns = [
     path('location-url/', views.get_location_url_view, name='get_location_url'),
     path('search-business/', views.search_business_view, name='search_business'),
     
+    # Slide content management endpoints (Comments, Fire Hazard, etc.) - MUST come before slides/ include
+    path('slides/update-content/', views.update_slide_content_view, name='update_slide_content'),
+    path('slides/<uuid:project_id>/<str:slide_id>/content/', views.get_slide_content_view, name='get_slide_content'),
+    
+    # Include other slide-specific URLs (this must come after specific slide endpoints)
     path('slides/', include('property_review.slides.urls')),
 ]

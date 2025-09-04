@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from django.contrib.auth import login, logout
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .serializers import UserRegistrationSerializer, UserLoginSerializer, UserSerializer
 
 def add_cors_headers(response):
@@ -17,7 +18,6 @@ def add_cors_headers(response):
 
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def register_view(request):
     """User registration endpoint"""
     if request.method == 'OPTIONS':
@@ -41,7 +41,6 @@ def register_view(request):
 
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def login_view(request):
     """User login endpoint"""
     if request.method == 'OPTIONS':
@@ -67,7 +66,6 @@ def login_view(request):
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
 @authentication_classes([])
-@csrf_exempt
 def logout_view(request):
     """User logout endpoint"""
     if request.method == 'OPTIONS':
@@ -96,7 +94,6 @@ def check_auth_view(request):
 # Simple Session-based Authentication (for Property Review App)
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def session_login_view(request):
     """Simple session login - create or get user by display name"""
     if request.method == 'OPTIONS':
@@ -179,9 +176,9 @@ def session_status_view(request):
     })
     return add_cors_headers(response)
 
+@csrf_exempt
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def session_logout_view(request):
     """Simple session logout"""
     if request.method == 'OPTIONS':
@@ -198,3 +195,4 @@ def session_logout_view(request):
         'message': 'Session ended successfully'
     }, status=status.HTTP_200_OK)
     return add_cors_headers(response)
+

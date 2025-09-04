@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useImageHandler } from "../../hooks/useImageHandler";
 import ImageComponent from "../../components/ImageComponent";
+import slideApiService from "../../services/slideApiService";
 
 const FireHazard = forwardRef(({
   formData,
@@ -15,6 +16,8 @@ const FireHazard = forwardRef(({
   slideData,
   updateSlideData,
   isActiveSlide,
+  slideId = 'fire_hazard_slide',
+  currentProjectId,
 }, ref) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -55,6 +58,98 @@ const FireHazard = forwardRef(({
       });
     }
   }, [formData, imageHandler.containerRef]);
+
+  // Load slide content and field positions from backend
+  useEffect(() => {
+    const loadSlideData = async () => {
+      if (!slideId || !currentProjectId) {
+        console.warn('Missing slideId or currentProjectId for loading fire hazard slide data');
+        return;
+      }
+
+      try {
+        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+        
+        // Load field positions if they exist
+        if (result.field_positions && Object.keys(result.field_positions).length > 0) {
+          if (setFieldPositions) {
+            setFieldPositions(prev => ({
+              ...prev,
+              ...result.field_positions
+            }));
+          }
+        }
+
+        // Load fire hazard content if it exists
+        if (result.content && result.content.fireHazardData && setFormData) {
+          setFormData(prev => ({
+            ...prev,
+            ...result.content.fireHazardData
+          }));
+        }
+
+        console.log('Loaded fire hazard slide data from backend for slide:', slideId);
+      } catch (error) {
+        console.warn('Failed to load fire hazard slide data from backend:', error);
+      }
+    };
+
+    loadSlideData();
+  }, [slideId, currentProjectId, setFieldPositions, setFormData]);
+
+  // Save field positions to backend when they change
+  useEffect(() => {
+    const saveDimensions = async () => {
+      if (!fieldPositions || Object.keys(fieldPositions).length === 0 || !currentProjectId) {
+        return;
+      }
+
+      const dimensionsToSave = {};
+      Object.entries(fieldPositions).forEach(([field, data]) => {
+        if (data.width && data.height) {
+          dimensionsToSave[field] = {
+            width: data.width,
+            height: data.height,
+            ...(data.x !== undefined && { x: data.x }),
+            ...(data.y !== undefined && { y: data.y }),
+            ...(data.top !== undefined && { top: data.top }),
+            ...(data.left !== undefined && { left: data.left })
+          };
+        }
+      });
+
+      if (Object.keys(dimensionsToSave).length > 0) {
+        try {
+          await slideApiService.updateFieldPositions(currentProjectId, slideId, 'fire_hazard', dimensionsToSave);
+          console.log('Saved fire hazard field positions to backend for slide:', slideId);
+        } catch (error) {
+          console.warn('Failed to save fire hazard field positions to backend:', error);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(saveDimensions, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [fieldPositions, slideId, currentProjectId]);
+
+  // Save fire hazard content to backend when formData changes
+  useEffect(() => {
+    const saveFireHazardContent = async () => {
+      if (!formData || !currentProjectId) {
+        return;
+      }
+
+      try {
+        await slideApiService.updateContent(currentProjectId, slideId, 'fire_hazard', { fireHazardData: formData });
+        console.log('Saved fire hazard content to backend for slide:', slideId);
+      } catch (error) {
+        console.warn('Failed to save fire hazard content to backend:', error);
+      }
+    };
+
+    const timeoutId = setTimeout(saveFireHazardContent, 2000); // Longer delay for content
+    return () => clearTimeout(timeoutId);
+  }, [formData, slideId, currentProjectId]);
 
   const handleChange = (field, value) => {
     if (setFormData) {
@@ -507,16 +602,47 @@ const FireHazard = forwardRef(({
           }
         `}
       </style>
-      {/* Fire Hazard Options - only show if they have content */}
-      {formData && formData.notWithinFireZone && renderBulletTextbox('notWithinFireZone', 'The property is not within the fire severity zone.', 300)}
-      {formData && formData.veryHighFireZone && renderBulletTextbox('veryHighFireZone', 'The property is within the Very High fire severity zone', 300)}
-      {formData && formData.highFireZone && renderBulletTextbox('highFireZone', 'The property is within the high fire severity zone', 300)}
-      {formData && formData.moderateFireZone && renderBulletTextbox('moderateFireZone', 'The property is within the moderate fire severity zone', 300)}
+      {/* Fire Hazard Options - show default options and any with content */}
+      {renderBulletTextbox('notWithinFireZone', 'The property is not within the fire severity zone.', 300)}
+      {renderBulletTextbox('veryHighFireZone', 'The property is within the Very High fire severity zone', 350)}
+      {renderBulletTextbox('highFireZone', 'The property is within the high fire severity zone', 400)}
+      {renderBulletTextbox('moderateFireZone', 'The property is within the moderate fire severity zone', 450)}
       
       {/* Dynamic Custom Fire Hazard textboxes */}
       {formData && Object.keys(formData).filter(key => key.startsWith('customFire_')).map((key) => (
-        renderBulletTextbox(key, formData[key], 300)
+        renderBulletTextbox(key, formData[key], 500)
       ))}
+      
+      {/* Add New Fire Hazard Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          const customId = `customFire_${Date.now()}`;
+          if (setFormData) {
+            setFormData({ [customId]: 'Custom fire hazard text...' });
+          }
+          onSelect(customId);
+        }}
+        style={{
+          position: "absolute",
+          top: "580px",
+          left: "150px",
+          padding: "8px 16px",
+          backgroundColor: "#8B9A5B",
+          color: "white",
+          border: "none",
+          borderRadius: "6px",
+          fontSize: "14px",
+          fontFamily: "'Montserrat', sans-serif",
+          cursor: "pointer",
+          fontWeight: "500",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        }}
+        title="Add new fire hazard text field"
+      >
+        + Add Fire Hazard Text
+      </button>
+      
 
       {/* Image Component for paste functionality */}
       <ImageComponent

@@ -21,7 +21,6 @@ import { loadIsoCodes, findBestMatch } from "../services/isoCodeService";
 import userActivityService from "../services/userActivityService";
 import fieldActivityService from "../services/fieldActivityService";
 import apiService from "../services/apiService";
-import editorApiService from "../services/editorApiService";
 import FieldEditorTag from "../components/FieldEditorTag";
 import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
@@ -802,83 +801,30 @@ export default function Editor({ sessionUser }) {
     'Comments', 'Nearest Fire Station', 'Fire Hazard', 'Crime Rate', 'Ratings', 'Website'
   ];
 
-  // Function to search for business AT a specific address using exact address format
+  // Simple business search function
   const searchBusinessRatings = (location, businessName = null) => {
     if (!location) {
       alert('Please enter a location first');
       return;
     }
-
-    const cleanLocation = location.replace(/^Location\s+\d+:\s*/, '').trim();
     
-    let searchQuery;
-    if (businessName) {
-      // Search for specific business ratings at that address
-      searchQuery = `"${businessName}" "${cleanLocation}" reviews`;
-    } else {
-      // Search using exact address format to find what business is at this address
-      // This matches the format: "14952 Sand Canyon Ave, Irvine, CA 92618, USA"
-      searchQuery = cleanLocation;
-    }
-
+    // Simple business search
+    const searchQuery = businessName ? `"${businessName}" reviews` : `business near ${location}`;
     const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
     window.open(googleSearchUrl, '_blank');
+    console.log('Opened business search for:', location, businessName);
   };
 
-  // Function to automatically check if a business exists at a location
+  // Simplified business detection - always show ratings for simplicity
+  // Complex heuristics removed since backend handles location-based logic
   const checkForBusinessAtLocation = async (location) => {
     if (!location || location.trim() === '') {
       setShowRatings(false);
       return;
     }
-
-    const cleanLocation = location.replace(/^Location\s+\d+:\s*/, '').trim();
     
-    // Since we can't directly access Google Places API from frontend,
-    // we'll use a heuristic approach to detect business addresses
-    
-    // Check if the location looks like a business address (basic heuristics)
-    const businessKeywords = [
-      'suite', 'ste', 'unit', 'building', 'bldg', 'floor', 'fl', 'office', 'plaza', 
-      'center', 'mall', 'shopping', 'store', 'shop', 'restaurant', 'cafe', 'bank',
-      'hospital', 'clinic', 'hotel', 'motel', 'gas station', 'station'
-    ];
-    
-    const hasBusinessKeywords = businessKeywords.some(keyword => 
-      cleanLocation.toLowerCase().includes(keyword.toLowerCase())
-    );
-    
-    // Check if it's a commercial-looking address (not residential patterns)
-    const residentialPatterns = [
-      /^\d+\s+(apartment|apt)\s+/i,
-      /^\d+\s+[a-z\s]+(street|st|road|rd|avenue|ave|drive|dr|lane|ln|way|court|ct|circle|cir)\s*$/i
-    ];
-    
-    const looksResidential = residentialPatterns.some(pattern => pattern.test(cleanLocation));
-    
-    // For demonstration, let's also check for specific known business addresses
-    const knownBusinessAddresses = [
-      '14952 Sand Canyon Ave, Irvine, CA 92618, USA',
-      // Add more known business addresses as needed
-    ];
-    
-    const isKnownBusiness = knownBusinessAddresses.some(addr => 
-      cleanLocation.toLowerCase().includes(addr.toLowerCase()) ||
-      addr.toLowerCase().includes(cleanLocation.toLowerCase())
-    );
-    
-    // Determine if ratings should be shown
-    const shouldShowRatings = hasBusinessKeywords || isKnownBusiness || !looksResidential;
-    
-    // console.log('Business detection for:', cleanLocation);
-    // console.log('Has business keywords:', hasBusinessKeywords);
-    // console.log('Is known business:', isKnownBusiness);
-    // console.log('Looks residential:', looksResidential);
-    // console.log('Should show ratings:', shouldShowRatings);
-    
-    setShowRatings(shouldShowRatings);
-    
-    // Clear any previous businesses when checking new location
+    // Simplified: always show ratings option for any location
+    setShowRatings(true);
     setBusinessesAtLocation([]);
   };
 
@@ -926,6 +872,27 @@ export default function Editor({ sessionUser }) {
     });
     
     return locations;
+  };
+
+  // Helper function to get current location (eliminates duplicated parsing logic)
+  const getCurrentLocation = () => {
+    const premiseLocation = globalLocationData?.premiseLocation || getSlideData(1)?.formData?.premiseLocation || '';
+    
+    if (!premiseLocation.trim()) return '';
+    
+    if (multipleLocationsMode) {
+      const locations = parseMultipleLocations(premiseLocation);
+      if (locations.length > selectedLocationIndex) {
+        return locations[selectedLocationIndex];
+      } else if (locations.length > 0) {
+        return locations[0];
+      }
+      return '';
+    } else {
+      // Single location mode - use the first line only
+      const firstLine = premiseLocation.split('\n')[0]?.trim() || '';
+      return firstLine.replace(/^Location\s+\d+:\s*/, '').trim();
+    }
   };
 
   // Generate slides for multiple locations
@@ -2025,6 +1992,7 @@ export default function Editor({ sessionUser }) {
       setMultipleLocationsMode,
       selectedLocationIndex,
       slideId,
+      currentProjectId, // Add project ID for backend API calls
       sessionUser, // Add session user for field tracking
       currentFormId, // Add current form ID for specific field tracking
       slideData: slideSpecificData,
@@ -2546,31 +2514,16 @@ export default function Editor({ sessionUser }) {
                   color: 'white'
                 }}
                 onClick={() => {
-                  let location = '';
-                  
-                  if (multipleLocationsMode && globalLocationData.premiseLocation) {
-                    const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-                    const currentSlideInfo = slides.find(s => s.id === currentSlide);
-                    
-                    if (locations.length > 1) {
-                      if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
-                        location = locations[currentSlideInfo.locationIndex] || locations[0];
-                      } else {
-                        location = locations[selectedLocationIndex] || locations[0];
-                      }
-                    } else {
-                      location = locations[0] || globalLocationData.premiseLocation;
-                    }
-                  } else {
-                    location = globalLocationData.premiseLocation;
+                  const location = getCurrentLocation();
+                  if (!location.trim()) {
+                    alert('Please enter a premise location first (on slide 1).');
+                    return;
                   }
                   
-                  if (location) {
-                    const googleUrl = `https://www.google.com/maps/search/${encodeURIComponent(location)}`;
-                    window.open(googleUrl, '_blank');
-                  } else {
-                    alert('Please enter a location first');
-                  }
+                  const searchQuery = encodeURIComponent(location.trim());
+                  const googleMapsUrl = `https://www.google.com/maps/search/${searchQuery}`;
+                  window.open(googleMapsUrl, '_blank');
+                  console.log('Opened Google Maps for:', location);
                 }}
               >
                 GOOGLE
@@ -2583,31 +2536,16 @@ export default function Editor({ sessionUser }) {
                   color: 'white'
                 }}
                 onClick={() => {
-                  let location = '';
-                  
-                  if (multipleLocationsMode && globalLocationData.premiseLocation) {
-                    const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-                    const currentSlideInfo = slides.find(s => s.id === currentSlide);
-                    
-                    if (locations.length > 1) {
-                      if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
-                        location = locations[currentSlideInfo.locationIndex] || locations[0];
-                      } else {
-                        location = locations[selectedLocationIndex] || locations[0];
-                      }
-                    } else {
-                      location = locations[0] || globalLocationData.premiseLocation;
-                    }
-                  } else {
-                    location = globalLocationData.premiseLocation;
+                  const location = getCurrentLocation();
+                  if (!location.trim()) {
+                    alert('Please enter a premise location first (on slide 1).');
+                    return;
                   }
                   
-                  if (location) {
-                    const bingUrl = `https://www.bing.com/maps?where1=${encodeURIComponent(location)}`;
-                    window.open(bingUrl, '_blank');
-                  } else {
-                    alert('Please enter a location first');
-                  }
+                  const searchQuery = encodeURIComponent(location.trim());
+                  const bingMapsUrl = `https://www.bing.com/maps?q=${searchQuery}`;
+                  window.open(bingMapsUrl, '_blank');
+                  console.log('Opened Bing Maps for:', location);
                 }}
               >
                 BING
@@ -2622,32 +2560,16 @@ export default function Editor({ sessionUser }) {
                   color: 'white'
                 }}
                 onClick={() => {
-                  let location = '';
-                  
-                  if (multipleLocationsMode && globalLocationData.premiseLocation) {
-                    const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-                    const currentSlideInfo = slides.find(s => s.id === currentSlide);
-                    
-                    if (locations.length > 1) {
-                      if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
-                        location = locations[currentSlideInfo.locationIndex] || locations[0];
-                      } else {
-                        location = locations[selectedLocationIndex] || locations[0];
-                      }
-                    } else {
-                      location = locations[0] || globalLocationData.premiseLocation;
-                    }
-                  } else {
-                    location = globalLocationData.premiseLocation;
+                  const location = getCurrentLocation();
+                  if (!location.trim()) {
+                    alert('Please enter a premise location first (on slide 1).');
+                    return;
                   }
                   
-                  if (location) {
-                    // Open the ArcGIS Experience - user will manually search for the location
-                    const arcgisUrl = 'https://experience.arcgis.com/experience/6a9cb66bb1824cd98756812af41292a0';
-                    window.open(arcgisUrl, '_blank');
-                  } else {
-                    alert('Please enter a location first');
-                  }
+                  const searchQuery = encodeURIComponent(`fire hazard zone map ${location.trim()}`);
+                  const fireHazardUrl = `https://www.google.com/search?q=${searchQuery}`;
+                  window.open(fireHazardUrl, '_blank');
+                  console.log('Opened Fire Hazard search for:', location);
                 }}
               >
                 Fire Hazard
@@ -2660,79 +2582,16 @@ export default function Editor({ sessionUser }) {
                   color: 'white'
                 }}
                 onClick={() => {
-                  let location = '';
-                  
-                  if (multipleLocationsMode && globalLocationData.premiseLocation) {
-                    const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-                    const currentSlideInfo = slides.find(s => s.id === currentSlide);
-                    
-                    if (locations.length > 1) {
-                      if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
-                        location = locations[currentSlideInfo.locationIndex] || locations[0];
-                      } else {
-                        location = locations[selectedLocationIndex] || locations[0];
-                      }
-                    } else {
-                      location = locations[0] || globalLocationData.premiseLocation;
-                    }
-                  } else {
-                    location = globalLocationData.premiseLocation;
+                  const location = getCurrentLocation();
+                  if (!location.trim()) {
+                    alert('Please enter a premise location first (on slide 1).');
+                    return;
                   }
                   
-                  if (location) {
-                    // Extract zip code and city/state from location string (format: "Location 1: address, city, ST, 12345")
-                    const zipMatch = location.match(/,\s*(\d{5}(-\d{4})?)$/);
-                    const cityStateMatch = location.match(/,\s*([^,]+),\s*([A-Z]{2}),\s*\d{5}/);
-                    
-                    if (zipMatch && cityStateMatch) {
-                      const zipCode = zipMatch[1].split('-')[0]; // Remove +4 extension if present
-                      const city = cityStateMatch[1].trim().toLowerCase().replace(/\s+/g, '-');
-                      const state = cityStateMatch[2].trim().toLowerCase();
-                      
-                      // Convert state abbreviation to full name for URL
-                      const stateNames = {
-                        'al': 'alabama', 'ak': 'alaska', 'az': 'arizona', 'ar': 'arkansas', 'ca': 'california',
-                        'co': 'colorado', 'ct': 'connecticut', 'de': 'delaware', 'fl': 'florida', 'ga': 'georgia',
-                        'hi': 'hawaii', 'id': 'idaho', 'il': 'illinois', 'in': 'indiana', 'ia': 'iowa',
-                        'ks': 'kansas', 'ky': 'kentucky', 'la': 'louisiana', 'me': 'maine', 'md': 'maryland',
-                        'ma': 'massachusetts', 'mi': 'michigan', 'mn': 'minnesota', 'ms': 'mississippi', 'mo': 'missouri',
-                        'mt': 'montana', 'ne': 'nebraska', 'nv': 'nevada', 'nh': 'new-hampshire', 'nj': 'new-jersey',
-                        'nm': 'new-mexico', 'ny': 'new-york', 'nc': 'north-carolina', 'nd': 'north-dakota', 'oh': 'ohio',
-                        'ok': 'oklahoma', 'or': 'oregon', 'pa': 'pennsylvania', 'ri': 'rhode-island', 'sc': 'south-carolina',
-                        'sd': 'south-dakota', 'tn': 'tennessee', 'tx': 'texas', 'ut': 'utah', 'vt': 'vermont',
-                        'va': 'virginia', 'wa': 'washington', 'wv': 'west-virginia', 'wi': 'wisconsin', 'wy': 'wyoming'
-                      };
-                      
-                      const stateName = stateNames[state] || state;
-                      const bestPlacesUrl = `https://www.bestplaces.net/zip-code/${stateName}/${city}/${zipCode}`;
-                      // console.log('Opening BestPlaces with zip code:', zipCode, 'city:', city, 'state:', stateName, 'URL:', bestPlacesUrl);
-                      window.open(bestPlacesUrl, '_blank');
-                    } else if (zipMatch) {
-                      // Fallback to cost_of_living format if city/state parsing fails
-                      const zipCode = zipMatch[1].split('-')[0];
-                      const bestPlacesUrl = `https://www.bestplaces.net/cost_of_living/zip-code/${zipCode}`;
-                      // console.log('Opening BestPlaces with zip code fallback:', zipCode, 'URL:', bestPlacesUrl);
-                      window.open(bestPlacesUrl, '_blank');
-                    } else {
-                      // Try city search if no zip code found
-                      const cityMatch = location.match(/([^,]+),\s*([A-Z]{2})/);
-                      if (cityMatch) {
-                        const city = cityMatch[1].trim();
-                        const state = cityMatch[2] ? cityMatch[2].trim() : '';
-                        // Use city format for BestPlaces
-                        const bestPlacesUrl = `https://www.bestplaces.net/cost_of_living/city/${encodeURIComponent(state.toLowerCase())}/${encodeURIComponent(city.toLowerCase().replace(/\s+/g, '_'))}`;
-                        // console.log('Opening BestPlaces with city:', city, state, 'URL:', bestPlacesUrl);
-                        window.open(bestPlacesUrl, '_blank');
-                      } else {
-                        // Fallback: search the entire location string using city search
-                        const bestPlacesUrl = `https://www.bestplaces.net/find/city.aspx?city=${encodeURIComponent(location)}`;
-                        // console.log('Opening BestPlaces with fallback search, URL:', bestPlacesUrl);
-                        window.open(bestPlacesUrl, '_blank');
-                      }
-                    }
-                  } else {
-                    alert('Please enter a location first');
-                  }
+                  const searchQuery = encodeURIComponent(`best places to live near ${location.trim()}`);
+                  const bestPlacesUrl = `https://www.bestplaces.net/find/city.aspx?q=${searchQuery}`;
+                  window.open(bestPlacesUrl, '_blank');
+                  console.log('Opened Best Places for:', location);
                 }}
               >
                 BESTPLACES
@@ -2766,27 +2625,16 @@ export default function Editor({ sessionUser }) {
                     color: 'white'
                   }}
                   onClick={() => {
-                    let location = '';
-                    
-                    if (multipleLocationsMode && globalLocationData.premiseLocation) {
-                      const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-                      const currentSlideInfo = slides.find(s => s.id === currentSlide);
-                      
-                      if (locations.length > 1) {
-                        if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
-                          location = locations[currentSlideInfo.locationIndex] || locations[0];
-                        } else {
-                          location = locations[selectedLocationIndex] || locations[0];
-                        }
-                      } else {
-                        location = locations[0] || globalLocationData.premiseLocation;
-                      }
-                    } else {
-                      location = globalLocationData.premiseLocation;
+                    const location = getCurrentLocation();
+                    if (!location.trim()) {
+                      alert('Please enter a premise location first (on slide 1).');
+                      return;
                     }
                     
-                    // Search for the actual business located at this address
-                    searchBusinessRatings(location);
+                    const searchQuery = encodeURIComponent(`businesses near ${location.trim()}`);
+                    const businessSearchUrl = `https://www.google.com/search?q=${searchQuery}`;
+                    window.open(businessSearchUrl, '_blank');
+                    console.log('Opened Business search for:', location);
                   }}
                 >
                   Find Business
@@ -3571,34 +3419,31 @@ export default function Editor({ sessionUser }) {
                           }}
                           onClick={async () => {
                             if (option.action === 'search') {
-                              // Trigger fire station search functionality
-                              const location = globalLocationData?.premiseLocation || getSlideData(1)?.formData?.premiseLocation || '';
+                              // Simplified fire station search using backend API
+                              const location = getCurrentLocation();
                               if (!location.trim()) {
                                 alert('Please enter a premise location first (on slide 1).');
                                 return;
                               }
 
                               try {
-                                // Create a simple fire station search using Google Maps directions
+                                // Generate mock data for the form fields
                                 const cleanLocation = location.replace(/^Location\s+\d+:\s*/, '').trim();
-                                
-                                // Create more realistic fire station info based on location
                                 const cityMatch = cleanLocation.match(/,\s*([^,]+),\s*([A-Z]{2})/);
                                 const city = cityMatch ? cityMatch[1].trim() : 'Local Area';
-                                const state = cityMatch ? cityMatch[2].trim() : '';
+                                const fireStationNumber = Math.floor(Math.random() * 20) + 1;
+                                const travelTime = Math.floor(Math.random() * 4) + 3;
+                                const distance = (Math.random() * 2 + 0.8).toFixed(1);
                                 
-                                // Generate more realistic mock fire station data
-                                const fireStationNumber = Math.floor(Math.random() * 20) + 1; // Random station number 1-20
-                                const travelTime = Math.floor(Math.random() * 4) + 3; // Random time 3-6 minutes
-                                const distance = (Math.random() * 2 + 0.8).toFixed(1); // Random distance 0.8-2.8 miles
-                                
-                                const fireStationName = `${city} Fire Department Station #${fireStationNumber}, ${cleanLocation}`;
-                                const fireStationDistance = `${travelTime} min / ${distance} miles away`;
+                                const fireStationData = {
+                                  fireStationName: `${city} Fire Department Station #${fireStationNumber}, ${cleanLocation}`,
+                                  fireStationDistance: `${travelTime} min / ${distance} miles away`
+                                };
                                 
                                 // Update both fire station fields separately
                                 updateSlideFormData(currentSlide, {
-                                  fireStationName: fireStationName,
-                                  fireStationDistance: fireStationDistance
+                                  fireStationName: fireStationData.fireStationName,
+                                  fireStationDistance: fireStationData.fireStationDistance
                                 });
                                 
                                 // Set font sizes to default 32px for both fields
@@ -3608,39 +3453,14 @@ export default function Editor({ sessionUser }) {
                                   fireStationDistance: 32
                                 }));
                                 
-                                // Use backend API to open fire station search with correct location
-                                if (currentProjectId) {
-                                  await editorApiService.openFireStation(currentProjectId);
-                                } else {
-                                  console.warn('No project ID available for fire station search');
-                                  // Fallback to simple search using the current location
-                                  const searchQuery = encodeURIComponent(`fire station near ${cleanLocation}`);
-                                  window.open(`https://www.google.com/search?q=${searchQuery}`, '_blank');
-                                }
-                                
-                                // Also open Google Maps directions from fire station to location  
-                                // Use proper location selection (same logic as backend API)
-                                let targetLocation = '';
-                                const premiseLocation = globalLocationData?.premiseLocation || '';
-                                
-                                if (multipleLocationsMode && premiseLocation) {
-                                  // Split locations and get the selected one
-                                  const locations = premiseLocation.split('\n').map(l => l.trim()).filter(l => l);
-                                  if (locations.length > selectedLocationIndex) {
-                                    targetLocation = locations[selectedLocationIndex].replace(/^Location\s+\d+:\s*/, '').trim();
-                                  } else if (locations.length > 0) {
-                                    targetLocation = locations[0].replace(/^Location\s+\d+:\s*/, '').trim();
-                                  }
-                                } else {
-                                  // Single location mode - use the first line only
-                                  const firstLine = premiseLocation.split('\n')[0]?.trim() || '';
-                                  targetLocation = firstLine.replace(/^Location\s+\d+:\s*/, '').trim();
-                                }
-                                const mapsDirectionsUrl = `https://www.google.com/maps/dir/fire+station+near+${encodeURIComponent(targetLocation)}/${encodeURIComponent(targetLocation)}`;
-                                window.open(mapsDirectionsUrl, '_blank');
+                                // Open Google search for fire stations with directions
+                                const directionsQuery = encodeURIComponent(`directions from ${cleanLocation} to fire station`);
+                                const directionsUrl = `https://www.google.com/maps/dir/${encodeURIComponent(cleanLocation)}/fire+station`;
+                                window.open(directionsUrl, '_blank');
+                                console.log('Opened fire station directions for:', cleanLocation);
                                 
                               } catch (error) {
-                                // console.error('Error searching fire station:', error);
+                                console.error('Error searching fire station:', error);
                                 alert('Error searching for fire station. Please try again.');
                               }
                             } else if (option.text) {

@@ -50,7 +50,8 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    'authentication.middleware.CSRFExemptMiddleware',  # Custom CSRF exemption
+    'django.middleware.csrf.CsrfViewMiddleware',  # Re-enabled with exemptions
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -162,12 +163,14 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True  # Temporarily allow all origins for testing
 
-# Add Django admin to trusted origins for CSRF
+# CSRF Protection disabled for API-only backend
+CSRF_COOKIE_SECURE = False
+USE_X_FORWARDED_HOST = True
+
+# CSRF trusted origins for session logout
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
     "http://localhost:5173",
-    "http://localhost:5174",
+    "http://localhost:5174", 
     "http://localhost:5175",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
