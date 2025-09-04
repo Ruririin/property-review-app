@@ -6,6 +6,7 @@ import { useLocation } from "react-router-dom";
 import Editor from "./pages/Editor.jsx";
 import DemoBanner from "./components/DemoBanner.jsx";
 import { DEMO_CONFIG } from "./config/demoConfig.js";
+import authService from "./services/authService.js";
 
 function App() {
   const [sessionUser, setSessionUser] = useState(null);
@@ -13,19 +14,45 @@ function App() {
   const location = useLocation();
 
   useEffect(() => {
-    // Use sessionStorage instead of localStorage to make sessions tab-specific
-    const storedUser = sessionStorage.getItem("sessionUser");
-    setSessionUser(storedUser);
-    setIsLoading(false);
+    // Check session status with backend
+    const checkSession = async () => {
+      try {
+        const sessionStatus = await authService.getSessionStatus();
+        if (sessionStatus.authenticated) {
+          setSessionUser(sessionStatus.user.display_name || sessionStatus.user.username);
+        } else {
+          setSessionUser(null);
+        }
+      } catch (error) {
+        console.error('Failed to check session:', error);
+        setSessionUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSession();
   }, [location]);
 
-  const handleUserSelected = (userName) => {
-    setSessionUser(userName);
+  const handleUserSelected = async (userName) => {
+    try {
+      await authService.startSession(userName);
+      setSessionUser(userName);
+    } catch (error) {
+      console.error('Failed to start session:', error);
+      alert('Failed to start session. Please try again.');
+    }
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem("sessionUser");
-    setSessionUser(null);
+  const handleLogout = async () => {
+    try {
+      await authService.endSession();
+      setSessionUser(null);
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      // Still clear local state even if backend call fails
+      setSessionUser(null);
+    }
   };
 
   if (isLoading) {

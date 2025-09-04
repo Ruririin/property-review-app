@@ -5,18 +5,31 @@
 
 import { useState, useCallback } from 'react';
 import { parseMultipleLocations } from '../utils/locationUtils';
+import editorApiService from '../services/editorApiService';
 
 export const useSidebarToolbar = () => {
   const [showToolbar, setShowToolbar] = useState(true);
   const [isDrawingMode, setIsDrawingMode] = useState(false);
 
-  // Font size change handler
-  const handleFontSizeChange = useCallback((value, selectedField, setFontSizes) => {
+  // Font size change handler with backend sync
+  const handleFontSizeChange = useCallback(async (value, selectedField, setFontSizes, projectId, apiService) => {
     if (selectedField && value) {
-      setFontSizes(prev => ({
-        ...prev,
-        [selectedField]: parseInt(value)
-      }));
+      const newFontSize = parseInt(value);
+      
+      setFontSizes(prev => {
+        const newFontSizes = {
+          ...prev,
+          [selectedField]: newFontSize
+        };
+        
+        // Save to backend if we have project and API service
+        if (projectId && apiService) {
+          apiService.updateAppState(projectId, { fontSizes: newFontSizes })
+            .catch(error => console.error('Failed to save font size:', error));
+        }
+        
+        return newFontSizes;
+      });
     }
   }, []);
 
@@ -30,62 +43,22 @@ export const useSidebarToolbar = () => {
     window.open(url, '_blank');
   }, []);
 
-  // Open Google Maps
-  const handleOpenGoogleMaps = useCallback((globalLocationData, multipleLocationsMode, selectedLocationIndex, slides, currentSlide) => {
-    let location = '';
-    
-    if (multipleLocationsMode && globalLocationData.premiseLocation) {
-      const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-      const currentSlideInfo = slides.find(s => s.id === currentSlide);
-      
-      if (locations.length > 1) {
-        if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
-          location = locations[currentSlideInfo.locationIndex] || locations[0];
-        } else {
-          location = locations[selectedLocationIndex] || locations[0];
-        }
-      } else {
-        location = locations[0] || globalLocationData.premiseLocation;
-      }
-    } else {
-      location = globalLocationData.premiseLocation || '';
+  // Open Google Maps (simplified with backend API)
+  const handleOpenGoogleMaps = useCallback(async (currentProjectId) => {
+    if (!currentProjectId) {
+      console.warn('No project ID available for Google Maps');
+      return;
     }
-    
-    if (location.trim()) {
-      const encodedLocation = encodeURIComponent(location.trim());
-      window.open(`https://www.google.com/maps/search/?api=1&query=${encodedLocation}`, '_blank');
-    } else {
-      console.warn('No location available for Google Maps');
-    }
+    await editorApiService.openGoogleMaps(currentProjectId);
   }, []);
 
-  // Open Bing Maps
-  const handleOpenBingMaps = useCallback((globalLocationData, multipleLocationsMode, selectedLocationIndex, slides, currentSlide) => {
-    let location = '';
-    
-    if (multipleLocationsMode && globalLocationData.premiseLocation) {
-      const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-      const currentSlideInfo = slides.find(s => s.id === currentSlide);
-      
-      if (locations.length > 1) {
-        if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
-          location = locations[currentSlideInfo.locationIndex] || locations[0];
-        } else {
-          location = locations[selectedLocationIndex] || locations[0];
-        }
-      } else {
-        location = locations[0] || globalLocationData.premiseLocation;
-      }
-    } else {
-      location = globalLocationData.premiseLocation || '';
+  // Open Bing Maps (simplified with backend API)
+  const handleOpenBingMaps = useCallback(async (currentProjectId) => {
+    if (!currentProjectId) {
+      console.warn('No project ID available for Bing Maps');
+      return;
     }
-    
-    if (location.trim()) {
-      const encodedLocation = encodeURIComponent(location.trim());
-      window.open(`https://www.bing.com/maps?q=${encodedLocation}`, '_blank');
-    } else {
-      console.warn('No location available for Bing Maps');
-    }
+    await editorApiService.openBingMaps(currentProjectId);
   }, []);
 
   // Zoom controls
@@ -121,6 +94,24 @@ export const useSidebarToolbar = () => {
     }));
   }, []);
 
+  // Toggle website field with backend sync
+  const handleToggleWebsite = useCallback(async (showWebsite, setShowWebsite, projectId, apiService) => {
+    try {
+      const newShowWebsite = !showWebsite;
+      setShowWebsite(newShowWebsite);
+      
+      // Save to backend if we have project and API service
+      if (projectId && apiService) {
+        await apiService.updateAppState(projectId, { showWebsite: newShowWebsite });
+        console.log('🔄 Website visibility toggled:', newShowWebsite);
+      }
+    } catch (error) {
+      console.error('Error toggling website:', error);
+      // Revert on error
+      setShowWebsite(showWebsite);
+    }
+  }, []);
+
   // Toggle multiple locations mode
   const handleToggleMultipleLocations = useCallback(async (currentProjectId, multipleLocationsMode, setMultipleLocationsMode, apiService) => {
     try {
@@ -148,6 +139,7 @@ export const useSidebarToolbar = () => {
     // Actions
     handleFontSizeChange,
     handleVisitWebsite,
+    handleToggleWebsite,
     handleOpenGoogleMaps,
     handleOpenBingMaps,
     handleZoomIn,

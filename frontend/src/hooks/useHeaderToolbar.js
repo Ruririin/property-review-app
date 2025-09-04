@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import lroDataService from '../services/lroDataService';
 import { exportToPDF } from '../utils/pdfExport';
 import { projectSaveService } from '../services/serviceFactory';
+import apiService from '../services/apiService';
 
 export const useHeaderToolbar = (sessionUser, currentProjectId) => {
   const [lroForms, setLroForms] = useState([]);
@@ -136,13 +137,25 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
   }, []);
 
   // Handle mark complete
-  const handleMarkComplete = useCallback(() => {
+  const handleMarkComplete = useCallback(async () => {
     if (currentProjectId && sessionUser) {
-      const success = projectSaveService.markProjectCompleted(currentProjectId, sessionUser);
-      if (success) {
-        console.log('✅ Project marked as completed');
-        // Could navigate back to home page here
-        window.location.href = '/';
+      try {
+        // Get current project data first
+        const project = await apiService.getProject(currentProjectId);
+        if (project) {
+          // Update project status to completed
+          await apiService.updateProject(currentProjectId, {
+            ...project,
+            status: 'completed'
+          });
+          console.log('✅ Project marked as completed');
+          alert('Project marked as completed!');
+          // Navigate back to home page
+          window.location.href = '/';
+        }
+      } catch (error) {
+        console.error('Failed to mark project as completed:', error);
+        alert('Failed to mark project as completed. Please try again.');
       }
     }
   }, [currentProjectId, sessionUser]);

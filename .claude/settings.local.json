@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(timeout 5 curl -s http://localhost:8000/api/projects/)"
+      "Bash(timeout 5 curl -s http://localhost:8000/api/projects/)",
+      "Bash(python manage.py:*)"
     ],
     "deny": [],
     "ask": []

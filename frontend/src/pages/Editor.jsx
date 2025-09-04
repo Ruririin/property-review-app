@@ -21,6 +21,7 @@ import { loadIsoCodes, findBestMatch } from "../services/isoCodeService";
 import userActivityService from "../services/userActivityService";
 import fieldActivityService from "../services/fieldActivityService";
 import apiService from "../services/apiService";
+import editorApiService from "../services/editorApiService";
 import FieldEditorTag from "../components/FieldEditorTag";
 import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
@@ -435,7 +436,7 @@ export default function Editor({ sessionUser }) {
     if (sessionUser && currentProjectId && (slideData || globalLocationData)) {
       // Debounce auto-save to avoid excessive saves (10 seconds for auto-save to reduce DB load)
       const timeoutId = setTimeout(async () => {
-        console.log('🔄 Auto-save triggered - calling unified save function');
+        // Auto-save triggered
         await saveProject(true); // Pass 'true' to indicate this is an auto-save
       }, 10000); // 10 second debounce for auto-save (reduced frequency to prevent localStorage quota issues)
       
@@ -581,7 +582,7 @@ export default function Editor({ sessionUser }) {
         Object.entries(lroFormData).forEach(([field, value]) => {
           locationDataService.updateLocationData(selectedLocationIndex, field, value);
         });
-        console.log('📍 Updated location data for location', selectedLocationIndex);
+        // Updated location data
       }
 
       // Always update slide form data (this will handle location-aware routing)
@@ -593,11 +594,11 @@ export default function Editor({ sessionUser }) {
           ...prev,
           ...lroFormData
         };
-        console.log('🔍 LRO DEBUG - Updated globalLocationData:', updatedData);
+        // Updated global location data
         return updatedData;
       });
       
-      console.log('✅ LRO form loading completed');
+      // LRO form loading completed
       
       // Update user activity to show which specific application they're working on
       if (sessionUser && apiResponse.insuredName) {
@@ -881,10 +882,21 @@ export default function Editor({ sessionUser }) {
     setBusinessesAtLocation([]);
   };
 
-  const handleFontSizeChange = (e) => {
+  const handleFontSizeChange = async (e) => {
     const size = parseInt(e.target.value);
     if (selectedField && !isNaN(size)) {
-      setFontSizes((prev) => ({ ...prev, [selectedField]: size }));
+      setFontSizes((prev) => {
+        const newFontSizes = { ...prev, [selectedField]: size };
+        
+        // Save to backend if we have a current project
+        if (currentProjectId) {
+          apiService.updateAppState(currentProjectId, { fontSizes: newFontSizes })
+            .then(() => console.log('✅ Font size saved to backend:', selectedField, size))
+            .catch(error => console.error('❌ Failed to save font size:', error));
+        }
+        
+        return newFontSizes;
+      });
     }
   };
 
@@ -956,7 +968,7 @@ export default function Editor({ sessionUser }) {
     const maxY = Math.max(rect.startY, rect.endY);
     
     const isInside = x >= minX && x <= maxX && y >= minY && y <= maxY;
-    console.log(`🎯 Point (${x.toFixed(2)}, ${y.toFixed(2)}) in rect (${minX.toFixed(2)}, ${minY.toFixed(2)}) to (${maxX.toFixed(2)}, ${maxY.toFixed(2)}): ${isInside}`);
+    // Point in rectangle check
     
     return isInside;
   };
@@ -1276,7 +1288,7 @@ export default function Editor({ sessionUser }) {
           });
         }
         
-        console.log(`📍 Using location data for slide ${slideId}, location ${slideLocationIndex + 1}:`, locationData);
+        // Using location-specific data
       } else {
         // Location service not properly initialized or index out of range, use global data
         locationData = globalLocationData;
@@ -1352,7 +1364,7 @@ export default function Editor({ sessionUser }) {
       
       if (isPropertyInfoSlide) {
         // For property info slide, ALL updates go to globalLocationData
-        console.log('🔄 UpdateSlideFormData: Updating globalLocationData for property info slide:', formUpdates);
+        // Updating global data for property info slide
         setGlobalLocationData(prev => ({
           ...prev,
           ...formUpdates
@@ -1639,20 +1651,24 @@ export default function Editor({ sessionUser }) {
   const markProjectCompleted = async () => {
     if (currentProjectId) {
       try {
-        // Save current state and mark as completed
-        await apiService.updateProject(currentProjectId, {
-          ...projectData,
-          status: 'completed'
-        });
-        
-        // Clean up field activity tracking when project is completed
-        if (currentFormId) {
-          fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
+        // Get current project data first
+        const project = await apiService.getProject(currentProjectId);
+        if (project) {
+          // Update project status to completed
+          await apiService.updateProject(currentProjectId, {
+            ...project,
+            status: 'completed'
+          });
+          
+          // Clean up field activity tracking when project is completed
+          if (currentFormId) {
+            fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
+          }
+          fieldActivityService.stopEditingField(sessionUser, `project-${currentProjectId}`);
+          
+          alert('Project marked as completed!');
+          navigate('/');
         }
-        fieldActivityService.stopEditingField(sessionUser, `project-${currentProjectId}`);
-        
-        alert('Project marked as completed!');
-        navigate('/');
       } catch (error) {
         console.error('Failed to mark project as completed:', error);
         alert('Failed to mark project as completed. Please try again.');
@@ -1663,7 +1679,7 @@ export default function Editor({ sessionUser }) {
   // Manual save function
   const saveProject = async (isAutoSave = false) => {
     const saveType = isAutoSave ? 'AUTO-SAVE' : 'MANUAL SAVE';
-    console.log(`🎯 ${saveType} initiated for project:`, currentProjectId);
+    // Save initiated
     
     if (!sessionUser) {
       console.error(`❌ ${saveType} FAILED: No session user`);
@@ -1711,7 +1727,7 @@ export default function Editor({ sessionUser }) {
         ...(getSlideData(1)?.formData || {})
       };
       
-      console.log('💾 SAVE DEBUG - Using form data for save:', currentFormData);
+      // Using current form data for save
       
       // Create comprehensive slideData that includes all app state
       const enhancedSlideData = {
@@ -1722,6 +1738,7 @@ export default function Editor({ sessionUser }) {
           fontSizes: fontSizes,
           premiseLocation: currentFormData.premiseLocation || '',
           globalLocationData: globalLocationData, // Save complete global data
+          sessionUser: sessionUser, // Store session user for homepage display
           fieldPositions: Object.keys(slideData).reduce((acc, slideId) => {
             if (slideData[slideId]?.fieldPositions) {
               acc[`slide_${slideId}`] = slideData[slideId].fieldPositions;
@@ -1751,7 +1768,7 @@ export default function Editor({ sessionUser }) {
       try {
         const result = await apiService.updateProject(currentProjectId, projectData);
         
-        console.log(`✅ ${saveType} SUCCESS for project:`, currentProjectId);
+        // Save completed successfully
         setHasUnsavedChanges(false);
         setLastSaveTime(new Date());
         
@@ -1774,12 +1791,12 @@ export default function Editor({ sessionUser }) {
   // Unified auto-save function (now just calls the main saveProject with auto-save flag)
   const autoSave = async () => {
     if (sessionUser && currentProjectId && hasUnsavedChanges) {
-      console.log('🔄 Interval-based auto-save triggered');
+      // Interval auto-save triggered
       setIsAutoSaving(true);
       try {
         const success = await saveProject(true); // true = isAutoSave
         if (success) {
-          console.log('✅ Interval auto-save completed at:', new Date().toLocaleTimeString());
+          // Interval auto-save completed
         }
       } catch (error) {
         console.error('❌ Interval auto-save failed:', error);
@@ -2465,7 +2482,22 @@ export default function Editor({ sessionUser }) {
                 type="checkbox"
                 id="toggleWebsite"
                 checked={showWebsite}
-                onChange={() => setShowWebsite(!showWebsite)}
+                onChange={async () => {
+                  try {
+                    const newShowWebsite = !showWebsite;
+                    setShowWebsite(newShowWebsite);
+                    
+                    // Save to backend if we have a current project
+                    if (currentProjectId) {
+                      await apiService.updateAppState(currentProjectId, { showWebsite: newShowWebsite });
+                      console.log('✅ Website visibility saved to backend:', newShowWebsite);
+                    }
+                  } catch (error) {
+                    console.error('❌ Failed to save website visibility:', error);
+                    // Revert on error
+                    setShowWebsite(!showWebsite);
+                  }
+                }}
               />
               <label className="form-check-label fw-bold" htmlFor="toggleWebsite">
                 Website Field
@@ -2816,7 +2848,7 @@ export default function Editor({ sessionUser }) {
                 type="checkbox"
                 id="toggleMultipleLocations"
                 checked={multipleLocationsMode}
-                onChange={() => {
+                onChange={async () => {
                   const newMode = !multipleLocationsMode;
                   setMultipleLocationsMode(newMode);
                   
@@ -2840,6 +2872,17 @@ export default function Editor({ sessionUser }) {
                     locationDataService.initializeFromProject({
                       formData: globalLocationData
                     }, false);
+                  }
+                  
+                  // Save to backend using API service
+                  try {
+                    if (currentProjectId) {
+                      await apiService.toggleMultipleLocations(currentProjectId);
+                      console.log('✅ Multiple locations mode saved to backend:', newMode);
+                    }
+                  } catch (error) {
+                    console.error('❌ Failed to save multiple locations mode:', error);
+                    // Don't revert since the local state change is likely still valid
                   }
                 }}
               />
@@ -3526,7 +3569,7 @@ export default function Editor({ sessionUser }) {
                             height: "auto",
                             minHeight: "28px"
                           }}
-                          onClick={() => {
+                          onClick={async () => {
                             if (option.action === 'search') {
                               // Trigger fire station search functionality
                               const location = globalLocationData?.premiseLocation || getSlideData(1)?.formData?.premiseLocation || '';
@@ -3565,9 +3608,36 @@ export default function Editor({ sessionUser }) {
                                   fireStationDistance: 32
                                 }));
                                 
-                                // Also open Google Maps in directions mode from fire station to location
-                                const directionsUrl = `https://www.google.com/maps/dir/fire+station+near+${encodeURIComponent(cleanLocation)}/${encodeURIComponent(cleanLocation)}`;
-                                window.open(directionsUrl, '_blank');
+                                // Use backend API to open fire station search with correct location
+                                if (currentProjectId) {
+                                  await editorApiService.openFireStation(currentProjectId);
+                                } else {
+                                  console.warn('No project ID available for fire station search');
+                                  // Fallback to simple search using the current location
+                                  const searchQuery = encodeURIComponent(`fire station near ${cleanLocation}`);
+                                  window.open(`https://www.google.com/search?q=${searchQuery}`, '_blank');
+                                }
+                                
+                                // Also open Google Maps directions from fire station to location  
+                                // Use proper location selection (same logic as backend API)
+                                let targetLocation = '';
+                                const premiseLocation = globalLocationData?.premiseLocation || '';
+                                
+                                if (multipleLocationsMode && premiseLocation) {
+                                  // Split locations and get the selected one
+                                  const locations = premiseLocation.split('\n').map(l => l.trim()).filter(l => l);
+                                  if (locations.length > selectedLocationIndex) {
+                                    targetLocation = locations[selectedLocationIndex].replace(/^Location\s+\d+:\s*/, '').trim();
+                                  } else if (locations.length > 0) {
+                                    targetLocation = locations[0].replace(/^Location\s+\d+:\s*/, '').trim();
+                                  }
+                                } else {
+                                  // Single location mode - use the first line only
+                                  const firstLine = premiseLocation.split('\n')[0]?.trim() || '';
+                                  targetLocation = firstLine.replace(/^Location\s+\d+:\s*/, '').trim();
+                                }
+                                const mapsDirectionsUrl = `https://www.google.com/maps/dir/fire+station+near+${encodeURIComponent(targetLocation)}/${encodeURIComponent(targetLocation)}`;
+                                window.open(mapsDirectionsUrl, '_blank');
                                 
                               } catch (error) {
                                 // console.error('Error searching fire station:', error);
@@ -3739,32 +3809,22 @@ export default function Editor({ sessionUser }) {
                     
                     // Check if clicking on an existing drawing to delete it
                     const existingDrawings = slideData[currentSlide]?.drawings || [];
-                    console.log('🖱️ Click coordinates:', { clickX, clickY });
-                    console.log('📐 Existing drawings:', existingDrawings.map((d, i) => ({ 
-                      index: i, 
-                      startX: d.startX, 
-                      startY: d.startY, 
-                      endX: d.endX, 
-                      endY: d.endY,
-                      minX: Math.min(d.startX, d.endX),
-                      maxX: Math.max(d.startX, d.endX),
-                      minY: Math.min(d.startY, d.endY),
-                      maxY: Math.max(d.startY, d.endY)
-                    })));
+                    // Click coordinates available for debugging
+                    // Existing drawings data available for debugging
                     
                     const clickedDrawingIndex = existingDrawings.findIndex(drawing => 
                       isPointInRectangle(clickX, clickY, drawing)
                     );
                     
-                    console.log('🔍 Drawing click - existingDrawings:', existingDrawings.length, 'clickedDrawingIndex:', clickedDrawingIndex);
+                    // Drawing click processed
                     
                     if (clickedDrawingIndex !== -1) {
                       // Select the clicked drawing for editing
-                      console.log('✅ Selecting drawing:', clickedDrawingIndex);
+                      // Selecting drawing for editing
                       setSelectedDrawingIndex(clickedDrawingIndex);
                     } else {
                       // Deselect any selected drawing and start drawing a new rectangle
-                      console.log('🎯 Starting new drawing');
+                      // Starting new drawing
                       setSelectedDrawingIndex(null);
                       setIsDrawing(true);
                       setCurrentDrawing({

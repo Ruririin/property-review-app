@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import "./css/SessionUserPicker.css";
+import authService from "../services/authService";
 
 export default function SessionUserPicker({ onUserSelected }) {
   const [selectedUser, setSelectedUser] = useState("");
@@ -7,47 +8,42 @@ export default function SessionUserPicker({ onUserSelected }) {
   const [isCustomInput, setIsCustomInput] = useState(false);
   const [recentUsers, setRecentUsers] = useState([]);
 
-  // Load recent users from localStorage on component mount
+  // Load recent users from backend on component mount
   useEffect(() => {
-    const stored = localStorage.getItem("recentUsers");
-    if (stored) {
-      const users = JSON.parse(stored);
-      setRecentUsers(users);
-      // If no recent users, default to custom input mode
-      if (users.length === 0) {
+    const loadRecentUsers = async () => {
+      try {
+        const sessionStatus = await authService.getSessionStatus();
+        const users = sessionStatus.recent_users || [];
+        setRecentUsers(users);
+        // If no recent users, default to custom input mode
+        if (users.length === 0) {
+          setIsCustomInput(true);
+        }
+      } catch (error) {
+        console.error('Failed to load recent users:', error);
+        // Default to custom input mode on error
         setIsCustomInput(true);
       }
-    } else {
-      // No stored users, default to custom input mode
-      setIsCustomInput(true);
-    }
+    };
+
+    loadRecentUsers();
   }, []);
 
-  const handleUserSelection = () => {
+  const handleUserSelection = async () => {
     const userName = isCustomInput ? customName.trim() : selectedUser;
     
     if (!userName) {
       return;
     }
 
-    // Add to recent users if it's a new name
-    let updatedRecent = [...recentUsers];
-    if (!updatedRecent.includes(userName)) {
-      updatedRecent = [userName, ...updatedRecent.slice(0, 9)]; // Keep max 10 recent users
-      setRecentUsers(updatedRecent);
-      localStorage.setItem("recentUsers", JSON.stringify(updatedRecent));
-    }
-
-    // Set session user and notify parent (use sessionStorage for tab-specific sessions)
-    sessionStorage.setItem("sessionUser", userName);
-    onUserSelected(userName);
+    // The backend will handle adding to recent users
+    await onUserSelected(userName);
   };
 
-  const handleQuickSelect = (userName) => {
+  const handleQuickSelect = async (userName) => {
     setSelectedUser(userName);
     setIsCustomInput(false);
-    sessionStorage.setItem("sessionUser", userName);
-    onUserSelected(userName);
+    await onUserSelected(userName);
   };
 
   return (

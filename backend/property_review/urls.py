@@ -16,5 +16,19 @@ urlpatterns = [
     path('projects/<uuid:project_id>/export-pdf/', views.export_project_pdf_view, name='export_project_pdf'),
     path('textbox-dimensions/save/', views.save_textbox_dimensions_view, name='save_textbox_dimensions'),
     path('textbox-dimensions/<str:slide_id>/', views.get_textbox_dimensions_view, name='get_textbox_dimensions'),
+    
+    # Image management endpoints
+    path('slides/upload-image/', views.upload_slide_image_view, name='upload_slide_image'),
+    path('slides/<uuid:project_id>/<str:slide_id>/delete-image/', views.delete_slide_image_view, name='delete_slide_image'),
+    
+    # Session authentication endpoints
+    path('auth/session-login/', views.session_login_view, name='session_login'),
+    path('auth/session-logout/', views.session_logout_view, name='session_logout'),
+    path('auth/session-status/', views.session_status_view, name='session_status'),
+    
+    # Sidebar button API endpoints
+    path('location-url/', views.get_location_url_view, name='get_location_url'),
+    path('search-business/', views.search_business_view, name='search_business'),
+    
     path('slides/', include('property_review.slides.urls')),
 ]

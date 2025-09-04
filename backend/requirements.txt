@@ -5,6 +5,7 @@ mysqlclient==2.2.7
 Pillow==11.3.0
 reportlab==4.4.3
 python-dotenv==1.0.1
+python-decouple==3.8
 
 # For PPTX processing (your existing scripts)
 python-pptx

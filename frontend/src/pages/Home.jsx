@@ -10,12 +10,32 @@ export default function Home({ sessionUser, onLogout }) {
   const [completedProjects, setCompletedProjects] = useState([]);
   const [activeUsers, setActiveUsers] = useState([]);
 
+  // Helper function to get user display name
+  const getUserDisplayName = (project) => {
+    // Try to get user from stored session data in project
+    const storedSessionUser = project.slideData?._appState?.sessionUser || 
+                             project.formData?.sessionUser || 
+                             project.sessionUser;
+    
+    if (storedSessionUser) {
+      return storedSessionUser;
+    }
+    
+    // If this is the current user's project (created recently)
+    if (project.owner && sessionUser) {
+      return sessionUser;
+    }
+    
+    // Fallback to owner ID
+    return `User ${project.owner || 'Unknown'}`;
+  };
+
   const refreshProjects = async () => {
     if (sessionUser) {
       try {
         // Get all projects from database
         const allProjects = await apiService.listProjects();
-        console.log('🔄 Home: Loaded projects from database:', allProjects);
+        // Loaded projects from database
         
         // Filter by status
         const activeProjects = allProjects.filter(p => p.status !== 'completed');
@@ -53,7 +73,7 @@ export default function Home({ sessionUser, onLogout }) {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && sessionUser) {
-        console.log('🔄 Home: Page visible, refreshing projects...');
+        // Page visible, refreshing projects
         refreshProjects();
       }
     };
@@ -178,27 +198,27 @@ export default function Home({ sessionUser, onLogout }) {
                     <div className="card shadow-sm h-100">
                       <div className="card-body">
                         <h5 className="card-title fw-bold mb-3">
-                          {project.insuredName || project.formData?.insuredName || project.slideData?.[1]?.formData?.insuredName || 'Untitled Project'}
+                          {project.title || project.formData?.insuredName || project.slideData?.[1]?.formData?.insuredName || 'Untitled Project'}
                         </h5>
                         
                         <div className="d-flex justify-content-between align-items-center mb-4">
                           <div>
                             <small className="text-muted d-block">
                               <i className="bi bi-person me-1" style={{ color: "#198754" }}></i>
-                              Created by: <strong>{project.sessionUser}</strong>
+                              Created by: <strong>{getUserDisplayName(project)}</strong>
                             </small>
                             <small className="text-muted d-block">
                               <i className="bi bi-clock me-1" style={{ color: "#198754" }}></i>
-                              Modified: {new Date(project.lastModified).toLocaleDateString()}
+                              Modified: {new Date(project.updated_at).toLocaleDateString()}
                             </small>
                             <small className="text-muted d-block">
                               <i className="bi bi-calendar me-1" style={{ color: "#198754" }}></i>
-                              Created: {new Date(project.created).toLocaleDateString()}
+                              Created: {new Date(project.created_at).toLocaleDateString()}
                             </small>
                           </div>
                           <div className="text-end">
                             <span className="badge bg-light text-dark">
-                              {project.slides?.length || 1} slide{(project.slides?.length || 1) !== 1 ? 's' : ''}
+                              {project.slideData?._slides?.length || 1} slide{(project.slideData?._slides?.length || 1) !== 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>
@@ -240,7 +260,7 @@ export default function Home({ sessionUser, onLogout }) {
                         <div className="card-body">
                           <div className="d-flex justify-content-between align-items-start mb-2">
                             <h6 className="card-title fw-bold mb-0">
-                              {project.insuredName || project.title || 'Untitled Project'}
+                              {project.title || project.formData?.insuredName || 'Untitled Project'}
                             </h6>
                             <span className="badge bg-success">Complete</span>
                           </div>
@@ -248,15 +268,15 @@ export default function Home({ sessionUser, onLogout }) {
                           <div className="mb-3">
                             <small className="text-muted d-block">
                               <i className="bi bi-person me-1" style={{ color: "#198754" }}></i>
-                              Created by: <strong>{project.sessionUser}</strong>
+                              Created by: <strong>{getUserDisplayName(project)}</strong>
                             </small>
                             <small className="text-muted d-block">
                               <i className="bi bi-check-circle me-1" style={{ color: "#198754" }}></i>
-                              Completed: {new Date(project.completedAt).toLocaleDateString()}
+                              Completed: {new Date(project.updated_at).toLocaleDateString()}
                             </small>
                             <small className="text-muted d-block">
                               <i className="bi bi-file-earmark-pdf me-1" style={{ color: "#198754" }}></i>
-                              Exported: {project.exportCount || 0} times
+                              Slides: {project.slideData?._slides?.length || 1}
                             </small>
                           </div>
                           

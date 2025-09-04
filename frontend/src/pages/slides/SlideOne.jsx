@@ -43,6 +43,7 @@ const SlideOne = forwardRef(({
   const [isLineBusinessDropdownOpen, setIsLineBusinessDropdownOpen] = useState(false);
   const [isDescriptionDropdownOpen, setIsDescriptionDropdownOpen] = useState(false);
   const [descriptionMatches, setDescriptionMatches] = useState([]);
+  const [isUserEditingDescription, setIsUserEditingDescription] = useState(false);
   
   const containerRef = useRef(null);
 
@@ -116,9 +117,11 @@ const SlideOne = forwardRef(({
       const similarMatches = findSimilarMatches(currentDescription);
       
       if (similarMatches.length > 1) {
-        // Multiple matches found - show dropdown
+        // Multiple matches found - only show dropdown if user is actively editing
         setDescriptionMatches(similarMatches);
-        setIsDescriptionDropdownOpen(true);
+        if (isUserEditingDescription) {
+          setIsDescriptionDropdownOpen(true);
+        }
       } else if (similarMatches.length === 1) {
         // Single match - auto-populate with full format from database
         const bestMatch = similarMatches[0];
@@ -148,7 +151,7 @@ const SlideOne = forwardRef(({
         setFormValue('isoClass', currentDescription);
       }
     }
-  }, [formData?.description]);
+  }, [formData?.description, isUserEditingDescription]);
 
   const handleChange = (field, value) => {
     // Use location-aware data setter
@@ -561,12 +564,19 @@ const SlideOne = forwardRef(({
           onChange={(e) => handleChange('description', e.target.value)}
           onInput={(e) => autoResize(e.target)}
           placeholder="Type of Operation"
-          onFocus={() => onSelect('description')}
+          onFocus={() => {
+            onSelect('description');
+            setIsUserEditingDescription(true);
+          }}
+          onBlur={() => {
+            setIsUserEditingDescription(false);
+          }}
           onClick={() => {
             if (descriptionMatches.length > 1) {
               setIsDescriptionDropdownOpen(!isDescriptionDropdownOpen);
             }
             onSelect('description');
+            setIsUserEditingDescription(true);
           }}
           onMouseDown={(e) => {
             if (selectedField === 'description') {
@@ -659,7 +669,7 @@ const SlideOne = forwardRef(({
                 }}
                 title="Close dropdown"
               >
-                Ã—
+                ×
               </button>
             </div>
             

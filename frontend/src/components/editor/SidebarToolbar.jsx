@@ -17,7 +17,7 @@ const SidebarToolbar = ({
   websiteUrl = '',
   onVisitWebsite = () => {},
   
-  // Maps
+  // Maps (now use backend API)
   onOpenGoogleMaps = () => {},
   onOpenBingMaps = () => {},
   

@@ -23,19 +23,16 @@ class ApiService {
     };
 
     try {
-      console.log(`🔄 API Request: ${config.method || 'GET'} ${url}`);
-      if (config.body && (config.method === 'POST' || config.method === 'PATCH')) {
-        try {
-          const bodyData = JSON.parse(config.body);
-          console.log(`📤 Request body preview:`, bodyData);
-          if (bodyData.slideData) {
-            console.log(`📤 Request slideData keys:`, Object.keys(bodyData.slideData));
+      // Only log API requests in development mode
+      if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
+        console.log(`🔄 API Request: ${config.method || 'GET'} ${url}`);
+        if (config.body && (config.method === 'POST' || config.method === 'PATCH')) {
+          try {
+            const bodyData = JSON.parse(config.body);
+            console.log(`📤 Request body preview:`, bodyData);
+          } catch (e) {
+            console.log(`📤 Request body (raw):`, config.body);
           }
-          if (bodyData.formData) {
-            console.log(`📤 Request formData keys:`, Object.keys(bodyData.formData));
-          }
-        } catch (e) {
-          console.log(`📤 Request body (raw):`, config.body);
         }
       }
       const response = await fetch(url, config);
@@ -53,12 +50,16 @@ class ApiService {
       // Handle empty responses (like DELETE 204 No Content)
       const contentType = response.headers.get('content-type');
       if (response.status === 204 || !contentType?.includes('application/json')) {
-        console.log(`✅ API Success: ${config.method || 'GET'} ${endpoint} (No content)`);
+        if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
+          console.log(`✅ API Success: ${config.method || 'GET'} ${endpoint} (No content)`);
+        }
         return null;
       }
 
       const data = await response.json();
-      console.log(`✅ API Success: ${config.method || 'GET'} ${endpoint}`, data);
+      if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
+        console.log(`✅ API Success: ${config.method || 'GET'} ${endpoint}`, data);
+      }
       return data;
     } catch (error) {
       console.error(`❌ API Error: ${config.method || 'GET'} ${endpoint}`, error);
@@ -73,6 +74,36 @@ class ApiService {
     return this.request(`/projects/${projectId}/toggle_multiple_locations/`, {
       method: 'POST'
     });
+  }
+
+  /**
+   * Update app state settings (website visibility, font sizes, etc.)
+   */
+  async updateAppState(projectId, appStateUpdates) {
+    try {
+      // Get current project
+      const project = await this.getProject(projectId);
+      if (!project) {
+        throw new Error('Project not found');
+      }
+
+      // Update the app state within slideData
+      const updatedSlideData = {
+        ...project.slideData,
+        _appState: {
+          ...project.slideData._appState,
+          ...appStateUpdates
+        }
+      };
+
+      // Save the updated project
+      return this.updateProject(projectId, {
+        slideData: updatedSlideData
+      });
+    } catch (error) {
+      console.error('Error updating app state:', error);
+      throw error;
+    }
   }
 
   async setSelectedLocation(projectId, selectedLocationIndex) {

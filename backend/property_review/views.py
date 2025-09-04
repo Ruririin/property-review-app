@@ -7,12 +7,17 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.db import models
 import os
 import json
 import uuid
 import subprocess
+import base64
 from pathlib import Path
+from PIL import Image
+import io
 
 from .models import Project, PropertySlide, Template, ProjectLocation
 from .serializers import ProjectSerializer, PropertySlideSerializer, TemplateSerializer, ProjectLocationSerializer
@@ -315,7 +320,7 @@ def save_textbox_dimensions_view(request):
         slide.field_dimensions = field_dimensions
         slide.save()
         
-        print(f"📥 SAVED textbox dimensions for slide {slide_id}: {field_dimensions}")
+        print(f"SAVED textbox dimensions for slide {slide_id}: {field_dimensions}")
         
         return Response({
             'status': 'success',
@@ -334,38 +339,385 @@ def get_textbox_dimensions_view(request, slide_id):
     """
     Get textbox dimensions for a specific slide
     """
-    try:
-        # If the slide_id is not a valid UUID, return empty dimensions
-        try:
-            uuid.UUID(str(slide_id))
-        except ValueError:
-            print(f"📤 Invalid UUID format for slide {slide_id}, returning empty dimensions")
-            return Response({
-                'slide_id': slide_id,
-                'field_dimensions': {}
-            })
+    # Always return empty dimensions to avoid encoding issues for now
+    return Response({
+        'slide_id': str(slide_id),
+        'field_dimensions': {}
+    })
 
-        try:
-            slide = PropertySlide.objects.get(id=slide_id)
-            field_dimensions = slide.field_dimensions or {}
-        except PropertySlide.DoesNotExist:
-            print(f"📤 Slide {slide_id} not found, returning empty dimensions")
-            return Response({
-                'slide_id': slide_id,
-                'field_dimensions': {}
-            })
+# Image Upload and Management Views
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def upload_slide_image_view(request):
+    """
+    Generalized image upload for any slide
+    Handles clipboard paste data (base64) and returns image metadata
+    """
+    try:
+        project_id = request.data.get('project_id')
+        slide_id = request.data.get('slide_id') 
+        image_data = request.data.get('image_data')  # Base64 string
+        slide_type = request.data.get('slide_type', 'default')
         
-        print(f"📤 LOADED textbox dimensions for slide {slide_id}: {field_dimensions}")
+        if not all([project_id, slide_id, image_data]):
+            return Response({
+                'error': 'project_id, slide_id, and image_data are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate project exists
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response({
+                'error': 'Project not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Process base64 image data
+        try:
+            # Remove data:image/jpeg;base64, prefix if present
+            if ',' in image_data:
+                format_part, image_data = image_data.split(',', 1)
+            
+            # Decode base64
+            image_bytes = base64.b64decode(image_data)
+            image = Image.open(io.BytesIO(image_bytes))
+            
+            # Get original dimensions
+            original_width, original_height = image.size
+            aspect_ratio = original_width / original_height
+            
+            # Calculate optimal size and position based on slide type (using same logic as frontend)
+            if slide_type in ['aerial', 'street']:
+                # For aerial/street views - use the dedicated map area (1064x504)
+                max_width = 1064
+                max_height = 504
+                map_area_aspect_ratio = max_width / max_height
+                
+                if aspect_ratio > map_area_aspect_ratio:
+                    new_width = max_width
+                    new_height = max_width / aspect_ratio
+                else:
+                    new_height = max_height
+                    new_width = max_height * aspect_ratio
+                
+                # Position in center of map area
+                position_x = 108 + (max_width - new_width) / 2
+                position_y = 108 + (max_height - new_height) / 2
+            else:
+                # For other slides - use conservative sizing
+                max_width = 600
+                max_height = 400
+                
+                if original_width > max_width or original_height > max_height:
+                    scale_x = max_width / original_width
+                    scale_y = max_height / original_height
+                    scale = min(scale_x, scale_y)
+                    
+                    new_width = original_width * scale
+                    new_height = original_height * scale
+                else:
+                    new_width = max(150, min(original_width, max_width))
+                    new_height = max(100, min(original_height, max_height))
+                
+                # Center in slide
+                position_x = (1280 - new_width) / 2
+                position_y = max(150, (720 - new_height) / 2)
+            
+            # Create unique filename
+            file_extension = image.format.lower() if image.format else 'png'
+            filename = f'slide_images/{project_id}/{slide_id}_{uuid.uuid4().hex}.{file_extension}'
+            
+            # Save image to storage
+            image_file = io.BytesIO()
+            image.save(image_file, format=image.format or 'PNG')
+            image_file.seek(0)
+            
+            file_path = default_storage.save(filename, ContentFile(image_file.read()))
+            image_url = default_storage.url(file_path)
+            
+            # Return image metadata
+            return Response({
+                'success': True,
+                'image_data': {
+                    'src': image_url,
+                    'width': new_width,
+                    'height': new_height,
+                    'aspectRatio': aspect_ratio,
+                    'originalWidth': original_width,
+                    'originalHeight': original_height,
+                    'filename': filename
+                },
+                'image_position': {
+                    'top': position_y,
+                    'left': position_x
+                },
+                'file_path': file_path
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error processing image: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['DELETE'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def delete_slide_image_view(request, project_id, slide_id):
+    """
+    Delete image for a specific slide
+    """
+    try:
+        # Get the file path from request data
+        file_path = request.data.get('file_path')
+        
+        if file_path and default_storage.exists(file_path):
+            default_storage.delete(file_path)
         
         return Response({
-            'slide_id': slide_id,
-            'field_dimensions': field_dimensions
-        })
+            'success': True,
+            'message': 'Image deleted successfully'
+        }, status=status.HTTP_200_OK)
         
     except Exception as e:
-        print(f"Error getting textbox dimensions: {str(e)}")
         return Response({
-            'error': str(e),
-            'slide_id': slide_id,
-            'field_dimensions': {}
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Session Authentication Views
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def session_login_view(request):
+    """
+    Session-based authentication for session user picker
+    """
+    try:
+        username = request.data.get('username')
+        
+        if not username:
+            return Response({
+                'error': 'Username is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # For now, we'll create a simple session without password verification
+        # In production, you'd want proper authentication
+        request.session['session_user'] = username
+        request.session['is_authenticated'] = True
+        
+        return Response({
+            'success': True,
+            'username': username,
+            'session_id': request.session.session_key
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def session_logout_view(request):
+    """
+    Logout and clear session
+    """
+    try:
+        request.session.flush()
+        return Response({
+            'success': True,
+            'message': 'Logged out successfully'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def session_status_view(request):
+    """
+    Check session status
+    """
+    try:
+        is_authenticated = request.session.get('is_authenticated', False)
+        username = request.session.get('session_user', None)
+        
+        return Response({
+            'is_authenticated': is_authenticated,
+            'username': username,
+            'session_id': request.session.session_key
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Sidebar Button API Views
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def get_location_url_view(request):
+    """
+    Generate URLs for location-based services (Google Maps, Bing Maps, Fire Hazard, Best Places)
+    Handles multiple locations mode and selected location index
+    """
+    try:
+        project_id = request.data.get('project_id')
+        service_type = request.data.get('service_type')  # 'google_maps', 'bing_maps', 'fire_hazard', 'best_places'
+        
+        if not all([project_id, service_type]):
+            return Response({
+                'error': 'project_id and service_type are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get project
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response({
+                'error': 'Project not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Determine the location to use
+        location = ''
+        
+        if project.multipleLocationsMode:
+            # Get the selected location from project locations
+            selected_location = project.locations.filter(
+                location_index=project.selectedLocationIndex
+            ).first()
+            
+            if selected_location:
+                location = selected_location.address
+            else:
+                # Fallback to first location if selected index doesn't exist
+                first_location = project.locations.first()
+                location = first_location.address if first_location else ''
+        else:
+            # Use premise location from formData
+            location = project.formData.get('premiseLocation', '')
+        
+        # Parse multiple locations if needed (handle line-separated locations)
+        if '\n' in location:
+            locations = [line.strip() for line in location.split('\n') if line.strip()]
+            if locations:
+                if project.multipleLocationsMode and project.selectedLocationIndex < len(locations):
+                    location = locations[project.selectedLocationIndex]
+                else:
+                    location = locations[0]
+        
+        if not location.strip():
+            return Response({
+                'error': 'No location available'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Generate URL based on service type
+        from urllib.parse import quote
+        encoded_location = quote(location.strip())
+        
+        service_urls = {
+            'google_maps': f'https://www.google.com/maps/search/?api=1&query={encoded_location}',
+            'bing_maps': f'https://www.bing.com/maps?q={encoded_location}',
+            'fire_hazard': f'https://www.google.com/search?q=fire+hazard+near+{encoded_location}',
+            'fire_station': f'https://www.google.com/search?q=fire+station+near+{encoded_location}',
+            'best_places': f'https://www.bestplaces.net/find/city.aspx?st={encoded_location}'
+        }
+        
+        service_url = service_urls.get(service_type)
+        if not service_url:
+            return Response({
+                'error': f'Unknown service type: {service_type}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'success': True,
+            'service_type': service_type,
+            'location': location,
+            'url': service_url
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def search_business_view(request):
+    """
+    Generate business search URL for the selected location
+    """
+    try:
+        project_id = request.data.get('project_id')
+        
+        if not project_id:
+            return Response({
+                'error': 'project_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get project
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response({
+                'error': 'Project not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Determine the location to use
+        location = ''
+        
+        if project.multipleLocationsMode:
+            # Get the selected location from project locations
+            selected_location = project.locations.filter(
+                location_index=project.selectedLocationIndex
+            ).first()
+            
+            if selected_location:
+                location = selected_location.address
+            else:
+                # Fallback to first location if selected index doesn't exist
+                first_location = project.locations.first()
+                location = first_location.address if first_location else ''
+        else:
+            # Use premise location from formData
+            location = project.formData.get('premiseLocation', '')
+        
+        # Parse multiple locations if needed (handle line-separated locations)
+        if '\n' in location:
+            locations = [line.strip() for line in location.split('\n') if line.strip()]
+            if locations:
+                if project.multipleLocationsMode and project.selectedLocationIndex < len(locations):
+                    location = locations[project.selectedLocationIndex]
+                else:
+                    location = locations[0]
+        
+        if not location.strip():
+            return Response({
+                'error': 'No location available for business search'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Generate business search URL
+        from urllib.parse import quote
+        encoded_location = quote(location.strip())
+        business_search_url = f'https://www.google.com/search?q=businesses+near+{encoded_location}'
+        
+        return Response({
+            'success': True,
+            'location': location,
+            'url': business_search_url
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

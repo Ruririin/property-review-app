@@ -18,7 +18,7 @@ export function useLocationAwareData(
   useEffect(() => {
     if (multipleLocationsMode) {
       const data = locationDataService.getLocationData(selectedLocationIndex);
-      console.log(`🏢 Loading location data for index ${selectedLocationIndex}:`, data);
+      // Loading location data
       setLocationFormData(data);
     } else {
       setLocationFormData(globalFormData || {});
