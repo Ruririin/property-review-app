@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.exceptions import ValidationError
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
@@ -566,19 +566,6 @@ def session_logout_view(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def get_csrf_token_view(request):
-    """
-    Get CSRF token
-    """
-    from django.middleware.csrf import get_token
-    token = get_token(request)
-    return Response({
-        'csrfToken': token
-    }, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-@ensure_csrf_cookie
 def session_status_view(request):
     """
     Check session status
@@ -588,13 +575,8 @@ def session_status_view(request):
         username = request.session.get('session_user', None)
         
         return Response({
-            'authenticated': is_authenticated,  # Use 'authenticated' to match frontend
+            'is_authenticated': is_authenticated,
             'username': username,
-            'user': {
-                'username': username,
-                'display_name': username
-            } if username else None,
-            'recent_users': [],  # Add this for compatibility
             'session_id': request.session.session_key
         }, status=status.HTTP_200_OK)
         
@@ -609,12 +591,14 @@ def session_status_view(request):
 @csrf_exempt
 def get_location_url_view(request):
     """
-    Generate URLs for location-based services (Google Maps, Bing Maps, Fire Hazard, Best Places)
+    Generate URLs for location-based services (Google Maps, Bing Maps, Fire Hazard)
     Handles multiple locations mode and selected location index
     """
     try:
         project_id = request.data.get('project_id')
-        service_type = request.data.get('service_type')  # 'google_maps', 'bing_maps', 'fire_hazard', 'best_places'
+        service_type = request.data.get('service_type')  # 'google_maps', 'bing_maps', 'fire_hazard'
+        
+        print(f"🔍 Location URL request - Project: {project_id}, Service: {service_type}")
         
         if not all([project_id, service_type]):
             return Response({
@@ -664,14 +648,15 @@ def get_location_url_view(request):
         
         # Generate URL based on service type
         from urllib.parse import quote
+        import re
         encoded_location = quote(location.strip())
         
+        # Standard service URLs for all services
         service_urls = {
             'google_maps': f'https://www.google.com/maps/search/?api=1&query={encoded_location}',
             'bing_maps': f'https://www.bing.com/maps?q={encoded_location}',
             'fire_hazard': f'https://www.google.com/search?q=fire+hazard+near+{encoded_location}',
             'fire_station': f'https://www.google.com/search?q=fire+station+near+{encoded_location}',
-            'best_places': f'https://www.bestplaces.net/find/city.aspx?st={encoded_location}'
         }
         
         service_url = service_urls.get(service_type)
@@ -679,6 +664,8 @@ def get_location_url_view(request):
             return Response({
                 'error': f'Unknown service type: {service_type}'
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+        print(f"🌐 Generated URL for {service_type}: {service_url}")
         
         return Response({
             'success': True,
@@ -796,22 +783,21 @@ def update_slide_content_view(request):
         # Update project slideData with the new content and positions
         slide_data = project.slideData or {}
         
-        # Initialize slide-specific data if it doesn't exist (ensure slide_id is string)
-        slide_id_str = str(slide_id)
-        if slide_id_str not in slide_data:
-            slide_data[slide_id_str] = {}
+        # Initialize slide-specific data if it doesn't exist
+        if slide_id not in slide_data:
+            slide_data[slide_id] = {}
         
         # Update content (comments, fire hazard data, etc.)
         if content_updates:
-            slide_data[slide_id_str]['content'] = {
-                **slide_data[slide_id_str].get('content', {}),
+            slide_data[slide_id]['content'] = {
+                **slide_data[slide_id].get('content', {}),
                 **content_updates
             }
         
         # Update field positions (textbox dimensions and positions)
         if field_positions:
-            slide_data[slide_id_str]['fieldPositions'] = {
-                **slide_data[slide_id_str].get('fieldPositions', {}),
+            slide_data[slide_id]['fieldPositions'] = {
+                **slide_data[slide_id].get('fieldPositions', {}),
                 **field_positions
             }
         
@@ -822,7 +808,7 @@ def update_slide_content_view(request):
         return Response({
             'success': True,
             'message': f'{slide_type} slide updated successfully',
-            'slide_data': slide_data[slide_id_str]
+            'slide_data': slide_data[slide_id]
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
@@ -847,7 +833,7 @@ def get_slide_content_view(request, project_id, slide_id):
         
         # Get slide data
         slide_data = project.slideData or {}
-        slide_content = slide_data.get(str(slide_id), {})  # Ensure slide_id is string
+        slide_content = slide_data.get(slide_id, {})
         
         return Response({
             'slide_id': slide_id,
