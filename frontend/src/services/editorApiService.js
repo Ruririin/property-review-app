@@ -41,17 +41,20 @@ class EditorApiService {
   /**
    * Get location-based service URL
    * @param {string} projectId - Project ID
-   * @param {string} serviceType - 'google_maps', 'bing_maps', 'fire_hazard', 'best_places'
+   * @param {string} serviceType - 'google_maps', 'bing_maps', 'fire_hazard'
    * @returns {Promise<{success: boolean, service_type: string, location: string, url: string}>}
    */
   async getLocationUrl(projectId, serviceType) {
-    return this.request('/location-url/', {
+    console.log(`🔗 Calling getLocationUrl with projectId: ${projectId}, serviceType: ${serviceType}`);
+    const result = await this.request('/location-url/', {
       method: 'POST',
       body: JSON.stringify({
         project_id: projectId,
         service_type: serviceType
       })
     });
+    console.log(`📡 getLocationUrl response:`, result);
+    return result;
   }
 
   /**
@@ -133,22 +136,6 @@ class EditorApiService {
   }
 
   /**
-   * Open Best Places search for the current location
-   * @param {string} projectId - Project ID
-   */
-  async openBestPlaces(projectId) {
-    try {
-      const result = await this.getLocationUrl(projectId, 'best_places');
-      if (result.success && result.url) {
-        window.open(result.url, '_blank');
-        console.log('=� Opened Best Places for:', result.location);
-      }
-    } catch (error) {
-      console.error('Error opening Best Places:', error);
-    }
-  }
-
-  /**
    * Open business search for the current location
    * @param {string} projectId - Project ID
    */
@@ -157,7 +144,7 @@ class EditorApiService {
       const result = await this.getBusinessSearchUrl(projectId);
       if (result.success && result.url) {
         window.open(result.url, '_blank');
-        console.log('<� Opened Business search for:', result.location);
+        console.log('✅ Opened Business search for:', result.location);
       }
     } catch (error) {
       console.error('Error opening Business search:', error);

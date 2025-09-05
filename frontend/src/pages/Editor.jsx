@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDevice } from "../hooks/useDevice";
 import MobileToolbar from "../components/MobileToolbar";
+import Sidebar from "../components/Sidebar";
 import "../styles/mobile.css";
 import SlideOne from "./slides/SlideOne";
 import SlideTwo from "./slides/SlideTwo";
@@ -21,6 +22,7 @@ import { loadIsoCodes, findBestMatch } from "../services/isoCodeService";
 import userActivityService from "../services/userActivityService";
 import fieldActivityService from "../services/fieldActivityService";
 import apiService from "../services/apiService";
+import editorApiService from "../services/editorApiService";
 import FieldEditorTag from "../components/FieldEditorTag";
 import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
@@ -31,6 +33,50 @@ const SLIDES_BAR_HEIGHT = 160; // Increased height to show scroll bar properly
 const ZOOM_MIN = 50;
 const ZOOM_MAX = 200;
 const ZOOM_STEP = 10;
+
+// CACHE-BUSTER: New Best Places function to force browser refresh
+const handleBestPlacesClickSept4_2025_FINAL = (globalLocationData, multipleLocationsMode, parseMultipleLocations, slides, currentSlide, selectedLocationIndex) => {
+  console.log('🆕🆕🆕 BRAND NEW FUNCTION EXECUTED - SEPT 4 2025! 🆕🆕🆕');
+  alert('✅ SUCCESS! New function is working!');
+  
+  console.log('� Parameters:', { globalLocationData, multipleLocationsMode, slides, currentSlide, selectedLocationIndex });
+  
+  let location = '';
+  if (multipleLocationsMode && globalLocationData.premiseLocation) {
+    const locations = parseMultipleLocations(globalLocationData.premiseLocation);
+    const currentSlideInfo = slides.find(s => s.id === currentSlide);
+    
+    if (locations.length > 1) {
+      if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
+        location = locations[currentSlideInfo.locationIndex] || locations[0];
+      } else {
+        location = locations[selectedLocationIndex] || locations[0];
+      }
+    } else {
+      location = locations[0] || globalLocationData.premiseLocation;
+    }
+  } else {
+    location = globalLocationData.premiseLocation;
+  }
+  
+  if (location) {
+    console.log('🏠 FRESH Best Places - Processing location:', location);
+    const zipMatch = location.match(/\b(\d{5})/);
+    
+    if (zipMatch) {
+      const zipCode = zipMatch[1];
+      const bestPlacesUrl = `https://www.bestplaces.net/search/?q=${zipCode}`;
+      console.log('🔍 FRESH Best Places - Zip code:', zipCode);
+      console.log('🌐 FRESH Best Places - URL:', bestPlacesUrl);
+      window.open(bestPlacesUrl, '_blank');
+    } else {
+      console.log('❌ FRESH Best Places - No zip code found in:', location);
+      alert('Could not extract zip code from the location.');
+    }
+  } else {
+    alert('Please enter a location first');
+  }
+};
 
 const BUTTON_STYLES = {
   toggleArrow: {
@@ -187,12 +233,22 @@ export default function Editor({ sessionUser }) {
   const [selectedDrawingIndex, setSelectedDrawingIndex] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeHandle, setResizeHandle] = useState(null); // 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
+  const [isSquareEditMode, setIsSquareEditMode] = useState(false); // New state for square editing after drawing
+  const [isDraggingPoint, setIsDraggingPoint] = useState(false);
+  const [draggingPointIndex, setDraggingPointIndex] = useState(null); // 0=topLeft, 1=topRight, 2=bottomLeft, 3=bottomRight
 
   // Add keyboard support for deleting selected drawings
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (isDrawingMode && selectedDrawingIndex !== null && (e.key === 'Delete' || e.key === 'Backspace')) {
+      if ((isDrawingMode || isSquareEditMode) && selectedDrawingIndex !== null && (e.key === 'Delete' || e.key === 'Backspace')) {
         deleteDrawing(selectedDrawingIndex);
+        setSelectedDrawingIndex(null);
+        e.preventDefault();
+      }
+      
+      // ESC to exit square edit mode
+      if (e.key === 'Escape' && isSquareEditMode) {
+        setIsSquareEditMode(false);
         setSelectedDrawingIndex(null);
         e.preventDefault();
       }
@@ -200,7 +256,85 @@ export default function Editor({ sessionUser }) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isDrawingMode, selectedDrawingIndex]);
+  }, [isDrawingMode, isSquareEditMode, selectedDrawingIndex]);
+  
+  // Automatically enable square edit mode when exiting drawing mode if squares exist
+  useEffect(() => {
+    if (!isDrawingMode && !isSquareEditMode) {
+      const currentSlideDrawings = getSlideData(currentSlide)?.drawings || [];
+      if (currentSlideDrawings.length > 0) {
+        setIsSquareEditMode(true);
+      }
+    }
+  }, [isDrawingMode, currentSlide]);
+
+  // Helper function to convert rectangle to points (for backward compatibility)
+  const rectToPoints = (drawing) => {
+    if (drawing.points) {
+      return drawing.points; // Already has points
+    }
+    
+    // Convert old rectangle format to points
+    const minX = Math.min(drawing.startX, drawing.endX);
+    const minY = Math.min(drawing.startY, drawing.endY);
+    const maxX = Math.max(drawing.startX, drawing.endX);
+    const maxY = Math.max(drawing.startY, drawing.endY);
+    
+    return [
+      { x: minX, y: minY },     // topLeft
+      { x: maxX, y: minY },     // topRight  
+      { x: minX, y: maxY },     // bottomLeft
+      { x: maxX, y: maxY }      // bottomRight
+    ];
+  };
+
+  // Helper function to get bounds from points (for rendering)
+  const getPointsBounds = (points) => {
+    const xs = points.map(p => p.x);
+    const ys = points.map(p => p.y);
+    return {
+      minX: Math.min(...xs),
+      minY: Math.min(...ys),
+      maxX: Math.max(...xs),
+      maxY: Math.max(...ys)
+    };
+  };
+
+  // Start dragging individual point
+  const startPointDrag = (e, drawingIndex, pointIndex) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    setIsDraggingPoint(true);
+    setDraggingPointIndex(pointIndex);
+    setSelectedDrawingIndex(drawingIndex);
+    setIsResizing(false); // Disable other resize modes
+  };
+
+  // Update point position during drag
+  const updatePointPosition = (drawingIndex, pointIndex, newX, newY) => {
+    const updatedDrawings = [...(slideData[currentSlide]?.drawings || [])];
+    const drawing = updatedDrawings[drawingIndex];
+    
+    if (drawing) {
+      // Ensure drawing has points array
+      if (!drawing.points) {
+        drawing.points = rectToPoints(drawing);
+      }
+      
+      // Update the specific point
+      drawing.points[pointIndex] = { x: newX, y: newY };
+      
+      // Update slide data
+      setSlideData(prev => ({
+        ...prev,
+        [currentSlide]: {
+          ...prev[currentSlide],
+          drawings: updatedDrawings
+        }
+      }));
+    }
+  };
   
   // Multiple locations state
   const [multipleLocationsMode, setMultipleLocationsMode] = useState(false);
@@ -568,12 +702,7 @@ export default function Editor({ sessionUser }) {
         isoClass: apiResponse.isoClass || '',
       };
 
-      console.log('🔍 LRO Loading Debug:', { 
-        multipleLocationsMode, 
-        selectedLocationIndex, 
-        lroFormData,
-        locationServiceCount: locationDataService.getLocationCount()
-      });
+      // Debug output removed to reduce console clutter
 
       // Update both location service and slide data
       if (multipleLocationsMode && selectedLocationIndex !== undefined) {
@@ -801,18 +930,22 @@ export default function Editor({ sessionUser }) {
     'Comments', 'Nearest Fire Station', 'Fire Hazard', 'Crime Rate', 'Ratings', 'Website'
   ];
 
-  // Simple business search function
-  const searchBusinessRatings = (location, businessName = null) => {
+  // Simplified business search using backend API
+  const searchBusinessRatings = async (location, businessName = null) => {
     if (!location) {
       alert('Please enter a location first');
       return;
     }
     
-    // Simple business search
-    const searchQuery = businessName ? `"${businessName}" reviews` : `business near ${location}`;
-    const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-    window.open(googleSearchUrl, '_blank');
-    console.log('Opened business search for:', location, businessName);
+    if (currentProjectId) {
+      await editorApiService.openBusinessSearch(currentProjectId);
+    } else {
+      // Fallback for when no project ID is available
+      const cleanLocation = location.replace(/^Location\s+\d+:\s*/, '').trim();
+      const searchQuery = businessName ? `"${businessName}" "${cleanLocation}" reviews` : cleanLocation;
+      const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+      window.open(googleSearchUrl, '_blank');
+    }
   };
 
   // Simplified business detection - always show ratings for simplicity
@@ -872,27 +1005,6 @@ export default function Editor({ sessionUser }) {
     });
     
     return locations;
-  };
-
-  // Helper function to get current location (eliminates duplicated parsing logic)
-  const getCurrentLocation = () => {
-    const premiseLocation = globalLocationData?.premiseLocation || getSlideData(1)?.formData?.premiseLocation || '';
-    
-    if (!premiseLocation.trim()) return '';
-    
-    if (multipleLocationsMode) {
-      const locations = parseMultipleLocations(premiseLocation);
-      if (locations.length > selectedLocationIndex) {
-        return locations[selectedLocationIndex];
-      } else if (locations.length > 0) {
-        return locations[0];
-      }
-      return '';
-    } else {
-      // Single location mode - use the first line only
-      const firstLine = premiseLocation.split('\n')[0]?.trim() || '';
-      return firstLine.replace(/^Location\s+\d+:\s*/, '').trim();
-    }
   };
 
   // Generate slides for multiple locations
@@ -1115,6 +1227,18 @@ export default function Editor({ sessionUser }) {
       e.stopPropagation();
     }
 
+    // Handle individual point dragging
+    if (isDraggingPoint && draggingPointIndex !== null && selectedDrawingIndex !== null) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left - canvasOffset.x) / (zoomLevel / 100);
+      const mouseY = (e.clientY - rect.top - canvasOffset.y) / (zoomLevel / 100);
+      
+      updatePointPosition(selectedDrawingIndex, draggingPointIndex, mouseX, mouseY);
+      
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     // Handle canvas dragging
     if (isDraggingCanvas) {
       const newOffset = {
@@ -1138,10 +1262,16 @@ export default function Editor({ sessionUser }) {
         endY: currentDrawing.endY
       });
       
+      // Convert to point-based format for new drawings
+      const drawingWithPoints = {
+        ...currentDrawing,
+        points: rectToPoints(currentDrawing)
+      };
+      
       // Save the completed drawing to the current slide
       const updatedSlideData = {
         ...slideData[currentSlide],
-        drawings: [...(slideData[currentSlide]?.drawings || []), currentDrawing]
+        drawings: [...(slideData[currentSlide]?.drawings || []), drawingWithPoints]
       };
       
       setSlideData(prev => ({
@@ -1151,6 +1281,12 @@ export default function Editor({ sessionUser }) {
       
       setIsDrawing(false);
       setCurrentDrawing(null);
+    }
+
+    // Handle point dragging mode
+    if (isDraggingPoint) {
+      setIsDraggingPoint(false);
+      setDraggingPointIndex(null);
     }
 
     // Handle resize mode
@@ -1874,7 +2010,28 @@ export default function Editor({ sessionUser }) {
     
     const lines = premiseLocationText.split('\n').filter(line => line.trim());
     return lines[locationIndex] || lines[0] || premiseLocationText;
-  };  const deleteSlide = (slideId) => {
+  };
+
+  // Helper function to get current location (eliminates duplicated parsing logic)
+  const getCurrentLocation = () => {
+    const premiseLocation = globalLocationData?.premiseLocation || getSlideData(1)?.formData?.premiseLocation || '';
+    
+    if (!premiseLocation.trim()) return '';
+    
+    if (multipleLocationsMode) {
+      const locations = parseMultipleLocations(premiseLocation);
+      if (locations.length > selectedLocationIndex) {
+        return locations[selectedLocationIndex];
+      }
+      return locations[0] || '';
+    } else {
+      // Single location mode - use the first line only
+      const firstLine = premiseLocation.split('\n')[0]?.trim() || '';
+      return firstLine.replace(/^Location\s+\d+:\s*/, '').trim();
+    }
+  };
+
+  const deleteSlide = (slideId) => {
     if (slides.length > 1) {
       const slideToDelete = slides.find(slide => slide.id === slideId);
       const updatedSlides = slides.filter(slide => slide.id !== slideId);
@@ -1975,8 +2132,7 @@ export default function Editor({ sessionUser }) {
     
     // Debug logging for SlideOne data flow (reduced logging)
     if (isPropertyInfoSlide && (!formDataToUse.insuredName || !formDataToUse.website)) {
-      console.log(`🔍 SlideOne DEBUG - Missing data - slideId: ${slideId}, type: ${slideData.type}`);
-      console.log(`🔍 SlideOne DEBUG - formDataToUse:`, formDataToUse);
+      // Debug output removed to reduce console clutter
     }
 
     const slideProps = {
@@ -2429,1329 +2585,179 @@ export default function Editor({ sessionUser }) {
             scrollbarColor: "#c1c1c1 #f1f1f1", // For Firefox
           }}
         >
-          <div className="mb-3">
-            <label className="form-label small fw-bold">Font Size</label>
-            <input
-              type="number"
-              className="form-control form-control-sm"
-              min="10"
-              max="100"
-              value={selectedField ? fontSizes[selectedField] : ""}
-              onChange={handleFontSizeChange}
-              disabled={!selectedField}
-              placeholder="Select field"
-            />
-          </div>
-
-          <div className="mb-3">
-            <div className="form-check form-switch">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="toggleWebsite"
-                checked={showWebsite}
-                onChange={async () => {
-                  try {
-                    const newShowWebsite = !showWebsite;
-                    setShowWebsite(newShowWebsite);
-                    
-                    // Save to backend if we have a current project
-                    if (currentProjectId) {
-                      await apiService.updateAppState(currentProjectId, { showWebsite: newShowWebsite });
-                      console.log('✅ Website visibility saved to backend:', newShowWebsite);
-                    }
-                  } catch (error) {
-                    console.error('❌ Failed to save website visibility:', error);
-                    // Revert on error
-                    setShowWebsite(!showWebsite);
-                  }
-                }}
-              />
-              <label className="form-check-label fw-bold" htmlFor="toggleWebsite">
-                Website Field
-              </label>
-            </div>
-            
-            {/* Visit Website Button - only show if website field is enabled and has data */}
-            {showWebsite && (() => {
-              const slide1FormData = getSlideData(1)?.formData || {};
-              const websiteValue = slide1FormData.website || '';
-              return websiteValue && websiteValue.trim() !== '' ? (
-                <div className="mt-2">
-                  <button
-                    className="btn btn-sm w-100"
-                    style={{
-                      backgroundColor: '#2d5016',
-                      borderColor: '#2d5016',
-                      color: 'white',
-                      fontSize: '12px',
-                      padding: '6px 12px'
-                    }}
-                    onClick={() => {
-                      let url = websiteValue;
-                      // Add https:// if no protocol is specified
-                      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                        url = 'https://' + url;
-                      }
-                      window.open(url, '_blank');
-                    }}
-                  >
-                    Visit Website
-                  </button>
-                </div>
-              ) : null;
-            })()}
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label small fw-bold d-block mb-2">Maps</label>
-            <div className="d-flex gap-2 mb-2">
-              <button
-                className="btn btn-sm flex-1"
-                style={{
-                  backgroundColor: '#2d5016',
-                  borderColor: '#2d5016',
-                  color: 'white'
-                }}
-                onClick={() => {
-                  const location = getCurrentLocation();
-                  if (!location.trim()) {
-                    alert('Please enter a premise location first (on slide 1).');
-                    return;
-                  }
-                  
-                  const searchQuery = encodeURIComponent(location.trim());
-                  const googleMapsUrl = `https://www.google.com/maps/search/${searchQuery}`;
-                  window.open(googleMapsUrl, '_blank');
-                  console.log('Opened Google Maps for:', location);
-                }}
-              >
-                GOOGLE
-              </button>
-              <button
-                className="btn btn-sm flex-1"
-                style={{
-                  backgroundColor: '#2d5016',
-                  borderColor: '#2d5016',
-                  color: 'white'
-                }}
-                onClick={() => {
-                  const location = getCurrentLocation();
-                  if (!location.trim()) {
-                    alert('Please enter a premise location first (on slide 1).');
-                    return;
-                  }
-                  
-                  const searchQuery = encodeURIComponent(location.trim());
-                  const bingMapsUrl = `https://www.bing.com/maps?q=${searchQuery}`;
-                  window.open(bingMapsUrl, '_blank');
-                  console.log('Opened Bing Maps for:', location);
-                }}
-              >
-                BING
-              </button>
-            </div>
-            <div className="d-flex gap-2">
-              <button
-                className="btn btn-sm flex-1"
-                style={{
-                  backgroundColor: '#2d5016',
-                  borderColor: '#2d5016',
-                  color: 'white'
-                }}
-                onClick={() => {
-                  const location = getCurrentLocation();
-                  if (!location.trim()) {
-                    alert('Please enter a premise location first (on slide 1).');
-                    return;
-                  }
-                  
-                  const searchQuery = encodeURIComponent(`fire hazard zone map ${location.trim()}`);
-                  const fireHazardUrl = `https://www.google.com/search?q=${searchQuery}`;
-                  window.open(fireHazardUrl, '_blank');
-                  console.log('Opened Fire Hazard search for:', location);
-                }}
-              >
-                Fire Hazard
-              </button>
-              <button
-                className="btn btn-sm flex-1"
-                style={{
-                  backgroundColor: '#2d5016',
-                  borderColor: '#2d5016',
-                  color: 'white'
-                }}
-                onClick={() => {
-                  const location = getCurrentLocation();
-                  if (!location.trim()) {
-                    alert('Please enter a premise location first (on slide 1).');
-                    return;
-                  }
-                  
-                  const searchQuery = encodeURIComponent(`best places to live near ${location.trim()}`);
-                  const bestPlacesUrl = `https://www.bestplaces.net/find/city.aspx?q=${searchQuery}`;
-                  window.open(bestPlacesUrl, '_blank');
-                  console.log('Opened Best Places for:', location);
-                }}
-              >
-                BESTPLACES
-              </button>
-              <button
-                className="btn btn-sm flex-1"
-                style={{
-                  backgroundColor: '#2d5016',
-                  borderColor: '#2d5016',
-                  color: 'white'
-                }}
-                onClick={() => {
-                  window.open('https://app.watchduty.org/', '_blank');
-                }}
-              >
-                Active Fires
-              </button>
-            </div>
-          </div>
-
-          {/* Ratings Section - Only show if ratings are available */}
-          {showRatings && (
-            <div className="mb-3">
-              <label className="form-label small fw-bold d-block mb-2">Google Reviews</label>
-              <div className="d-flex gap-1 mb-2">
-                <button
-                  className="btn btn-sm flex-1"
-                  style={{
-                    backgroundColor: '#2d5016',
-                    borderColor: '#2d5016',
-                    color: 'white'
-                  }}
-                  onClick={() => {
-                    const location = getCurrentLocation();
-                    if (!location.trim()) {
-                      alert('Please enter a premise location first (on slide 1).');
-                      return;
-                    }
-                    
-                    const searchQuery = encodeURIComponent(`businesses near ${location.trim()}`);
-                    const businessSearchUrl = `https://www.google.com/search?q=${searchQuery}`;
-                    window.open(businessSearchUrl, '_blank');
-                    console.log('Opened Business search for:', location);
-                  }}
-                >
-                  Find Business
-                </button>
-              </div>
-              
-              
-              {/* Show individual business review buttons when businesses are found */}
-              {businessesAtLocation.length > 0 && (
-                <div className="mb-2">
-                  <div className="small fw-bold mb-1" style={{ fontSize: "10px", color: "#666" }}>
-                    Business Reviews:
-                  </div>
-                  {businessesAtLocation.map((business, index) => (
-                    <button
-                      key={index}
-                      className="btn btn-sm w-100 mb-1"
-                      style={{
-                        backgroundColor: '#3a5f1f',
-                        borderColor: '#3a5f1f',
-                        color: 'white',
-                        fontSize: '11px',
-                        padding: '4px 8px'
-                      }}
-                      onClick={() => {
-                        const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(business.query)}`;
-                        window.open(googleSearchUrl, '_blank');
-                      }}
-                    >
-                      {business.name}
-                    </button>
-                  ))}
-                  <button
-                    className="btn btn-sm w-100"
-                    style={{
-                      backgroundColor: 'transparent',
-                      borderColor: '#ccc',
-                      color: '#666',
-                      fontSize: '10px',
-                      padding: '2px 6px'
-                    }}
-                    onClick={() => setBusinessesAtLocation([])}
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-              
-              <div className="small text-muted mt-1" style={{ fontSize: "10px", lineHeight: "1.3" }}>
-                Business detected at this address - search for reviews
-              </div>
-            </div>
-          )}
-
-          <div className="mb-3">
-            <div className="form-check form-switch">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="toggleMultipleLocations"
-                checked={multipleLocationsMode}
-                onChange={async () => {
-                  const newMode = !multipleLocationsMode;
-                  setMultipleLocationsMode(newMode);
-                  
-                  if (newMode) {
-                    // Enabling multiple locations mode
-                    console.log('🏢 Enabling multiple locations mode');
-                    setSelectedLocationIndex(0);
-                    
-                    // Initialize location data service with current global data
-                    locationDataService.initializeFromProject({
-                      formData: globalLocationData
-                    }, true);
-                    
-                    console.log('📍 Initialized location service with', locationDataService.getLocationCount(), 'locations');
-                  } else {
-                    // Disabling multiple locations mode
-                    console.log('🏠 Disabling multiple locations mode');
-                    setSelectedLocationIndex(0);
-                    
-                    // Clear location data service
-                    locationDataService.initializeFromProject({
-                      formData: globalLocationData
-                    }, false);
-                  }
-                  
-                  // Save to backend using API service
-                  try {
-                    if (currentProjectId) {
-                      await apiService.toggleMultipleLocations(currentProjectId);
-                      console.log('✅ Multiple locations mode saved to backend:', newMode);
-                    }
-                  } catch (error) {
-                    console.error('❌ Failed to save multiple locations mode:', error);
-                    // Don't revert since the local state change is likely still valid
-                  }
-                }}
-              />
-              <label className="form-check-label fw-bold" htmlFor="toggleMultipleLocations">
-                Multiple Locations
-              </label>
-            </div>
-            {multipleLocationsMode && (
-              <div className="mt-2">
-                {(() => {
-                  const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-                  if (locations.length > 1) {
-                    const currentSlideInfo = slides.find(s => s.id === currentSlide);
-                    const currentSlideLocationIndex = currentSlideInfo?.locationIndex;
-                    
-                    return (
-                      <>
-                        {currentSlideLocationIndex !== undefined && (
-                          <div className="mb-2 p-2 bg-primary bg-opacity-10 rounded border border-primary border-opacity-25">
-                            <small className="text-primary fw-bold d-block">
-                              Location {currentSlideLocationIndex + 1}
-                            </small>
-                            <small className="text-muted">
-                              {locations[currentSlideLocationIndex]?.length > 40 ? 
-                                locations[currentSlideLocationIndex].substring(0, 40) + '...' : 
-                                locations[currentSlideLocationIndex]}
-                            </small>
-                          </div>
-                        )}
-                        
-                        <select
-                          className="form-select form-select-sm"
-                          value={selectedLocationIndex}
-                          onChange={(e) => setSelectedLocationIndex(parseInt(e.target.value))}
-                        >
-                          {locations.map((location, index) => (
-                            <option key={index} value={index}>
-                              Location {index + 1}: {location.length > 25 ? location.substring(0, 25) + '...' : location}
-                            </option>
-                          ))}
-                        </select>
-                      </>
-                    );
-                  }
-                  return (
-                    <small className="text-muted fst-italic">
-                      Add multiple locations in Premise Location field
-                    </small>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-
-          {/* Comments Slide Options */}
-          {(() => {
-            const currentSlideData = slides.find(s => s.id === currentSlide);
-            if (currentSlideData && currentSlideData.type === 'comments') {
-              const commentOptions = [
-                { key: 'fireHydrantWithin', label: 'Hydrant Within', text: 'The nearest fire hydrant is within the premise.' },
-                { key: 'fireHydrantAway', label: 'Hydrant Away', text: 'The nearest fire hydrant is (distance) away from the premise.' },
-                { key: 'matureTree', label: 'Mature Tree', text: 'There is a mature tree beside the premise.' },
-                { key: 'handrailsStairs', label: 'Handrails Stairs', text: 'The premise has handrails for stairs.' },
-                { key: 'guardRailsBalcony', label: 'Guard Rails Balcony', text: 'The premise has guard rails for the balcony.' },
-                { key: 'handrailsGuardRails', label: 'Handrails & Guard Rails', text: 'The premise has handrails for stairs and guard rails for the balcony.' },
-                { key: 'pwdProvisions', label: 'PWD Provisions', text: 'The premise has PWD provisions' },
-                { key: 'cctvCameras', label: 'CCTV Cameras', text: 'There are CCTV cameras present on the property.' },
-                { key: 'poolGateFence', label: 'Pool Gate & Fence', text: 'There is a gate and fence around the pool.' },
-                { key: 'vandalism', label: 'Vandalism', text: 'Vandalism is present on the premise.' }
-              ];
-
-              return (
-                <div className="mb-3">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <label className="form-label small fw-bold mb-0">Comments Options</label>
-                    <button
-                      onClick={() => setShowCustomCommentInput(!showCustomCommentInput)}
-                      style={{
-                        width: "24px",
-                        height: "24px",
-                        borderRadius: "50%",
-                        background: "#198754",
-                        border: "none",
-                        color: "white",
-                        fontSize: "16px",
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = "scale(1.1)";
-                        e.target.style.background = "#157347";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = "scale(1)";
-                        e.target.style.background = "#198754";
-                      }}
-                      title="Add custom comment"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div 
-                    style={{
-                      height: "120px", // Fixed height to maintain current space
-                      width: "320px", // Fits comfortably within the expanded sidebar
-                      overflowY: "auto", // Changed to vertical scrolling since tags wrap
-                      padding: "8px 4px",
-                      background: "linear-gradient(180deg, rgba(248,249,250,0) 0%, rgba(248,249,250,1) 10%, rgba(248,249,250,1) 90%, rgba(248,249,250,0) 100%)",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(0,0,0,0.1)",
-                      position: "relative"
-                    }}
-                  >
-                    <div 
-                      style={{
-                        display: "flex",
-                        gap: "6px", // Slightly reduced gap to fit better
-                        flexWrap: "wrap",
-                        alignContent: "flex-start",
-                        width: "100%"
-                      }}
-                    >
-                      {commentOptions.map((option) => (
-                        <button
-                          key={option.key}
-                          onClick={() => {
-                            const currentFormData = getSlideData(currentSlide).formData;
-                            updateSlideFormData(currentSlide, {
-                              ...currentFormData,
-                              [option.key]: currentFormData[option.key] || option.text
-                            });
-                          }}
-                          style={{
-                            background: "linear-gradient(145deg, #ffffff, #f8f9fa)",
-                            border: "1px solid #e9ecef",
-                            borderRadius: "20px", // Circular/pill shape
-                            padding: "6px 10px",
-                            fontSize: "10px",
-                            fontWeight: "500",
-                            color: "#495057",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                            whiteSpace: "nowrap",
-                            minHeight: "28px",
-                            maxWidth: "180px", // Increased to use extra toolbar width without clipping
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flex: "0 1 auto"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.transform = "translateY(-1px)";
-                            e.target.style.boxShadow = "0 2px 6px rgba(0,0,0,0.15)";
-                            e.target.style.background = "linear-gradient(145deg, #e3f2fd, #bbdefb)";
-                            e.target.style.borderColor = "#2196f3";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.transform = "translateY(0)";
-                            e.target.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-                            e.target.style.background = "linear-gradient(145deg, #ffffff, #f8f9fa)";
-                            e.target.style.borderColor = "#e9ecef";
-                          }}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                      
-                      {/* Interior View Builder Button */}
-                      <button
-                        onClick={() => {
-                          setIsInteriorBuilderVisible(!isInteriorBuilderVisible);
-                        }}
-                        style={{
-                          background: "linear-gradient(145deg, #fff3e0, #ffcc02)",
-                          border: "1px solid #ff9800",
-                          borderRadius: "20px",
-                          padding: "6px 10px",
-                          fontSize: "10px",
-                          fontWeight: "600",
-                          color: "#e65100",
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                          whiteSpace: "nowrap",
-                          minHeight: "28px",
-                          maxWidth: "180px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flex: "0 1 auto"
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.transform = "translateY(-1px)";
-                          e.target.style.boxShadow = "0 2px 6px rgba(255,152,0,0.25)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.transform = "translateY(0)";
-                          e.target.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-                        }}
-                      >
-                        Interior Builder
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* Interior View Builder */}
-                  {isInteriorBuilderVisible && (
-                    <div 
-                      style={{ 
-                        marginTop: "10px", 
-                        padding: "12px", 
-                        background: "#f8f9fa", 
-                        borderRadius: "8px", 
-                        border: "1px solid #e9ecef" 
-                      }}
-                    >
-                    <div style={{ fontSize: "11px", fontWeight: "600", marginBottom: "8px", color: "#495057" }}>
-                      Interior View Builder
-                    </div>
-                    {(() => {
-                      const features = [
-                        { key: 'emergencyExits', label: 'Emergency Exits' },
-                        { key: 'windowGuards', label: 'Window Guards' },
-                        { key: 'smokeDetectors', label: 'Smoke Detectors' },
-                        { key: 'fireExtinguishers', label: 'Fire Extinguishers' }
-                      ];
-                      
-                      const generateInteriorText = () => {
-                        if (selectedFeatures.length === 0 && !waterStainStatus.includes('only')) return '';
-                        
-                        let text = 'Interior view shows ';
-                        const featureNames = selectedFeatures.map(key => {
-                          const feature = features.find(f => f.key === key);
-                          return feature?.label.toLowerCase() || key;
-                        });
-                        
-                        if (waterStainStatus === 'stains-only') {
-                          text = 'Interior view shows water stains on the roof';
-                        } else if (waterStainStatus === 'no-stains-only') {
-                          text = 'Interior view shows no water stains on the roof';
-                        } else {
-                          if (featureNames.length === 1) {
-                            text += featureNames[0];
-                          } else if (featureNames.length === 2) {
-                            text += featureNames.join(' and ');
-                          } else if (featureNames.length > 2) {
-                            text += featureNames.slice(0, -1).join(', ') + ', and ' + featureNames[featureNames.length - 1];
-                          }
-                          
-                          if (waterStainStatus === 'with') {
-                            text += ' with water stains on the roof';
-                          } else if (waterStainStatus === 'without') {
-                            text += ' without water stains on the roof';
-                          }
-                        }
-                        
-                        return text;
-                      };
-                      
-                      return (
-                        <div>
-                          {/* Feature Checkboxes */}
-                          <div style={{ marginBottom: "8px" }}>
-                            {features.map((feature) => (
-                              <label key={feature.key} style={{ display: "block", fontSize: "10px", marginBottom: "4px", cursor: "pointer" }}>
-                                <input 
-                                  type="checkbox" 
-                                  checked={selectedFeatures.includes(feature.key)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedFeatures([...selectedFeatures, feature.key]);
-                                    } else {
-                                      setSelectedFeatures(selectedFeatures.filter(f => f !== feature.key));
-                                    }
-                                  }}
-                                  style={{ marginRight: "6px" }}
-                                />
-                                {feature.label}
-                              </label>
-                            ))}
-                          </div>
-                          
-                          {/* Water Stain Options */}
-                          <div style={{ marginBottom: "8px", fontSize: "10px" }}>
-                            <div style={{ fontWeight: "500", marginBottom: "4px" }}>Water Stains:</div>
-                            {[
-                              { value: 'none', label: 'No mention' },
-                              { value: 'with', label: 'With water stains' },
-                              { value: 'without', label: 'Without water stains' },
-                              { value: 'stains-only', label: 'Water stains only' },
-                              { value: 'no-stains-only', label: 'No water stains only' }
-                            ].map((option) => (
-                              <label key={option.value} style={{ display: "block", fontSize: "10px", marginBottom: "2px", cursor: "pointer" }}>
-                                <input 
-                                  type="radio" 
-                                  name="waterStains"
-                                  value={option.value}
-                                  checked={waterStainStatus === option.value}
-                                  onChange={(e) => setWaterStainStatus(e.target.value)}
-                                  style={{ marginRight: "6px" }}
-                                />
-                                {option.label}
-                              </label>
-                            ))}
-                          </div>
-                          
-                          {/* Preview and Add Button */}
-                          <div style={{ fontSize: "9px", color: "#666", marginBottom: "6px", fontStyle: "italic" }}>
-                            Preview: "{generateInteriorText()}"
-                          </div>
-                          <button
-                            onClick={() => {
-                              const text = generateInteriorText();
-                              if (text) {
-                                const currentFormData = getSlideData(currentSlide).formData;
-                                const uniqueKey = 'interiorView_' + Date.now();
-                                updateSlideFormData(currentSlide, {
-                                  ...currentFormData,
-                                  [uniqueKey]: text
-                                });
-                                // Reset builder and hide it
-                                setSelectedFeatures([]);
-                                setWaterStainStatus('none');
-                                setIsInteriorBuilderVisible(false);
-                              }
-                            }}
-                            disabled={selectedFeatures.length === 0 && !waterStainStatus.includes('only')}
-                            style={{
-                              background: selectedFeatures.length > 0 || waterStainStatus.includes('only') ? "#28a745" : "#6c757d",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              padding: "4px 8px",
-                              fontSize: "10px",
-                              cursor: selectedFeatures.length > 0 || waterStainStatus.includes('only') ? "pointer" : "not-allowed"
-                            }}
-                          >
-                            Add to Slide
-                          </button>
-                        </div>
-                      );
-                    })()}
-                    </div>
-                  )}
-                  
-                  {/* Custom Comment Input */}
-                  {showCustomCommentInput && (
-                    <div 
-                      style={{ 
-                        marginTop: "10px", 
-                        padding: "12px", 
-                        background: "#f8f9fa", 
-                        borderRadius: "8px", 
-                        border: "1px solid #e9ecef" 
-                      }}
-                    >
-                      <div style={{ fontSize: "11px", fontWeight: "600", marginBottom: "8px", color: "#495057" }}>
-                        Add Custom Comment
-                      </div>
-                      
-                      <textarea
-                        value={customCommentText}
-                        onChange={(e) => setCustomCommentText(e.target.value)}
-                        placeholder="Enter your custom comment text..."
-                        style={{
-                          width: "100%",
-                          minHeight: "60px",
-                          padding: "8px",
-                          fontSize: "12px",
-                          fontFamily: "'Montserrat', sans-serif",
-                          border: "1px solid #ced4da",
-                          borderRadius: "4px",
-                          resize: "vertical",
-                          outline: "none",
-                          marginBottom: "8px"
-                        }}
-                      />
-                      
-                      <div className="d-flex gap-2">
-                        <button
-                          onClick={() => {
-                            if (customCommentText.trim()) {
-                              // Generate a unique key for the custom comment
-                              const customKey = `custom_${Date.now()}`;
-                              const currentFormData = getSlideData(currentSlide).formData;
-                              updateSlideFormData(currentSlide, {
-                                ...currentFormData,
-                                [customKey]: customCommentText.trim()
-                              });
-                              // Reset the input and hide the form
-                              setCustomCommentText('');
-                              setShowCustomCommentInput(false);
-                            }
-                          }}
-                          disabled={!customCommentText.trim()}
-                          style={{
-                            background: customCommentText.trim() ? "#198754" : "#6c757d",
-                            border: "none",
-                            borderRadius: "4px",
-                            padding: "6px 12px",
-                            fontSize: "11px",
-                            fontWeight: "500",
-                            color: "white",
-                            cursor: customCommentText.trim() ? "pointer" : "not-allowed",
-                            transition: "all 0.2s ease",
-                            flex: 1
-                          }}
-                        >
-                          Add Comment
-                        </button>
-                        
-                        <button
-                          onClick={() => {
-                            setCustomCommentText('');
-                            setShowCustomCommentInput(false);
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid #6c757d",
-                            borderRadius: "4px",
-                            padding: "6px 12px",
-                            fontSize: "11px",
-                            fontWeight: "500",
-                            color: "#6c757d",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease"
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            return null;
-          })()}
-
-          {/* Fire Hazard Slide Options */}
-          {(() => {
-            const currentSlideData = slides.find(s => s.id === currentSlide);
-            if (currentSlideData && currentSlideData.type === 'fire_hazard') {
-              const fireHazardOptions = [
-                { key: 'notWithinFireZone', label: 'Not Within Fire Zone', text: 'The property is not within the fire severity zone.' },
-                { key: 'veryHighFireZone', label: 'Very High Fire Zone', text: 'The property is within the Very High fire severity zone.' },
-                { key: 'highFireZone', label: 'High Fire Zone', text: 'The property is within the high fire severity zone.' },
-                { key: 'moderateFireZone', label: 'Moderate Fire Zone', text: 'The property is within the moderate fire severity zone.' }
-              ];
-
-              return (
-                <div className="mb-3">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <label className="form-label small fw-bold mb-0">Fire Hazard Options</label>
-                    <button
-                      onClick={() => setShowCustomCommentInput(!showCustomCommentInput)}
-                      style={{
-                        width: "24px",
-                        height: "24px",
-                        borderRadius: "50%",
-                        background: "#198754",
-                        border: "none",
-                        color: "white",
-                        fontSize: "16px",
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = "scale(1.1)";
-                        e.target.style.background = "#157347";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = "scale(1)";
-                        e.target.style.background = "#198754";
-                      }}
-                      title="Add custom fire hazard comment"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div 
-                    style={{
-                      height: "120px",
-                      width: "320px",
-                      overflowY: "auto",
-                      padding: "8px 4px",
-                      background: "linear-gradient(180deg, rgba(248,249,250,0) 0%, rgba(248,249,250,1) 10%, rgba(248,249,250,1) 90%, rgba(248,249,250,0) 100%)",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(0,0,0,0.1)",
-                      position: "relative"
-                    }}
-                  >
-                    <div 
-                      style={{
-                        display: "flex",
-                        gap: "6px",
-                        flexWrap: "wrap",
-                        alignContent: "flex-start",
-                        width: "100%"
-                      }}
-                    >
-                      {fireHazardOptions.map((option) => (
-                        <button
-                          key={option.key}
-                          onClick={() => {
-                            const currentFormData = getSlideData(currentSlide).formData;
-                            updateSlideFormData(currentSlide, {
-                              ...currentFormData,
-                              [option.key]: currentFormData[option.key] || option.text
-                            });
-                          }}
-                          style={{
-                            background: "linear-gradient(145deg, #ffffff, #f8f9fa)",
-                            border: "1px solid #e9ecef",
-                            borderRadius: "20px",
-                            padding: "6px 10px",
-                            fontSize: "10px",
-                            fontWeight: "500",
-                            color: "#495057",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                            whiteSpace: "nowrap",
-                            minHeight: "28px",
-                            maxWidth: "180px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flex: "0 1 auto"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.transform = "translateY(-1px)";
-                            e.target.style.boxShadow = "0 2px 6px rgba(0,0,0,0.15)";
-                            e.target.style.background = "linear-gradient(145deg, #e3f2fd, #bbdefb)";
-                            e.target.style.borderColor = "#2196f3";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.transform = "translateY(0)";
-                            e.target.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-                            e.target.style.background = "linear-gradient(145deg, #ffffff, #f8f9fa)";
-                            e.target.style.borderColor = "#e9ecef";
-                          }}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Custom Fire Hazard Comment Input */}
-                  {showCustomCommentInput && (
-                    <div 
-                      style={{ 
-                        marginTop: "10px", 
-                        padding: "12px", 
-                        background: "#f8f9fa", 
-                        borderRadius: "8px", 
-                        border: "1px solid #e9ecef" 
-                      }}
-                    >
-                      <div style={{ fontSize: "11px", fontWeight: "600", marginBottom: "8px", color: "#495057" }}>
-                        Add Custom Fire Hazard Comment
-                      </div>
-                      
-                      <textarea
-                        value={customCommentText}
-                        onChange={(e) => setCustomCommentText(e.target.value)}
-                        placeholder="Enter your custom fire hazard comment text..."
-                        style={{
-                          width: "100%",
-                          minHeight: "60px",
-                          padding: "8px",
-                          fontSize: "12px",
-                          fontFamily: "'Montserrat', sans-serif",
-                          border: "1px solid #ced4da",
-                          borderRadius: "4px",
-                          resize: "vertical",
-                          outline: "none",
-                          marginBottom: "8px"
-                        }}
-                      />
-                      
-                      <div className="d-flex gap-2">
-                        <button
-                          onClick={() => {
-                            if (customCommentText.trim()) {
-                              const customKey = `customFire_${Date.now()}`;
-                              const currentFormData = getSlideData(currentSlide).formData;
-                              updateSlideFormData(currentSlide, {
-                                ...currentFormData,
-                                [customKey]: customCommentText.trim()
-                              });
-                              setCustomCommentText('');
-                              setShowCustomCommentInput(false);
-                            }
-                          }}
-                          disabled={!customCommentText.trim()}
-                          style={{
-                            background: customCommentText.trim() ? "#198754" : "#6c757d",
-                            border: "none",
-                            borderRadius: "4px",
-                            padding: "6px 12px",
-                            fontSize: "11px",
-                            fontWeight: "500",
-                            color: "white",
-                            cursor: customCommentText.trim() ? "pointer" : "not-allowed",
-                            transition: "all 0.2s ease",
-                            flex: 1
-                          }}
-                        >
-                          Add Fire Hazard Comment
-                        </button>
-                        
-                        <button
-                          onClick={() => {
-                            setCustomCommentText('');
-                            setShowCustomCommentInput(false);
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid #6c757d",
-                            borderRadius: "4px",
-                            padding: "6px 12px",
-                            fontSize: "11px",
-                            fontWeight: "500",
-                            color: "#6c757d",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease"
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            return null;
-          })()}
-
-          {/* Nearest Fire Station Slide Options */}
-          {(() => {
-            const currentSlideData = slides.find(s => s.id === currentSlide);
-            if (currentSlideData && currentSlideData.type === 'nearest_fire_station') {
-              const fireStationOptions = [
-                { 
-                  key: 'searchedStation', 
-                  label: 'Searched Fire Station',
-                  action: 'search'
-                },
-                { 
-                  key: 'defaultDistance', 
-                  label: '2 mins / 1.6 miles away',
-                  text: '2 mins / 1.6 miles away',
-                  fontSize: 32
-                }
-              ];
-
-              return (
-                <div className="mb-3">
-                  <label className="form-label small fw-bold">Fire Station Options</label>
-                  <div className="row g-2">
-                    {fireStationOptions.map((option) => (
-                      <div key={option.key} className="col-12">
-                        <button
-                          className="btn btn-outline-secondary btn-sm w-100 text-start"
-                          style={{
-                            fontSize: "11px",
-                            padding: "4px 8px",
-                            lineHeight: "1.2",
-                            whiteSpace: "normal",
-                            height: "auto",
-                            minHeight: "28px"
-                          }}
-                          onClick={async () => {
-                            if (option.action === 'search') {
-                              // Simplified fire station search using backend API
-                              const location = getCurrentLocation();
-                              if (!location.trim()) {
-                                alert('Please enter a premise location first (on slide 1).');
-                                return;
-                              }
-
-                              try {
-                                // Generate mock data for the form fields
-                                const cleanLocation = location.replace(/^Location\s+\d+:\s*/, '').trim();
-                                const cityMatch = cleanLocation.match(/,\s*([^,]+),\s*([A-Z]{2})/);
-                                const city = cityMatch ? cityMatch[1].trim() : 'Local Area';
-                                const fireStationNumber = Math.floor(Math.random() * 20) + 1;
-                                const travelTime = Math.floor(Math.random() * 4) + 3;
-                                const distance = (Math.random() * 2 + 0.8).toFixed(1);
-                                
-                                const fireStationData = {
-                                  fireStationName: `${city} Fire Department Station #${fireStationNumber}, ${cleanLocation}`,
-                                  fireStationDistance: `${travelTime} min / ${distance} miles away`
-                                };
-                                
-                                // Update both fire station fields separately
-                                updateSlideFormData(currentSlide, {
-                                  fireStationName: fireStationData.fireStationName,
-                                  fireStationDistance: fireStationData.fireStationDistance
-                                });
-                                
-                                // Set font sizes to default 32px for both fields
-                                setFontSizes(prev => ({
-                                  ...prev,
-                                  fireStationName: 32,
-                                  fireStationDistance: 32
-                                }));
-                                
-                                // Open Google search for fire stations with directions
-                                const directionsQuery = encodeURIComponent(`directions from ${cleanLocation} to fire station`);
-                                const directionsUrl = `https://www.google.com/maps/dir/${encodeURIComponent(cleanLocation)}/fire+station`;
-                                window.open(directionsUrl, '_blank');
-                                console.log('Opened fire station directions for:', cleanLocation);
-                                
-                              } catch (error) {
-                                console.error('Error searching fire station:', error);
-                                alert('Error searching for fire station. Please try again.');
-                              }
-                            } else if (option.text) {
-                              // Add the predefined text as distance field
-                              updateSlideFormData(currentSlide, {
-                                fireStationDistance: option.text
-                              });
-                              
-                              // Set font size to 32px as default for this option
-                              setFontSizes(prev => ({
-                                ...prev,
-                                fireStationDistance: option.fontSize || 32
-                              }));
-                            }
-                          }}
-                        >
-                          {option.label}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Text Alignment Controls */}
-                  <div className="mt-3">
-                    <label className="form-label small fw-bold">Text Alignment</label>
-                    <div className="row g-1">
-                      {['left', 'center', 'right'].map((alignment) => (
-                        <div key={alignment} className="col-4">
-                          <button
-                            className={`btn btn-sm w-100 ${
-                              textAlignments.fireStationName === alignment || textAlignments.fireStationDistance === alignment
-                                ? 'btn-primary' : 'btn-outline-secondary'
-                            }`}
-                            style={{
-                              fontSize: "10px",
-                              padding: "4px",
-                              textTransform: "capitalize"
-                            }}
-                            onClick={() => {
-                              // Apply alignment to both fire station fields if they exist
-                              const currentFormData = getSlideData(currentSlide)?.formData || {};
-                              
-                              setTextAlignments(prev => ({
-                                ...prev,
-                                ...(currentFormData.fireStationName && { fireStationName: alignment }),
-                                ...(currentFormData.fireStationDistance && { fireStationDistance: alignment })
-                              }));
-                            }}
-                          >
-                            {alignment === 'left' ? '◀' : alignment === 'center' ? '▣' : '▶'}
-                            <br />
-                            {alignment}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          })()}
-
-          <div className="mb-3">
-            <button
-              className="btn btn-sm w-100"
-              style={{
-                backgroundColor: isDrawingMode ? '#2d5016' : 'transparent',
-                borderColor: '#2d5016',
-                color: isDrawingMode ? 'white' : '#2d5016'
-              }}
-              onClick={() => setIsDrawingMode(!isDrawingMode)}
-            >
-              {isDrawingMode ? 'Exit Drawing' : 'Draw Squares'}
-            </button>
-            {isDrawingMode && (slideData[currentSlide]?.drawings || []).length > 0 && (
-              <button
-                className="btn btn-outline-secondary btn-sm mt-2 w-100"
-                onClick={() => {
-                  setSlideData(prev => ({
-                    ...prev,
-                    [currentSlide]: {
-                      ...prev[currentSlide],
-                      drawings: []
-                    }
-                  }));
-                }}
-              >
-                 Clear All
-              </button>
-            )}
-          </div>
-
-          {/* Arrow Button */}
-          <button
-            onClick={() => setShowToolbar(!showToolbar)}
-            style={{
-              ...BUTTON_STYLES.toggleArrow,
-              right: "-20px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              borderLeft: "none",
-              zIndex: 1001,
-            }}
-          >
-            <span style={{ fontSize: "1rem" }}>{showToolbar ? "←" : "→"}</span>
-          </button>
+          <Sidebar 
+            getCurrentLocation={getCurrentLocation}
+            showRatings={showRatings}
+            businessesAtLocation={businessesAtLocation}
+            searchBusinessRatings={searchBusinessRatings}
+            multipleLocationsMode={multipleLocationsMode}
+            selectedLocationIndex={selectedLocationIndex}
+            globalLocationData={globalLocationData}
+            parseMultipleLocations={parseMultipleLocations}
+            slides={slides}
+            currentSlide={currentSlide}
+            slideData={slideData}
+            getSlideData={getSlideData}
+            updateSlideData={updateSlideData}
+            setSelectedLocationIndex={setSelectedLocationIndex}
+            setMultipleLocationsMode={setMultipleLocationsMode}
+            locationDataService={locationDataService}
+            currentProjectId={currentProjectId}
+            apiService={apiService}
+            setBusinessesAtLocation={setBusinessesAtLocation}
+            // Font size props
+            selectedField={selectedField}
+            fontSizes={fontSizes}
+            handleFontSizeChange={handleFontSizeChange}
+            // Website toggle props
+            showWebsite={showWebsite}
+            setShowWebsite={setShowWebsite}
+            // Slide-specific options props
+            updateSlideFormData={updateSlideFormData}
+            showCustomCommentInput={showCustomCommentInput}
+            setShowCustomCommentInput={setShowCustomCommentInput}
+            customCommentText={customCommentText}
+            setCustomCommentText={setCustomCommentText}
+            isInteriorBuilderVisible={isInteriorBuilderVisible}
+            setIsInteriorBuilderVisible={setIsInteriorBuilderVisible}
+            // Drawing and text alignment props
+            textAlignments={textAlignments}
+            setTextAlignments={setTextAlignments}
+            isDrawingMode={isDrawingMode}
+            setIsDrawingMode={setIsDrawingMode}
+            isSquareEditMode={isSquareEditMode}
+            setIsSquareEditMode={setIsSquareEditMode}
+            selectedDrawingIndex={selectedDrawingIndex}
+            setSelectedDrawingIndex={setSelectedDrawingIndex}
+            setSlideData={setSlideData}
+            showToolbar={showToolbar}
+            setShowToolbar={setShowToolbar}
+            BUTTON_STYLES={BUTTON_STYLES}
+            // Fire station props
+            setFontSizes={setFontSizes}
+            editorApiService={editorApiService}
+          />
         </div>
 
-        {/* Main Slide Area */}
+        {/* Main Content Area */}
         <div 
-          className="editor-body" 
-          style={{ 
-            flex: 1,
-            marginLeft: showToolbar ? SIDEBAR_WIDTH : 0, 
+          ref={canvasRef}
+          className="flex-fill"
+          style={{
+            marginLeft: showToolbar ? SIDEBAR_WIDTH : 0,
             marginBottom: showSlidesBar ? SLIDES_BAR_HEIGHT : 0,
-            transition: "margin-left 0.3s ease, margin-bottom 0.3s ease",
+            transition: "margin 0.3s ease",
             overflow: "hidden",
-            height: `calc(100vh - ${NAVBAR_HEIGHT}px - ${showSlidesBar ? SLIDES_BAR_HEIGHT : 0}px)`
+            position: "relative",
+            cursor: isDraggingCanvas ? 'grabbing' : 'grab'
           }}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={handleCanvasMouseUp}
         >
-          <div 
-            ref={canvasRef}
-            className="canvas-container"
+          <div
             style={{
-              width: "100%",
-              height: "100%",
-              overflow: "hidden",
-              position: "relative",
-              cursor: isDraggingCanvas ? "grabbing" : (isDrawingMode ? "crosshair" : "grab"),
-              padding: "16px"
+              transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${zoomLevel / 100})`,
+              transformOrigin: '0 0',
+              transition: isDraggingCanvas ? 'none' : 'transform 0.1s ease-out',
+              position: 'relative'
             }}
-            onMouseDown={handleCanvasMouseDown}
-            onMouseMove={handleCanvasMouseMove}
-            onMouseUp={handleCanvasMouseUp}
           >
-            <div 
-              style={{ 
-                transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${zoomLevel / 100})`, 
-                transformOrigin: "0 0",
-                transition: "none",
+            {renderSlide(currentSlide)}
+            
+            {/* Drawing Overlay */}
+            <svg
+              style={{
                 position: "absolute",
-                top: "16px",
-                left: "16px"
+                top: 0,
+                left: 0,
+                width: "1280px",
+                height: "720px",
+                pointerEvents: (isDrawingMode || isSquareEditMode) ? "auto" : "none",
+                zIndex: 1000
               }}
             >
-              {renderCurrentSlide()}
+              {/* Render saved drawings for current slide */}
+              {(getSlideData(currentSlide)?.drawings || []).map((drawing, index) => {
+                const isSelected = selectedDrawingIndex === index;
+                const points = rectToPoints(drawing); // Convert to points if needed
+                
+                return (
+                  <g key={index}>
+                    {/* Main drawing shape - now as a polygon for flexibility */}
+                    <polygon
+                      points={`${points[0].x},${points[0].y} ${points[1].x},${points[1].y} ${points[3].x},${points[3].y} ${points[2].x},${points[2].y}`}
+                      fill={drawing.fill || "none"}
+                      stroke={drawing.stroke || "red"}
+                      strokeWidth={drawing.strokeWidth || 3}
+                      style={{ 
+                        cursor: (isDrawingMode || isSquareEditMode) ? "pointer" : "default",
+                        opacity: isSelected ? 0.8 : 1,
+                        filter: isSquareEditMode && !isDrawingMode ? "drop-shadow(0 0 4px rgba(0, 123, 255, 0.5))" : "none"
+                      }}
+                      onClick={(e) => {
+                        if (isDrawingMode || isSquareEditMode) {
+                          e.stopPropagation();
+                          setSelectedDrawingIndex(isSelected ? null : index);
+                        }
+                      }}
+                    />
+                    
+                    {/* Individual draggable points when selected */}
+                    {isSelected && (isDrawingMode || isSquareEditMode) && (
+                      <>
+                        {points.map((point, pointIndex) => (
+                          <circle
+                            key={pointIndex}
+                            cx={point.x}
+                            cy={point.y}
+                            r="6"
+                            fill="blue"
+                            stroke="white"
+                            strokeWidth="2"
+                            style={{ 
+                              cursor: "move",
+                              filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))"
+                            }}
+                            onMouseDown={(e) => startPointDrag(e, index, pointIndex)}
+                          />
+                        ))}
+                        
+                        {/* Point labels for clarity */}
+                        {points.map((point, pointIndex) => (
+                          <text
+                            key={`label-${pointIndex}`}
+                            x={point.x + (pointIndex === 0 || pointIndex === 2 ? -12 : 12)}
+                            y={point.y + (pointIndex === 0 || pointIndex === 1 ? -8 : 16)}
+                            fontSize="10"
+                            fill="blue"
+                            fontWeight="bold"
+                            style={{ pointerEvents: "none", userSelect: "none" }}
+                          >
+                            {pointIndex + 1}
+                          </text>
+                        ))}
+                      </>
+                    )}
+                  </g>
+                );
+              })}
               
-              {/* Drawing Capture Layer - invisible but captures mouse events in drawing mode */}
-              {isDrawingMode && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "1280px",
-                    height: "720px",
-                    zIndex: 999,
-                    cursor: "crosshair",
-                    pointerEvents: "all"
-                  }}
-                  onMouseDown={(e) => {
-                    const rect = canvasRef.current.getBoundingClientRect();
-                    const clickX = (e.clientX - rect.left - canvasOffset.x) / (zoomLevel / 100);
-                    const clickY = (e.clientY - rect.top - canvasOffset.y) / (zoomLevel / 100);
-                    
-                    // Check if clicking on an existing drawing to delete it
-                    const existingDrawings = slideData[currentSlide]?.drawings || [];
-                    // Click coordinates available for debugging
-                    // Existing drawings data available for debugging
-                    
-                    const clickedDrawingIndex = existingDrawings.findIndex(drawing => 
-                      isPointInRectangle(clickX, clickY, drawing)
-                    );
-                    
-                    // Drawing click processed
-                    
-                    if (clickedDrawingIndex !== -1) {
-                      // Select the clicked drawing for editing
-                      // Selecting drawing for editing
-                      setSelectedDrawingIndex(clickedDrawingIndex);
-                    } else {
-                      // Deselect any selected drawing and start drawing a new rectangle
-                      // Starting new drawing
-                      setSelectedDrawingIndex(null);
-                      setIsDrawing(true);
-                      setCurrentDrawing({
-                        type: 'rectangle',
-                        startX: clickX,
-                        startY: clickY,
-                        endX: clickX,
-                        endY: clickY,
-                        stroke: 'red',
-                        strokeWidth: 5,
-                        fill: 'none'
-                      });
-                    }
-                    
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
+              {/* Current drawing being created */}
+              {isDrawing && currentDrawing && (
+                <rect
+                  x={Math.min(currentDrawing.startX, currentDrawing.endX)}
+                  y={Math.min(currentDrawing.startY, currentDrawing.endY)}
+                  width={Math.abs(currentDrawing.endX - currentDrawing.startX)}
+                  height={Math.abs(currentDrawing.endY - currentDrawing.startY)}
+                  fill={currentDrawing.fill || "none"}
+                  stroke={currentDrawing.stroke || "red"}
+                  strokeWidth={currentDrawing.strokeWidth || 3}
+                  strokeDasharray="5,5"
+                  opacity="0.7"
                 />
               )}
-              
-              {/* Drawing Overlay */}
-              <svg
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "1280px",
-                  height: "720px",
-                  pointerEvents: isDrawingMode ? "all" : "none",
-                  zIndex: 1000
-                }}
-              >
-                {/* Render saved drawings */}
-                {(slideData[currentSlide]?.drawings || []).map((drawing, index) => {
-                  const x = Math.min(drawing.startX, drawing.endX);
-                  const y = Math.min(drawing.startY, drawing.endY);
-                  const width = Math.abs(drawing.endX - drawing.startX);
-                  const height = Math.abs(drawing.endY - drawing.startY);
-                  const isSelected = selectedDrawingIndex === index;
-                  
-                  return (
-                    <g key={index}>
-                      {/* Main rectangle */}
-                      <rect
-                        x={x}
-                        y={y}
-                        width={width}
-                        height={height}
-                        fill="none"
-                        stroke={isSelected ? '#007bff' : drawing.stroke}
-                        strokeWidth={isSelected ? drawing.strokeWidth + 1 : drawing.strokeWidth}
-                        style={{ 
-                          cursor: isDrawingMode ? 'pointer' : 'default',
-                          opacity: isDrawingMode ? 0.8 : 1
-                        }}
-                      />
-                      
-                      {/* Resize handles for selected drawing */}
-                      {isSelected && isDrawingMode && (
-                        <>
-                          {/* Corner handles */}
-                          <circle cx={x} cy={y} r="4" fill="#007bff" stroke="white" strokeWidth="1" 
-                            style={{cursor: "nw-resize"}} 
-                            onMouseDown={(e) => startResize(e, index, 'nw')} />
-                          <circle cx={x + width} cy={y} r="4" fill="#007bff" stroke="white" strokeWidth="1" 
-                            style={{cursor: "ne-resize"}} 
-                            onMouseDown={(e) => startResize(e, index, 'ne')} />
-                          <circle cx={x} cy={y + height} r="4" fill="#007bff" stroke="white" strokeWidth="1" 
-                            style={{cursor: "sw-resize"}} 
-                            onMouseDown={(e) => startResize(e, index, 'sw')} />
-                          <circle cx={x + width} cy={y + height} r="4" fill="#007bff" stroke="white" strokeWidth="1" 
-                            style={{cursor: "se-resize"}} 
-                            onMouseDown={(e) => startResize(e, index, 'se')} />
-                          
-                          {/* Edge handles */}
-                          <circle cx={x + width/2} cy={y} r="3" fill="#007bff" stroke="white" strokeWidth="1" 
-                            style={{cursor: "n-resize"}} 
-                            onMouseDown={(e) => startResize(e, index, 'n')} />
-                          <circle cx={x + width/2} cy={y + height} r="3" fill="#007bff" stroke="white" strokeWidth="1" 
-                            style={{cursor: "s-resize"}} 
-                            onMouseDown={(e) => startResize(e, index, 's')} />
-                          <circle cx={x} cy={y + height/2} r="3" fill="#007bff" stroke="white" strokeWidth="1" 
-                            style={{cursor: "w-resize"}} 
-                            onMouseDown={(e) => startResize(e, index, 'w')} />
-                          <circle cx={x + width} cy={y + height/2} r="3" fill="#007bff" stroke="white" strokeWidth="1" 
-                            style={{cursor: "e-resize"}} 
-                            onMouseDown={(e) => startResize(e, index, 'e')} />
-                        </>
-                      )}
-                    </g>
-                  );
-                })}
-                
-                {/* Render current drawing in progress */}
-                {currentDrawing && (
-                  <rect
-                    x={Math.min(currentDrawing.startX, currentDrawing.endX)}
-                    y={Math.min(currentDrawing.startY, currentDrawing.endY)}
-                    width={Math.abs(currentDrawing.endX - currentDrawing.startX)}
-                    height={Math.abs(currentDrawing.endY - currentDrawing.startY)}
-                    fill="none"
-                    stroke={currentDrawing.stroke}
-                    strokeWidth={currentDrawing.strokeWidth}
-                  />
-                )}
-              </svg>
-            </div>
+            </svg>
           </div>
         </div>
       </div>
@@ -4039,18 +3045,18 @@ export default function Editor({ sessionUser }) {
                 }}
               >
                 {/* Render saved drawings for this slide */}
-                {(getSlideData(slide.id)?.drawings || []).map((drawing, index) => (
-                  <rect
-                    key={index}
-                    x={Math.min(drawing.startX, drawing.endX)}
-                    y={Math.min(drawing.startY, drawing.endY)}
-                    width={Math.abs(drawing.endX - drawing.startX)}
-                    height={Math.abs(drawing.endY - drawing.startY)}
-                    fill="none"
-                    stroke={drawing.stroke}
-                    strokeWidth={drawing.strokeWidth}
-                  />
-                ))}
+                {(getSlideData(slide.id)?.drawings || []).map((drawing, index) => {
+                  const points = rectToPoints(drawing); // Convert to points if needed
+                  return (
+                    <polygon
+                      key={index}
+                      points={`${points[0].x},${points[0].y} ${points[1].x},${points[1].y} ${points[3].x},${points[3].y} ${points[2].x},${points[2].y}`}
+                      fill={drawing.fill || "none"}
+                      stroke={drawing.stroke || "red"}
+                      strokeWidth={drawing.strokeWidth || 3}
+                    />
+                  );
+                })}
               </svg>
             </div>
           );

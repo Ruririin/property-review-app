@@ -53,7 +53,8 @@ const Comments = forwardRef(({
   useEffect(() => {
     const loadSlideData = async () => {
       if (!slideId || !currentProjectId) {
-        console.warn('Missing slideId or currentProjectId for loading slide data');
+        // Only warn if currentProjectId is explicitly null after initial load
+        // This prevents warnings during normal project loading
         return;
       }
 
@@ -62,6 +63,12 @@ const Comments = forwardRef(({
         
         // Load field positions if they exist
         if (result.field_positions && Object.keys(result.field_positions).length > 0) {
+          // Update both the state and the stable ref
+          stablePositionsRef.current = {
+            ...stablePositionsRef.current,
+            ...result.field_positions
+          };
+          
           if (setFieldPositions) {
             setFieldPositions(prev => ({
               ...prev,
@@ -190,17 +197,19 @@ const Comments = forwardRef(({
     setResizingField(field);
     setResizeMode(mode);
     
-    const fieldElement = e.currentTarget.parentElement.querySelector('textarea');
-    const rect = fieldElement.getBoundingClientRect();
     const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
-    
     const zoomFactor = (zoomLevel || 100) / 100;
+    
+    // Store the current field dimensions from our position state
+    const currentField = fieldPositions?.[field] || stablePositionsRef.current[field] || {};
     
     setResizeStart({
       x: (e.clientX - containerRect.left) / zoomFactor,
       y: (e.clientY - containerRect.top) / zoomFactor,
-      width: rect.width / zoomFactor,
-      height: rect.height / zoomFactor,
+      width: currentField.width || 400,
+      height: currentField.height || 80,
+      originalTop: currentField.top || 200,
+      originalLeft: currentField.left || 150
     });
   };
 
@@ -238,26 +247,34 @@ const Comments = forwardRef(({
       
       let newWidth = resizeStart.width;
       let newHeight = resizeStart.height;
+      let newTop = resizeStart.originalTop;
+      let newLeft = resizeStart.originalLeft;
       
       if (resizeMode.includes('right')) {
         newWidth = Math.max(200, resizeStart.width + (currentX - resizeStart.x));
       }
       if (resizeMode.includes('left')) {
-        newWidth = Math.max(200, resizeStart.width - (currentX - resizeStart.x));
+        const widthDelta = resizeStart.x - currentX;
+        newWidth = Math.max(200, resizeStart.width + widthDelta);
+        newLeft = Math.max(0, resizeStart.originalLeft - widthDelta);
       }
       if (resizeMode.includes('bottom')) {
         newHeight = Math.max(60, resizeStart.height + (currentY - resizeStart.y));
       }
       if (resizeMode.includes('top')) {
-        newHeight = Math.max(60, resizeStart.height - (currentY - resizeStart.y));
+        const heightDelta = resizeStart.y - currentY;
+        newHeight = Math.max(60, resizeStart.height + heightDelta);
+        newTop = Math.max(0, resizeStart.originalTop - heightDelta);
       }
       
       if (setFieldPositions) {
-        const existingField = fieldPositions?.[resizingField] || {};
+        const existingField = fieldPositions?.[resizingField] || stablePositionsRef.current[resizingField] || {};
         const updatedField = {
           ...existingField,
           width: newWidth,
-          height: newHeight
+          height: newHeight,
+          top: newTop,
+          left: newLeft
         };
         
         stablePositionsRef.current[resizingField] = updatedField;
@@ -273,6 +290,9 @@ const Comments = forwardRef(({
   const handleMouseUp = () => {
     if (isDragging && draggingField && fieldPositions?.[draggingField]) {
       stablePositionsRef.current[draggingField] = fieldPositions[draggingField];
+    }
+    if (isResizing && resizingField && fieldPositions?.[resizingField]) {
+      stablePositionsRef.current[resizingField] = fieldPositions[resizingField];
     }
     
     setIsDragging(false);
@@ -312,8 +332,9 @@ const Comments = forwardRef(({
   const renderBulletTextField = (field, placeholder, defaultTop = 200) => {
     const isActive = selectedField === field;
     
-    const propsField = fieldPositions?.[field] || {};
+    // Use stablePositionsRef as the primary source of truth, fallback to fieldPositions
     const stableField = stablePositionsRef.current[field] || {};
+    const propsField = fieldPositions?.[field] || {};
     const mergedField = { ...propsField, ...stableField };
     
     const position = {
@@ -321,7 +342,6 @@ const Comments = forwardRef(({
       left: mergedField.left ?? 150,
       width: mergedField.width ?? 400,
       height: mergedField.height ?? 80,
-      ...mergedField
     };
     
     return (
@@ -661,18 +681,16 @@ const Comments = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        if (imageHandler.isDraggingImage) {
-          imageHandler.handleMouseMove(e);
-        } else {
-          handleMouseMove(e);
-        }
+        // Always call imageHandler first for image drag/resize
+        imageHandler.handleMouseMove(e);
+        // Then handle text field dragging/resizing
+        handleMouseMove(e);
       }}
       onMouseUp={(e) => {
-        if (imageHandler.isDraggingImage) {
-          imageHandler.handleMouseUp(e);
-        } else {
-          handleMouseUp(e);
-        }
+        // Always call imageHandler first for image drag/resize
+        imageHandler.handleMouseUp(e);
+        // Then handle text field dragging/resizing
+        handleMouseUp(e);
       }}
       onClick={(e) => {
         imageHandler.handleContainerClick(e, onSelect);

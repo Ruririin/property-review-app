@@ -344,6 +344,19 @@ class ApiService {
   }
 
   /**
+   * Get service URL for external services (fire station, crime rate, etc.)
+   */
+  async getServiceUrl(projectId, serviceType) {
+    return this.request('/location-url/', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        project_id: projectId,
+        service_type: serviceType 
+      })
+    });
+  }
+
+  /**
    * Health check - test if backend is accessible
    */
   async healthCheck() {

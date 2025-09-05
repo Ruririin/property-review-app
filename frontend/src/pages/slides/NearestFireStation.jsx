@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useImageHandler } from "../../hooks/useImageHandler";
 import ImageComponent from "../../components/ImageComponent";
+import slideApiService from "../../services/slideApiService";
 
 const NearestFireStation = forwardRef(({
   formData,
@@ -56,55 +57,54 @@ const NearestFireStation = forwardRef(({
     
     const fieldElement = e.currentTarget.parentElement.querySelector('textarea');
     const rect = fieldElement.getBoundingClientRect();
+    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    
+    const zoomFactor = (zoomLevel || 100) / 100;
     
     setResizeStart({
-      x: e.clientX,
-      y: e.clientY,
-      width: rect.width,
-      height: rect.height,
-      left: rect.left,
-      top: rect.top
+      x: (e.clientX - containerRect.left) / zoomFactor,
+      y: (e.clientY - containerRect.top) / zoomFactor,
+      width: rect.width / zoomFactor,
+      height: rect.height / zoomFactor,
     });
   };
 
   const handleResizeMouseMove = (e) => {
-    if (!isResizing || !resizingField) return;
+    if (!isResizing || !resizingField || !imageHandler.containerRef.current) return;
 
     e.preventDefault();
     
-    const deltaX = e.clientX - resizeStart.x;
-    const deltaY = e.clientY - resizeStart.y;
+    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const zoomFactor = (zoomLevel || 100) / 100;
+    
+    const currentX = (e.clientX - containerRect.left) / zoomFactor;
+    const currentY = (e.clientY - containerRect.top) / zoomFactor;
     
     let newWidth = resizeStart.width;
     let newHeight = resizeStart.height;
     
     // Update dimensions based on resize mode
-    switch (resizeMode) {
-      case 'se':
-        newWidth = Math.max(200, resizeStart.width + deltaX);
-        newHeight = Math.max(60, resizeStart.height + deltaY);
-        break;
-      case 'sw':
-        newWidth = Math.max(200, resizeStart.width - deltaX);
-        newHeight = Math.max(60, resizeStart.height + deltaY);
-        break;
-      case 'ne':
-        newWidth = Math.max(200, resizeStart.width + deltaX);
-        newHeight = Math.max(60, resizeStart.height - deltaY);
-        break;
-      case 'nw':
-        newWidth = Math.max(200, resizeStart.width - deltaX);
-        newHeight = Math.max(60, resizeStart.height - deltaY);
-        break;
+    if (resizeMode.includes('right')) {
+      newWidth = Math.max(300, resizeStart.width + (currentX - resizeStart.x));
+    }
+    if (resizeMode.includes('left')) {
+      newWidth = Math.max(300, resizeStart.width - (currentX - resizeStart.x));
+    }
+    if (resizeMode.includes('bottom')) {
+      newHeight = Math.max(60, resizeStart.height + (currentY - resizeStart.y));
+    }
+    if (resizeMode.includes('top')) {
+      newHeight = Math.max(60, resizeStart.height - (currentY - resizeStart.y));
     }
     
-    // Update field positions
+    // Update field positions with new dimensions
     if (setFieldPositions && fieldPositions) {
       const actualField = multipleLocationsMode ? `${resizingField}_loc${selectedLocationIndex}` : resizingField;
+      const existingField = fieldPositions[actualField] || {};
       const updatedPositions = {
         ...fieldPositions,
         [actualField]: {
-          ...(fieldPositions[actualField] || {}),
+          ...existingField,
           width: newWidth,
           height: newHeight
         }
@@ -131,6 +131,60 @@ const NearestFireStation = forwardRef(({
       };
     }
   }, [isResizing, resizingField, resizeMode, resizeStart]);
+
+  // Save field positions to backend when they change
+  useEffect(() => {
+    const saveFieldPositions = async () => {
+      if (!fieldPositions || Object.keys(fieldPositions).length === 0 || !currentProjectId) {
+        return;
+      }
+
+      const dimensionsToSave = {};
+      Object.entries(fieldPositions).forEach(([field, data]) => {
+        if (data.width && data.height) {
+          dimensionsToSave[field] = {
+            width: data.width,
+            height: data.height,
+            ...(data.x !== undefined && { x: data.x }),
+            ...(data.y !== undefined && { y: data.y }),
+            ...(data.top !== undefined && { top: data.top }),
+            ...(data.left !== undefined && { left: data.left })
+          };
+        }
+      });
+
+      if (Object.keys(dimensionsToSave).length > 0) {
+        try {
+          await slideApiService.updateFieldPositions(currentProjectId, 'nearest_fire_station_slide', 'nearest_fire_station', dimensionsToSave);
+          console.log('Saved nearest fire station field positions to backend');
+        } catch (error) {
+          console.warn('Failed to save nearest fire station field positions to backend:', error);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(saveFieldPositions, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [fieldPositions, currentProjectId]);
+
+  // Save nearest fire station content to backend when formData changes
+  useEffect(() => {
+    const saveNearestFireStationContent = async () => {
+      if (!formData || !currentProjectId) {
+        return;
+      }
+
+      try {
+        await slideApiService.updateContent(currentProjectId, 'nearest_fire_station_slide', 'nearest_fire_station', { nearestFireStationData: formData });
+        console.log('Saved nearest fire station content to backend');
+      } catch (error) {
+        console.warn('Failed to save nearest fire station content to backend:', error);
+      }
+    };
+
+    const timeoutId = setTimeout(saveNearestFireStationContent, 2000); // Longer delay for content
+    return () => clearTimeout(timeoutId);
+  }, [formData, currentProjectId]);
 
   const autoResize = (el) => {
     el.style.height = "auto"; 
@@ -331,59 +385,128 @@ const NearestFireStation = forwardRef(({
         )}
         
         {/* Free-form textbox for fire station info */}
-        <textarea
-          value={getActualFormData(field).toString()}
-          onChange={(e) => handleFormChange(field, e.target.value)}
-          placeholder={multipleLocationsMode ? `${content} - Location ${selectedLocationIndex + 1}` : content}
-          onFocus={() => onSelect(field)}
-          onKeyDown={(e) => {
-            // Allow Delete key to delete the entire field when empty
-            if (e.key === 'Delete' && e.target.value === "" && e.ctrlKey) {
-              e.preventDefault();
-              // Remove the field data and position
-              if (setFormData) {
-                const fieldKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
-                setFormData({ [fieldKey]: "" });
+        <div style={{ position: "relative", width: "fit-content", height: "fit-content" }}>
+          <textarea
+            value={getActualFormData(field).toString()}
+            onChange={(e) => handleFormChange(field, e.target.value)}
+            placeholder={multipleLocationsMode ? `${content} - Location ${selectedLocationIndex + 1}` : content}
+            onFocus={() => onSelect(field)}
+            onKeyDown={(e) => {
+              // Allow Delete key to delete the entire field when empty
+              if (e.key === 'Delete' && e.target.value === "" && e.ctrlKey) {
+                e.preventDefault();
+                // Remove the field data and position
+                if (setFormData) {
+                  const fieldKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
+                  setFormData({ [fieldKey]: "" });
+                }
+                if (setFieldPositions) {
+                  const updatedPositions = { ...(fieldPositions || {}) };
+                  const positionKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
+                  delete updatedPositions[positionKey];
+                  setFieldPositions(updatedPositions);
+                }
+                // Deselect the field
+                onSelect(null);
               }
-              if (setFieldPositions) {
-                const updatedPositions = { ...(fieldPositions || {}) };
-                const positionKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
-                delete updatedPositions[positionKey];
-                setFieldPositions(updatedPositions);
-              }
-              // Deselect the field
-              onSelect(null);
-            }
-          }}
-          style={{
-            width: position.width ? `${position.width}px` : '500px',
-            height: position.height ? `${position.height}px` : '80px',
-            minWidth: "300px",
-            minHeight: "60px",
-            resize: "both",
-            fontFamily: "'Montserrat', sans-serif",
-            fontSize: fontSizes[field] || 32,
-            color: "#8B9A5B",
-            backgroundColor: isActive ? "rgba(255, 255, 255, 0.95)" : "transparent",
-            border: isActive ? "2px solid rgba(0, 123, 255, 0.8)" : "1px solid transparent",
-            borderRadius: "6px",
-            padding: "12px",
-            outline: "none",
-            lineHeight: "1.4",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            boxShadow: isActive ? "0 0 0 2px rgba(0, 123, 255, 0.1)" : "none",
-            transition: "all 0.2s ease",
-            cursor: "text",
-            position: "relative",
-            top: "auto",
-            left: "auto",
-            right: "auto",
-            bottom: "auto",
-            textAlign: textAlignments?.[field] || 'left',
-            userSelect: "text"
-          }}
-        />
+            }}
+            style={{
+              width: position.width ? `${position.width}px` : '500px',
+              height: position.height ? `${position.height}px` : '80px',
+              minWidth: "300px",
+              minHeight: "60px",
+              resize: "none", // Disable default resize, use custom handles
+              fontFamily: "'Montserrat', sans-serif",
+              fontSize: fontSizes[field] || 32,
+              color: "#8B9A5B",
+              backgroundColor: isActive ? "rgba(255, 255, 255, 0.95)" : "transparent",
+              border: isActive ? "2px solid rgba(0, 123, 255, 0.8)" : "1px solid transparent",
+              borderRadius: "6px",
+              padding: "12px",
+              outline: "none",
+              lineHeight: "1.4",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              boxShadow: isActive ? "0 0 0 2px rgba(0, 123, 255, 0.1)" : "none",
+              transition: "all 0.2s ease",
+              cursor: "text",
+              position: "relative",
+              top: "auto",
+              left: "auto",
+              right: "auto",
+              bottom: "auto",
+              textAlign: textAlignments?.[field] || 'left',
+              userSelect: "text"
+            }}
+          />
+          
+          {/* Blue resize handles - only show when active */}
+          {isActive && (
+            <>
+              {/* Corner resize handles */}
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
+                style={{
+                  position: "absolute",
+                  bottom: "-4px",
+                  right: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "nw-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
+                style={{
+                  position: "absolute",
+                  bottom: "-4px",
+                  left: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "ne-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-right')}
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  right: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "ne-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-left')}
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  left: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "nw-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+            </>
+          )}
+        </div>
       </div>
     );
   };
@@ -422,18 +545,16 @@ const NearestFireStation = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        if (imageHandler.isDraggingImage) {
-          imageHandler.handleMouseMove(e);
-        } else {
-          handleMouseMove(e);
-        }
+        // Always call imageHandler first for image drag/resize
+        imageHandler.handleMouseMove(e);
+        // Then handle text field dragging/resizing
+        handleMouseMove(e);
       }}
       onMouseUp={(e) => {
-        if (imageHandler.isDraggingImage) {
-          imageHandler.handleMouseUp(e);
-        } else {
-          handleMouseUp(e);
-        }
+        // Always call imageHandler first for image drag/resize
+        imageHandler.handleMouseUp(e);
+        // Then handle text field dragging/resizing
+        handleMouseUp(e);
       }}
       onClick={(e) => {
         // Handle image click first

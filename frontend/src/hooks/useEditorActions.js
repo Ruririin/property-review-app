@@ -1,6 +1,22 @@
 /**
  * Editor Actions Hook
- * Provides backend-powered actions for Editor.jsx sidebar buttons
+ * Provides backend-powered a  retu  ret  return {
+    handleGoogleMaps,
+    handleOpenBingMaps,
+    handleFireHazard,
+    handleFireStation,
+    handleFindBusiness
+  };  handleGoogleMaps,
+    handleOpenBingMaps,
+    handleFireHazard,
+    handleFireStation,
+    handleFindBusiness
+  }; handleGoogleMaps,
+    handleBingMaps,
+    handleFireHazard,
+    handleFireStation,
+    handleFindBusiness
+  };or Editor.jsx sidebar buttons
  * Reduces complexity by moving location-based logic to backend services
  */
 
@@ -43,15 +59,6 @@ export const useEditorActions = () => {
       return;
     }
     await editorApiService.openFireStation(currentProjectId);
-  }, []);
-
-  // Best Places search action
-  const handleBestPlaces = useCallback(async (currentProjectId) => {
-    if (!currentProjectId) {
-      console.warn('No project ID available for Best Places search');
-      return;
-    }
-    await editorApiService.openBestPlaces(currentProjectId);
   }, []);
 
   // Business search action

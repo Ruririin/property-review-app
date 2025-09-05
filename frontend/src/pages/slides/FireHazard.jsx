@@ -63,7 +63,8 @@ const FireHazard = forwardRef(({
   useEffect(() => {
     const loadSlideData = async () => {
       if (!slideId || !currentProjectId) {
-        console.warn('Missing slideId or currentProjectId for loading fire hazard slide data');
+        // Only warn if currentProjectId is explicitly null after initial load
+        // This prevents warnings during normal project loading
         return;
       }
 
@@ -564,18 +565,16 @@ const FireHazard = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        if (imageHandler.isDraggingImage) {
-          imageHandler.handleMouseMove(e);
-        } else {
-          handleMouseMove(e);
-        }
+        // Always call imageHandler first for image drag/resize
+        imageHandler.handleMouseMove(e);
+        // Then handle text field dragging/resizing
+        handleMouseMove(e);
       }}
       onMouseUp={(e) => {
-        if (imageHandler.isDraggingImage) {
-          imageHandler.handleMouseUp(e);
-        } else {
-          handleMouseUp(e);
-        }
+        // Always call imageHandler first for image drag/resize
+        imageHandler.handleMouseUp(e);
+        // Then handle text field dragging/resizing
+        handleMouseUp(e);
       }}
       onClick={(e) => {
         // Handle image click first
@@ -602,47 +601,17 @@ const FireHazard = forwardRef(({
           }
         `}
       </style>
-      {/* Fire Hazard Options - show default options and any with content */}
-      {renderBulletTextbox('notWithinFireZone', 'The property is not within the fire severity zone.', 300)}
-      {renderBulletTextbox('veryHighFireZone', 'The property is within the Very High fire severity zone', 350)}
-      {renderBulletTextbox('highFireZone', 'The property is within the high fire severity zone', 400)}
-      {renderBulletTextbox('moderateFireZone', 'The property is within the moderate fire severity zone', 450)}
+
+      {/* Fire Hazard Bullets - only show if they have content */}
+      {formData && formData.notWithinFireZone && renderBulletTextbox('notWithinFireZone', 'The property is not within the fire severity zone.', 300)}
+      {formData && formData.veryHighFireZone && renderBulletTextbox('veryHighFireZone', 'The property is within the Very High fire severity zone.', 350)}
+      {formData && formData.highFireZone && renderBulletTextbox('highFireZone', 'The property is within the high fire severity zone.', 400)}
+      {formData && formData.moderateFireZone && renderBulletTextbox('moderateFireZone', 'The property is within the moderate fire severity zone.', 450)}
       
       {/* Dynamic Custom Fire Hazard textboxes */}
       {formData && Object.keys(formData).filter(key => key.startsWith('customFire_')).map((key) => (
         renderBulletTextbox(key, formData[key], 500)
       ))}
-      
-      {/* Add New Fire Hazard Button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          const customId = `customFire_${Date.now()}`;
-          if (setFormData) {
-            setFormData({ [customId]: 'Custom fire hazard text...' });
-          }
-          onSelect(customId);
-        }}
-        style={{
-          position: "absolute",
-          top: "580px",
-          left: "150px",
-          padding: "8px 16px",
-          backgroundColor: "#8B9A5B",
-          color: "white",
-          border: "none",
-          borderRadius: "6px",
-          fontSize: "14px",
-          fontFamily: "'Montserrat', sans-serif",
-          cursor: "pointer",
-          fontWeight: "500",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        }}
-        title="Add new fire hazard text field"
-      >
-        + Add Fire Hazard Text
-      </button>
-      
 
       {/* Image Component for paste functionality */}
       <ImageComponent

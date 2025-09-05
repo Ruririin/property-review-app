@@ -10,6 +10,11 @@ class CSRFExemptMiddleware(MiddlewareMixin):
         exempt_paths = [
             '/api/auth/session/logout/',
             '/api/auth/session/login/',
+            '/api/slides/',  # Add slide endpoints for FireHazard
+            '/api/slides/update-content/',
+            '/api/slides/get-content/',
+            '/api/slides/update-field-positions/',
+            '/api/property-review/',  # Add property review endpoints
         ]
         
         # Check if the current path should be exempt
