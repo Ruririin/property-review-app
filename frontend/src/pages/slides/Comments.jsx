@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import MultiImageComponent from "../../components/MultiImageComponent";
 import slideApiService from "../../services/slideApiService";
 
 const Comments = forwardRef(({
@@ -28,7 +27,7 @@ const Comments = forwardRef(({
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   
   const stablePositionsRef = useRef({});
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  const containerRef = useRef(null); // For container reference instead of imageHandler
 
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
@@ -49,50 +48,77 @@ const Comments = forwardRef(({
     }
   }, [fieldPositions]);
 
-  // Load slide content and field positions from backend
+  // Load slide data from backend when component mounts or projectId changes
   useEffect(() => {
     const loadSlideData = async () => {
-      if (!slideId || !currentProjectId) {
+      if (!currentProjectId) {
         // Only warn if currentProjectId is explicitly null after initial load
         // This prevents warnings during normal project loading
         return;
       }
 
       try {
-        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+        const result = await slideApiService.getSlideContent(currentProjectId, 'comments_slide');
         
         // Load field positions if they exist
         if (result.field_positions && Object.keys(result.field_positions).length > 0) {
-          // Update both the state and the stable ref
+          console.log('🔄 Comments: Loading positions from backend:', Object.keys(result.field_positions), result.field_positions);
+          // Update both the state and the stable ref with defensive checks
           stablePositionsRef.current = {
             ...stablePositionsRef.current,
             ...result.field_positions
           };
           
-          if (setFieldPositions) {
-            setFieldPositions(prev => ({
-              ...prev,
-              ...result.field_positions
-            }));
+          // Only update field positions if the function exists and component is still mounted
+          if (setFieldPositions && typeof setFieldPositions === 'function') {
+            try {
+              // Use a timeout to avoid React error #185 with rapid state updates
+              setTimeout(() => {
+                setFieldPositions(prev => {
+                  // Defensive check to ensure prev is an object
+                  const safePrev = prev && typeof prev === 'object' ? prev : {};
+                  const newPositions = {
+                    ...safePrev,
+                    ...result.field_positions
+                  };
+                  console.log('🔄 Comments: Updated field positions state:', Object.keys(newPositions));
+                  return newPositions;
+                });
+              }, 50);
+            } catch (error) {
+              console.warn('Failed to update field positions:', error);
+            }
           }
+        } else {
+          console.log('📋 Comments: No field positions found in backend response');
         }
 
         // Load comments content if it exists
-        if (result.content && result.content.comments && setFormData) {
-          setFormData(prev => ({
-            ...prev,
-            ...result.content.comments
-          }));
+        if (result.content && result.content.comments && setFormData && typeof setFormData === 'function') {
+          try {
+            // Use a timeout to avoid React error #185 with rapid state updates
+            setTimeout(() => {
+              setFormData(prev => {
+                // Defensive check to ensure prev is an object
+                const safePrev = prev && typeof prev === 'object' ? prev : {};
+                return {
+                  ...safePrev,
+                  ...result.content.comments
+                };
+              });
+            }, 100);
+          } catch (error) {
+            console.warn('Failed to update form data:', error);
+          }
         }
 
-        console.log('Loaded slide data from backend for slide:', slideId);
       } catch (error) {
         console.warn('Failed to load slide data from backend:', error);
       }
     };
 
     loadSlideData();
-  }, [slideId, currentProjectId, setFieldPositions, setFormData]);
+  }, [currentProjectId]); // Add dependency array
 
   // Save field positions to backend when they change
   useEffect(() => {
@@ -103,29 +129,35 @@ const Comments = forwardRef(({
 
       const dimensionsToSave = {};
       Object.entries(fieldPositions).forEach(([field, data]) => {
-        if (data.width && data.height) {
+        // Save if there's any positioning data (not just width/height)
+        if (data && (data.top !== undefined || data.left !== undefined || data.width || data.height)) {
           dimensionsToSave[field] = {
-            width: data.width,
-            height: data.height,
+            ...(data.width !== undefined && { width: data.width }),
+            ...(data.height !== undefined && { height: data.height }),
             ...(data.x !== undefined && { x: data.x }),
             ...(data.y !== undefined && { y: data.y }),
             ...(data.top !== undefined && { top: data.top }),
             ...(data.left !== undefined && { left: data.left })
           };
+          console.log(`📐 Comments: Preparing to save field "${field}":`, dimensionsToSave[field]);
         }
       });
 
+      console.log('📐 Comments: Total fields to save:', Object.keys(dimensionsToSave).length, Object.keys(dimensionsToSave));
+
       if (Object.keys(dimensionsToSave).length > 0) {
         try {
-          await slideApiService.updateFieldPositions(currentProjectId, slideId, 'comments', dimensionsToSave);
-          console.log('Saved field positions to backend for slide:', slideId);
+          console.log('💾 Comments: Saving field positions to backend:', dimensionsToSave);
+          await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', dimensionsToSave);
         } catch (error) {
-          console.warn('Failed to save field positions to backend:', error);
+          console.warn('❌ Comments: Failed to save field positions to backend:', error);
         }
+      } else {
+        console.log('⚠️ Comments: No field positions to save - fieldPositions:', fieldPositions);
       }
     };
 
-    const timeoutId = setTimeout(saveDimensions, 1000);
+    const timeoutId = setTimeout(saveDimensions, 2000);
     return () => clearTimeout(timeoutId);
   }, [fieldPositions, slideId, currentProjectId]);
 
@@ -137,26 +169,25 @@ const Comments = forwardRef(({
       }
 
       try {
-        await slideApiService.updateContent(currentProjectId, slideId, 'comments', { comments: formData });
-        console.log('Saved comments content to backend for slide:', slideId);
+        await slideApiService.updateComments(currentProjectId, 'comments_slide', formData);
       } catch (error) {
         console.warn('Failed to save comments content to backend:', error);
       }
     };
 
-    const timeoutId = setTimeout(saveComments, 2000); // Longer delay for content
+    const timeoutId = setTimeout(saveComments, 5000); // Longer delay for content to prevent ERR_INSUFFICIENT_RESOURCES
     return () => clearTimeout(timeoutId);
   }, [formData, slideId, currentProjectId]);
 
   const handleChange = (field, value) => {
     if (setFormData) {
       const stringValue = String(value || "");
-      setFormData({ [field]: stringValue });
+      setFormData({ ...formData, [field]: stringValue });
       
       // Sync premise location with SlideOne (like the original implementation)
       if (field === 'premiseLocation') {
         // This will sync with SlideOne's premise location
-        setFormData({ premiseLocation: stringValue });
+        setFormData(prev => ({ ...prev, premiseLocation: stringValue }));
       }
     }
   };
@@ -166,10 +197,22 @@ const Comments = forwardRef(({
     el.style.height = el.scrollHeight + "px"; 
   };
 
-  // Drag functionality - similar to SlideOne
+  // Get touch or mouse coordinates
+  const getEventCoordinates = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
+
+  // Drag functionality - supports both mouse and touch
   const handleFieldMouseDown = (e, field) => {
     e.stopPropagation();
     e.preventDefault();
+    
+    if (!containerRef.current) {
+      return;
+    }
     
     setIsDragging(true);
     setDraggingField(field);
@@ -178,13 +221,14 @@ const Comments = forwardRef(({
       ? e.currentTarget.parentElement 
       : e.currentTarget;
     const fieldRect = fieldContainer.getBoundingClientRect();
-    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
     
     const zoomFactor = (zoomLevel || 100) / 100;
+    const coords = getEventCoordinates(e);
     
     setDragOffset({
-      x: (e.clientX - fieldRect.left) / zoomFactor,
-      y: (e.clientY - fieldRect.top) / zoomFactor,
+      x: (coords.clientX - fieldRect.left) / zoomFactor,
+      y: (coords.clientY - fieldRect.top) / zoomFactor,
     });
   };
 
@@ -193,19 +237,24 @@ const Comments = forwardRef(({
     e.stopPropagation();
     e.preventDefault();
     
+    if (!containerRef.current) {
+      return;
+    }
+    
     setIsResizing(true);
     setResizingField(field);
     setResizeMode(mode);
     
-    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
     const zoomFactor = (zoomLevel || 100) / 100;
+    const coords = getEventCoordinates(e);
     
     // Store the current field dimensions from our position state
     const currentField = fieldPositions?.[field] || stablePositionsRef.current[field] || {};
     
     setResizeStart({
-      x: (e.clientX - containerRect.left) / zoomFactor,
-      y: (e.clientY - containerRect.top) / zoomFactor,
+      x: (coords.clientX - containerRect.left) / zoomFactor,
+      y: (coords.clientY - containerRect.top) / zoomFactor,
       width: currentField.width || 400,
       height: currentField.height || 80,
       originalTop: currentField.top || 200,
@@ -214,12 +263,13 @@ const Comments = forwardRef(({
   };
 
   const handleMouseMove = (e) => {
-    if (isDragging && draggingField && imageHandler.containerRef.current) {
-      const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    if (isDragging && draggingField && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
       const zoomFactor = (zoomLevel || 100) / 100;
+      const coords = getEventCoordinates(e);
       
-      const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
-      const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
+      const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+      const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
       
       if (setFieldPositions) {
         const existingField = fieldPositions?.[draggingField] || {};
@@ -229,6 +279,9 @@ const Comments = forwardRef(({
           ...stableField,
           top: Math.max(0, newTop),
           left: Math.max(0, Math.min(newLeft, 1000)),
+          // Ensure width and height are preserved for saving
+          width: existingField.width || stableField.width || 400,
+          height: existingField.height || stableField.height || 80,
         };
         
         stablePositionsRef.current[draggingField] = newPosition;
@@ -238,12 +291,13 @@ const Comments = forwardRef(({
           [draggingField]: newPosition
         });
       }
-    } else if (isResizing && resizingField && imageHandler.containerRef.current) {
-      const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    } else if (isResizing && resizingField && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
       const zoomFactor = (zoomLevel || 100) / 100;
       
-      const currentX = (e.clientX - containerRect.left) / zoomFactor;
-      const currentY = (e.clientY - containerRect.top) / zoomFactor;
+      const coords = getEventCoordinates(e);
+      const currentX = (coords.clientX - containerRect.left) / zoomFactor;
+      const currentY = (coords.clientY - containerRect.top) / zoomFactor;
       
       let newWidth = resizeStart.width;
       let newHeight = resizeStart.height;
@@ -302,10 +356,17 @@ const Comments = forwardRef(({
     setResizeMode('');
   };
 
-  // Document event listeners for dragging and resizing
+  // Document event listeners for dragging and resizing (mouse and touch)
   useEffect(() => {
     const handleDocumentMouseMove = (e) => {
-      if ((isDragging || isResizing) && imageHandler.containerRef.current) {
+      if ((isDragging || isResizing) && containerRef.current) {
+        handleMouseMove(e);
+        e.preventDefault();
+      }
+    };
+
+    const handleDocumentTouchMove = (e) => {
+      if ((isDragging || isResizing) && containerRef.current) {
         handleMouseMove(e);
         e.preventDefault();
       }
@@ -316,14 +377,27 @@ const Comments = forwardRef(({
         handleMouseUp();
       }
     };
+
+    const handleDocumentTouchEnd = () => {
+      if (isDragging || isResizing) {
+        handleMouseUp();
+      }
+    };
     
     if (isDragging || isResizing) {
+      // Mouse events
       document.addEventListener('mousemove', handleDocumentMouseMove);
       document.addEventListener('mouseup', handleDocumentMouseUp);
+      
+      // Touch events - fix passive listener issue
+      document.addEventListener('touchmove', handleDocumentTouchMove, { passive: false });
+      document.addEventListener('touchend', handleDocumentTouchEnd, { passive: false });
       
       return () => {
         document.removeEventListener('mousemove', handleDocumentMouseMove);
         document.removeEventListener('mouseup', handleDocumentMouseUp);
+        document.removeEventListener('touchmove', handleDocumentTouchMove);
+        document.removeEventListener('touchend', handleDocumentTouchEnd);
       };
     }
   }, [isDragging, isResizing, draggingField, resizingField, dragOffset, resizeStart, zoomLevel, fieldPositions, setFieldPositions]);
@@ -337,12 +411,17 @@ const Comments = forwardRef(({
     const propsField = fieldPositions?.[field] || {};
     const mergedField = { ...propsField, ...stableField };
     
+    // Use one-line height (50px) for new fields, fallback to 80px for existing fields
+    const defaultHeight = (mergedField.height === undefined && formData?.[field] && formData[field].length < 50) ? 50 : 80;
+    
+    
     const position = {
       top: mergedField.top ?? defaultTop,
       left: mergedField.left ?? 150,
       width: mergedField.width ?? 400,
-      height: mergedField.height ?? 80,
+      height: mergedField.height ?? defaultHeight,
     };
+    
     
     return (
       <div
@@ -353,12 +432,18 @@ const Comments = forwardRef(({
           left: position.left,
           width: position.width + 30, // Add space for bullet
           height: position.height,
+          zIndex: 1000, // Ensure text fields are above images
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle (bullet point) - positioned absolutely, hidden in print/export */}
         <span 
-          onMouseDown={(e) => handleFieldMouseDown(e, field)}
+          onMouseDown={(e) => {
+            handleFieldMouseDown(e, field);
+          }}
+          onTouchStart={(e) => {
+            handleFieldMouseDown(e, field);
+          }}
           className="no-print-bullet"
           style={{
             position: "absolute",
@@ -385,7 +470,7 @@ const Comments = forwardRef(({
             onClick={(e) => {
               e.stopPropagation();
               if (setFormData) {
-                setFormData({ [field]: "" });
+                setFormData({ ...formData, [field]: "" });
               }
               if (setFieldPositions) {
                 const updatedPositions = { ...(fieldPositions || {}) };
@@ -427,6 +512,7 @@ const Comments = forwardRef(({
             onInput={(e) => autoResize(e.target)}
             placeholder={placeholder}
             onFocus={() => {
+              console.log('Textarea focused, selecting field:', field);
               if (selectedField !== field) {
                 onSelect(field);
               }
@@ -497,6 +583,7 @@ const Comments = forwardRef(({
               {/* Corner resize handles */}
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
                 style={{
                   position: "absolute",
                   bottom: "-4px",
@@ -512,6 +599,7 @@ const Comments = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
                 style={{
                   position: "absolute",
                   bottom: "-4px",
@@ -527,6 +615,7 @@ const Comments = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-right')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'top-right')}
                 style={{
                   position: "absolute",
                   top: "-4px",
@@ -542,6 +631,7 @@ const Comments = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-left')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'top-left')}
                 style={{
                   position: "absolute",
                   top: "-4px",
@@ -590,6 +680,7 @@ const Comments = forwardRef(({
             : position?.left !== undefined
             ? { left: `${position.left}px` }
             : { right: `${defaultFieldPositions[field]?.right}%` }),
+          zIndex: isActive ? 1001 : 1000, // Ensure div wrapper is above images
         }}
       >
         <textarea
@@ -657,6 +748,7 @@ const Comments = forwardRef(({
             whiteSpace: "nowrap",
             cursor: "text",
             resize: "none",
+            zIndex: isActive ? 1001 : 1000, // Ensure text fields are above images
             ...additionalStyles,
           }}
         />
@@ -666,7 +758,7 @@ const Comments = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -681,20 +773,14 @@ const Comments = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        // Always call imageHandler first for image drag/resize
-        imageHandler.handleMouseMove(e);
-        // Then handle text field dragging/resizing
+        // Handle text field dragging/resizing
         handleMouseMove(e);
       }}
       onMouseUp={(e) => {
-        // Always call imageHandler first for image drag/resize
-        imageHandler.handleMouseUp(e);
-        // Then handle text field dragging/resizing
+        // Handle text field dragging/resizing
         handleMouseUp(e);
       }}
       onClick={(e) => {
-        imageHandler.handleContainerClick(e, onSelect);
-        
         if (e.target === e.currentTarget) {
           onSelect(null);
         }
@@ -722,10 +808,10 @@ const Comments = forwardRef(({
       {formData && formData.handrailsStairs && renderBulletTextField('handrailsStairs', 'The premise has handrails for stairs.', 450)}
       {formData && formData.guardRailsBalcony && renderBulletTextField('guardRailsBalcony', 'The premise has guard rails for the balcony.', 500)}
       {formData && formData.handrailsGuardRails && renderBulletTextField('handrailsGuardRails', 'The premise has handrails for stairs and guard rails for the balcony.', 550)}
-      {formData && formData.pwdProvisions && renderBulletTextField('pwdProvisions', 'The premise has PWD provisions.', 600)}
+      {formData && formData.pwdProvisions && renderBulletTextField('pwdProvisions', 'The premise has PWD provisions (parking, ramp, etc.).', 600)}
       {formData && formData.cctvCameras && renderBulletTextField('cctvCameras', 'There are CCTV cameras present on the property.', 300)}
       {formData && formData.poolGateFence && renderBulletTextField('poolGateFence', 'There is a gate and fence around the pool.', 350)}
-      {formData && formData.vandalism && renderBulletTextField('vandalism', 'Vandalism is present on the premise.', 400)}
+      {formData && formData.vandalism && renderBulletTextField('vandalism', 'There are no visible vandalism on the premise and its surroundings.', 400)}
       
       {/* Dynamic Interior View textboxes */}
       {formData && Object.keys(formData).filter(key => key.startsWith('interiorView_')).map((key) => (
@@ -738,14 +824,15 @@ const Comments = forwardRef(({
       ))}
       
       {/* Image Component for paste functionality */}
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+          }
+        }}
+        zoomLevel={zoomLevel}
+        isActiveSlide={isActiveSlide}
       />
       
       {/* Location and Website at bottom right */}

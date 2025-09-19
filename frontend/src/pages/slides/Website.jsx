@@ -1,6 +1,5 @@
-import { useState, forwardRef, useImperativeHandle, useEffect } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react";
+import MultiImageComponent from "../../components/MultiImageComponent";
 
 const Website = forwardRef(({
   formData,
@@ -17,8 +16,9 @@ const Website = forwardRef(({
   setFieldPositions,
   websiteUrl // Add this prop to receive website URL from slide 1
 }, ref) => {
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
   
+  const containerRef = useRef(null);
+
   // Pre-populate websiteInfo field with websiteUrl from slide 1 when component mounts
   useEffect(() => {
     if (websiteUrl && (!formData.websiteInfo || formData.websiteInfo.trim() === '')) {
@@ -126,6 +126,7 @@ const Website = forwardRef(({
             : { top: `${position.top}px` }),
           right: `${position.right}%`,
           width: `${estimatedWidth}px`,
+          zIndex: selectedField === field ? 1001 : 1000, // Ensure text fields are above images
         }}
       >
         <textarea
@@ -194,7 +195,7 @@ const Website = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -207,15 +208,18 @@ const Website = forwardRef(({
         borderRadius: "12px",
         boxShadow: "0 0 20px rgba(0,0,0,0.15)",
       }}
-      onMouseMove={imageHandler.handleMouseMove}
-      onMouseUp={imageHandler.handleMouseUp}
-      onClick={(e) => imageHandler.handleContainerClick(e, onSelect)}
+      onClick={(e) => {
+        // If clicking on empty area (not on text field or image), deselect
+        if (e.target === e.currentTarget) {
+          onSelect(null);
+        }
+      }}
     >
       {renderField("websiteInfo", websiteUrl || "www.example.com")}
 
 
       {/* Screenshot area - users can paste images here */}
-      {!imageHandler.imageData && (
+      {(slideData?.images || []).length === 0 && (
         <div
           style={{
             position: "absolute",
@@ -249,14 +253,14 @@ const Website = forwardRef(({
         </div>
       )}
 
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+          }
+        }}
+        zoomLevel={zoomLevel}
       />
     </div>
   );

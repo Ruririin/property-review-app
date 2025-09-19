@@ -19,8 +19,9 @@ export const useDevice = () => {
       
       const newDevice = {
         isMobile: width < 768,
-        isTablet: width >= 768 && width < 1024,
-        isDesktop: width >= 1024,
+        isTablet: width >= 768 && width < 1200, // Expand tablet range for better support
+        isDesktop: width >= 1200,
+        isMobileOrTablet: width < 1200, // Combined check for mobile-like experience
         screenWidth: width,
         screenHeight: height,
         orientation: width > height ? 'landscape' : 'portrait',
@@ -30,11 +31,12 @@ export const useDevice = () => {
       setDevice(newDevice);
       
       // Add CSS classes to body for styling
-      document.body.classList.remove('mobile', 'tablet', 'desktop', 'touch-device', 'landscape', 'portrait');
+      document.body.classList.remove('mobile', 'tablet', 'desktop', 'mobile-or-tablet', 'touch-device', 'landscape', 'portrait');
       
       if (newDevice.isMobile) document.body.classList.add('mobile');
       if (newDevice.isTablet) document.body.classList.add('tablet');
       if (newDevice.isDesktop) document.body.classList.add('desktop');
+      if (newDevice.isMobileOrTablet) document.body.classList.add('mobile-or-tablet');
       if (newDevice.touchDevice) document.body.classList.add('touch-device');
       document.body.classList.add(newDevice.orientation);
       

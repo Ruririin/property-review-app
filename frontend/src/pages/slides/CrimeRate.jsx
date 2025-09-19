@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import MultiImageComponent from "../../components/MultiImageComponent";
 
 const CrimeRate = forwardRef(({
   formData,
@@ -15,9 +14,10 @@ const CrimeRate = forwardRef(({
   slideData,
   updateSlideData,
   isActiveSlide,
+  slideId = 'crimeRate',
 }, ref) => {
   
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  const containerRef = useRef(null);
 
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
@@ -31,7 +31,7 @@ const CrimeRate = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -45,16 +45,7 @@ const CrimeRate = forwardRef(({
         fontFamily: "'Montserrat', sans-serif",
         userSelect: "none",
       }}
-      onMouseMove={(e) => {
-        imageHandler.handleMouseMove(e);
-      }}
-      onMouseUp={(e) => {
-        imageHandler.handleMouseUp(e);
-      }}
       onClick={(e) => {
-        // Handle image click first
-        imageHandler.handleContainerClick(e, onSelect);
-        
         // If clicking on empty area (not on text field or image), deselect
         if (e.target === e.currentTarget) {
           onSelect(null);
@@ -62,14 +53,14 @@ const CrimeRate = forwardRef(({
       }}
     >
       {/* Image Component for paste functionality */}
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+          }
+        }}
+        zoomLevel={zoomLevel}
       />
     </div>
   );

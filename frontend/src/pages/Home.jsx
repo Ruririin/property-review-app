@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import ActiveUsersPanel from "../components/ActiveUsersPanel";
+import ExportedItemsPanel from "../components/ExportedItemsPanel";
 import apiService from "../services/apiService";
 
 export default function Home({ sessionUser, onLogout }) {
@@ -9,6 +9,9 @@ export default function Home({ sessionUser, onLogout }) {
   const [projects, setProjects] = useState([]);
   const [completedProjects, setCompletedProjects] = useState([]);
   const [activeUsers, setActiveUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Update project status
 
   // Helper function to get user display name
   const getUserDisplayName = (project) => {
@@ -30,35 +33,54 @@ export default function Home({ sessionUser, onLogout }) {
     return `User ${project.owner || 'Unknown'}`;
   };
 
-  const refreshProjects = async () => {
-    if (sessionUser) {
-      try {
-        // Get all projects from database
-        const allProjects = await apiService.listProjects();
-        // Loaded projects from database
-        
-        // Filter by status
-        const activeProjects = allProjects.filter(p => p.status !== 'completed');
-        const completedProjects = allProjects.filter(p => p.status === 'completed');
-        
-        setProjects(activeProjects);
-        setCompletedProjects(completedProjects);
-      } catch (error) {
-        console.error('❌ Failed to load projects:', error);
-        setProjects([]);
-        setCompletedProjects([]);
+  const refreshProjects = async (showLoading = true) => {
+    if (!sessionUser) return;
+    
+    if (showLoading) setIsLoading(true);
+    
+    try {
+      // Get all projects from database
+      const allProjects = await apiService.listProjects({ 
+        page_size: 50,  // Reduced from 100 for faster loading
+        ordering: '-updated_at'  // Most recently updated first
+      });
+      
+      // Handle paginated response
+      const projectList = allProjects.results || allProjects;
+      
+      // More efficient filtering using a single pass
+      const activeProjects = [];
+      const completedProjects = [];
+      
+      for (const project of projectList) {
+        const status = project.status || 'editing';
+        if (status === 'completed') {
+          completedProjects.push(project);
+        } else {
+          activeProjects.push(project);
+        }
       }
+      
+      setProjects(activeProjects);
+      setCompletedProjects(completedProjects);
+    } catch (error) {
+      console.error('❌ Failed to load projects:', error);
+      setProjects([]);
+      setCompletedProjects([]);
+    } finally {
+      if (showLoading) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    // Load ALL saved projects for shared drafts
+    // Load projects when sessionUser is available  
     if (sessionUser) {
-      refreshProjects();
+      refreshProjects(true); // Show loading on session user change
       updateActiveUser(sessionUser, 'join');
     } else {
       setProjects([]);
       setCompletedProjects([]);
+      setIsLoading(false);
     }
 
     // Cleanup when component unmounts or user changes
@@ -69,18 +91,28 @@ export default function Home({ sessionUser, onLogout }) {
     };
   }, [sessionUser]);
 
-  // Also refresh when the component becomes visible (user navigates back to home)
+  // Refresh when tab becomes visible (but not on initial page load)
   useEffect(() => {
+    let isInitialLoad = true;
+    
     const handleVisibilityChange = () => {
-      if (!document.hidden && sessionUser) {
-        // Page visible, refreshing projects
-        refreshProjects();
+      if (!document.hidden && sessionUser && !isInitialLoad) {
+        // Silent refresh when returning to tab (no loading spinner)
+        refreshProjects(false);
       }
+      isInitialLoad = false;
     };
+
+    // Handle navigation back from Editor (when component remounts)
+    if (sessionUser && !isLoading && projects.length > 0) {
+      // Silent refresh when navigating back
+      refreshProjects(false);
+    }
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [sessionUser]);
+
 
   const updateActiveUser = (userName, action) => {
     // Store active users in localStorage for demo purposes
@@ -175,7 +207,17 @@ export default function Home({ sessionUser, onLogout }) {
               <h4 className="fw-bold">Property Review Drafts</h4>
             </div>
             
-            {projects.length === 0 ? (
+            {isLoading ? (
+              <div className="card shadow-sm text-center py-5">
+                <div className="card-body">
+                  <div className="spinner-border text-success mb-3" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                  <h5 className="text-muted">Loading Projects...</h5>
+                  <p className="text-muted">Please wait while we fetch your property reviews</p>
+                </div>
+              </div>
+            ) : projects.length === 0 ? (
               <div className="card shadow-sm text-center py-5">
                 <div className="card-body">
                   <i className="bi bi-file-earmark-plus fs-1 mb-3" style={{ color: "#198754" }}></i>
@@ -197,9 +239,27 @@ export default function Home({ sessionUser, onLogout }) {
                   <div key={project.id} className="col-md-6 mb-4">
                     <div className="card shadow-sm h-100">
                       <div className="card-body">
-                        <h5 className="card-title fw-bold mb-3">
-                          {project.title || project.formData?.insuredName || project.slideData?.[1]?.formData?.insuredName || 'Untitled Project'}
-                        </h5>
+                        <div className="d-flex justify-content-between align-items-start mb-3">
+                          <h5 className="card-title fw-bold mb-0">
+                            {project.title || 
+                             project.name || 
+                             project.formData?.insuredName || 
+                             project.slideData?.[1]?.formData?.insuredName || 
+                             project.slideData?.formData?.insuredName ||
+                             `Project ${project.id?.substring(0, 8) || 'Unknown'}`}
+                          </h5>
+                          <span className={`badge ms-2 ${
+                            project.status === 'approved' ? 'bg-success' :
+                            project.status === 'denied' ? 'bg-danger' :
+                            project.status === 'conditional' ? 'bg-warning text-dark' :
+                            'bg-secondary'
+                          }`}>
+                            {project.status === 'approved' ? '✓ Approved' :
+                             project.status === 'denied' ? '✗ Denied' :
+                             project.status === 'conditional' ? '⚠ Conditional' :
+                             'Draft'}
+                          </span>
+                        </div>
                         
                         <div className="d-flex justify-content-between align-items-center mb-4">
                           <div>
@@ -223,7 +283,7 @@ export default function Home({ sessionUser, onLogout }) {
                           </div>
                         </div>
                         
-                        <div className="d-flex gap-2">
+                        <div className="d-flex gap-2 mb-3">
                           <button 
                             className="btn btn-sm btn-primary flex-grow-1"
                             onClick={() => handleEditProject(project.id)}
@@ -237,6 +297,24 @@ export default function Home({ sessionUser, onLogout }) {
                           >
                             Delete
                           </button>
+                        </div>
+
+                        {/* Status Management Section */}
+                        <div className="border-top pt-3">
+                          <div className="d-flex justify-content-between align-items-center mb-2">
+                            <small className="text-muted fw-semibold">Project Status:</small>
+                            <span className={`badge ${
+                              project.status === 'approved' ? 'bg-success' :
+                              project.status === 'denied' ? 'bg-danger' :
+                              project.status === 'conditional' ? 'bg-warning text-dark' :
+                              'bg-secondary'
+                            }`}>
+                              {project.status === 'approved' ? 'Approved' :
+                               project.status === 'denied' ? 'Denied' :
+                               project.status === 'conditional' ? 'Conditional' :
+                               'Draft'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -312,9 +390,9 @@ export default function Home({ sessionUser, onLogout }) {
             )}
           </div>
           
-          {/* Active Users Panel */}
+          {/* Exported Items Panel */}
           <div className="col-md-4">
-            <ActiveUsersPanel />
+            <ExportedItemsPanel sessionUser={sessionUser} />
           </div>
         </div>
       </div>

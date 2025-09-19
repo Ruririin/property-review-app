@@ -4,8 +4,7 @@ import Home from "./pages/Home";
 import SessionUserPicker from "./pages/SessionUserPicker";
 import { useLocation } from "react-router-dom";
 import Editor from "./pages/Editor.jsx";
-import DemoBanner from "./components/DemoBanner.jsx";
-import { DEMO_CONFIG } from "./config/demoConfig.js";
+import PWAInstallPrompt from "./components/PWAInstallPrompt.jsx";
 import authService from "./services/authService.js";
 
 function App() {
@@ -70,8 +69,7 @@ function App() {
 
   return (
     <>
-      <DemoBanner />
-      <div style={{ paddingTop: DEMO_CONFIG?.DEMO_MODE ? '40px' : '0' }}>
+      <PWAInstallPrompt />
         <Routes>
           <Route 
             path="/" 
@@ -95,7 +93,6 @@ function App() {
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </div>
     </>
   );
 }

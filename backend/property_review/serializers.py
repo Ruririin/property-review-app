@@ -32,6 +32,31 @@ class ProjectLocationSerializer(serializers.ModelSerializer):
                  'created_at', 'updated_at']
         read_only_fields = ('created_at', 'updated_at')
 
+# Lightweight serializer for project lists (excludes heavy slideData)
+class LightProjectSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(source='name')  # Map 'name' to 'title' for frontend compatibility
+    status = serializers.CharField(required=False, default='editing')
+    # Only include lightweight formData fields for listing
+    insuredName = serializers.SerializerMethodField()
+    premiseLocation = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Project
+        fields = ['id', 'title', 'name', 'description', 'created_at', 'updated_at', 'legacy_id',
+                 'status', 'insuredName', 'premiseLocation', 'owner']
+        read_only_fields = ('created_at', 'updated_at')
+        extra_kwargs = {
+            'name': {'write_only': True},
+            'owner': {'required': False}
+        }
+    
+    def get_insuredName(self, obj):
+        return obj.formData.get('insuredName', '') if obj.formData else ''
+    
+    def get_premiseLocation(self, obj):
+        return obj.formData.get('premiseLocation', '') if obj.formData else ''
+
+# Full serializer for individual project details (includes all data)
 class ProjectSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='name')  # Map 'name' to 'title' for frontend compatibility
     status = serializers.CharField(required=False, default='editing')

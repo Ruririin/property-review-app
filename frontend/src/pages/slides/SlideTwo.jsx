@@ -1,6 +1,5 @@
 import { useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
 
 const SlideTwo = forwardRef(({
   formData,
@@ -64,7 +63,7 @@ const SlideTwo = forwardRef(({
         key={field}
         value={formData[field] || ""}
         onChange={(e) =>
-          setFormData({ [field]: e.target.value })
+          setFormData({ ...formData, [field]: e.target.value })
         }
         onFocus={() => onSelect(field)}
         placeholder={placeholder}
@@ -118,7 +117,8 @@ const SlideTwo = forwardRef(({
       }}>
         {/* Main display field */}
         <div
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent container click handler
             setIsDropdownOpen(!isDropdownOpen);
             onSelect("websiteInfo");
           }}
@@ -165,7 +165,10 @@ const SlideTwo = forwardRef(({
             {options.map((option) => (
               <div
                 key={option.value}
-                onClick={() => handleOptionClick(option.value)}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent container click handler
+                  handleOptionClick(option.value);
+                }}
                 style={{
                   padding: "8px 12px",
                   fontSize: "16px",
@@ -205,6 +208,8 @@ const SlideTwo = forwardRef(({
       }}
       onMouseMove={imageHandler.handleMouseMove}
       onMouseUp={imageHandler.handleMouseUp}
+      onTouchMove={imageHandler.handleMouseMove}
+      onTouchEnd={imageHandler.handleMouseUp}
       onClick={(e) => imageHandler.handleContainerClick(e, onSelect)}
     >
       {renderGoogleMapsField()}
@@ -258,15 +263,73 @@ const SlideTwo = forwardRef(({
         </div>
       )}
 
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
-      />
+      {/* Image rendering handled by imageHandler */}
+      {imageHandler.imageData && (
+        <img
+          src={imageHandler.imageData.src}
+          alt="Aerial view"
+          style={{
+            position: "absolute",
+            left: `${imageHandler.imagePosition.left}px`,
+            top: `${imageHandler.imagePosition.top}px`,
+            width: `${imageHandler.imageData.width}px`,
+            height: `${imageHandler.imageData.height}px`,
+            cursor: imageHandler.isImageSelected ? 'move' : 'pointer',
+            border: imageHandler.isImageSelected ? '3px solid #007bff' : '5px solid #000',
+            borderRadius: '6px',
+            boxSizing: 'border-box',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+            zIndex: imageHandler.isImageSelected ? 1001 : 1000,
+          }}
+          onMouseDown={imageHandler.handleMouseDownImage}
+          onTouchStart={imageHandler.handleMouseDownImage}
+          onClick={(e) => {
+            e.stopPropagation();
+            imageHandler.setIsImageSelected(true);
+          }}
+        />
+      )}
+
+      {/* Resize handles */}
+      {imageHandler.isImageSelected && imageHandler.imageData && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              left: `${imageHandler.imagePosition.left + imageHandler.imageData.width - 10}px`,
+              top: `${imageHandler.imagePosition.top + imageHandler.imageData.height - 10}px`,
+              width: '20px',
+              height: '20px',
+              background: '#007bff',
+              cursor: 'se-resize',
+              zIndex: 1002,
+              borderRadius: '50%',
+              border: '2px solid white',
+            }}
+            onMouseDown={imageHandler.handleResizeMouseDown}
+            onTouchStart={imageHandler.handleResizeMouseDown}
+          />
+          <button
+            onClick={imageHandler.handleDeleteImage}
+            style={{
+              position: 'absolute',
+              left: `${imageHandler.imagePosition.left + imageHandler.imageData.width - 25}px`,
+              top: `${imageHandler.imagePosition.top - 25}px`,
+              background: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              width: '25px',
+              height: '25px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              zIndex: 1002,
+            }}
+          >
+            ×
+          </button>
+        </>
+      )}
     </div>
   );
 });

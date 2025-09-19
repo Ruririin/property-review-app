@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDevice } from "../hooks/useDevice";
-import MobileToolbar from "../components/MobileToolbar";
+import ProjectLoadingScreen from "../components/ProjectLoadingScreen";
 import Sidebar from "../components/Sidebar";
 import "../styles/mobile.css";
 import SlideOne from "./slides/SlideOne";
@@ -10,6 +10,7 @@ import SlideThree from "./slides/SlideThree";
 import StreetView from "./slides/StreetView";
 import Interior from "./slides/Interior";
 import OnlinePresence from "./slides/OnlinePresence";
+import License from "./slides/License";
 import Comments from "./slides/Comments";
 import FireHazard from "./slides/FireHazard";
 import CrimeRate from "./slides/CrimeRate";
@@ -17,6 +18,7 @@ import NearestFireStation from "./slides/NearestFireStation";
 import Website from "./slides/Website";
 import Ratings from "./slides/Ratings";
 import { exportToPDF } from "../utils/pdfExport";
+import exportedItemsService from "../services/exportedItemsService";
 import lroDataService from "../services/lroDataService";
 import { loadIsoCodes, findBestMatch } from "../services/isoCodeService";
 import userActivityService from "../services/userActivityService";
@@ -225,6 +227,8 @@ export default function Editor({ sessionUser }) {
   
   // Project save state
   const [currentProjectId, setCurrentProjectId] = useState(null);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Loading project...");
   
   // Drawing tool state
   const [isDrawingMode, setIsDrawingMode] = useState(false);
@@ -389,9 +393,14 @@ export default function Editor({ sessionUser }) {
     fireStationDistance: 'left',
   });
   const [showToolbar, setShowToolbar] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showSlidesBar, setShowSlidesBar] = useState(true);
   const [showPopupDropdown, setShowPopupDropdown] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
+  
+  // Project status state
+  const [currentProjectStatus, setCurrentProjectStatus] = useState('draft');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   
   // LRO form selection states
   const [isLroDropdownOpen, setIsLroDropdownOpen] = useState(false);
@@ -874,6 +883,18 @@ export default function Editor({ sessionUser }) {
     return () => clearInterval(interval);
   }, [sessionUser, currentProjectId, hasUnsavedChanges]); // Re-run when these change
 
+  // Close status dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showStatusDropdown && !event.target.closest('.dropdown')) {
+        setShowStatusDropdown(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showStatusDropdown]);
+
   // Handle page refresh/close - save before unload
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -926,7 +947,7 @@ export default function Editor({ sessionUser }) {
   }, [multipleLocationsMode, globalLocationData]);
 
   const slideOptions = [
-    'Aerial View - Google', 'Aerial View - Bing', 'Street View', 'Interior', 'Online Presence',
+    'Aerial View - Google', 'Aerial View - Bing', 'Street View', 'Interior', 'Online Presence', 'License',
     'Comments', 'Nearest Fire Station', 'Fire Hazard', 'Crime Rate', 'Ratings', 'Website'
   ];
 
@@ -1297,6 +1318,120 @@ export default function Editor({ sessionUser }) {
     }
   };
 
+  // Touch event handlers for mobile/tablet support
+  const handleCanvasTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      // Single touch - treat as mouse down
+      const touch = e.touches[0];
+      const syntheticEvent = {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        preventDefault: () => {},
+        stopPropagation: () => {}
+      };
+      handleCanvasMouseDown(syntheticEvent);
+    }
+    // preventDefault is handled by the non-passive event listener
+  };
+
+  const handleCanvasTouchMove = (e) => {
+    if (e.touches.length === 1) {
+      // Single touch - treat as mouse move
+      const touch = e.touches[0];
+      const syntheticEvent = {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        preventDefault: () => {},
+        stopPropagation: () => {}
+      };
+      handleCanvasMouseMove(syntheticEvent);
+    }
+    // preventDefault is handled by the non-passive event listener
+  };
+
+  const handleCanvasTouchEnd = (e) => {
+    handleCanvasMouseUp();
+    // preventDefault is handled by the non-passive event listener
+  };
+
+  // Add non-passive touch event listeners to prevent scrolling during canvas interaction
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = (e) => {
+      if (e.touches.length === 1) {
+        e.preventDefault(); // Prevent scrolling
+        handleCanvasTouchStart(e);
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (e.touches.length === 1) {
+        e.preventDefault(); // Prevent scrolling
+        handleCanvasTouchMove(e);
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      e.preventDefault(); // Prevent scrolling
+      handleCanvasTouchEnd(e);
+    };
+
+    // Add non-passive event listeners
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [canvasOffset, zoomLevel, isDrawingMode, isDraggingCanvas]);
+
+  // Long press handler for paste functionality on touch devices
+  const [longPressTimer, setLongPressTimer] = useState(null);
+  const [longPressTarget, setLongPressTarget] = useState(null);
+
+  const handleLongPressStart = (e, target) => {
+    const timer = setTimeout(() => {
+      // Show paste context menu or trigger paste
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(text => {
+          if (text && target && target.focus) {
+            target.focus();
+            // For input/textarea elements
+            if (target.setSelectionRange) {
+              const start = target.selectionStart;
+              const end = target.selectionEnd;
+              const value = target.value;
+              target.value = value.substring(0, start) + text + value.substring(end);
+              target.setSelectionRange(start + text.length, start + text.length);
+              
+              // Trigger change event
+              const event = new Event('input', { bubbles: true });
+              target.dispatchEvent(event);
+            }
+          }
+        }).catch(err => {
+          console.log('Clipboard read failed:', err);
+        });
+      }
+    }, 500); // 500ms long press
+    
+    setLongPressTimer(timer);
+    setLongPressTarget(target);
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+    setLongPressTarget(null);
+  };
+
   // Mouse-centered zoom functions
   const zoomAtPoint = (newZoomLevel, mouseX, mouseY) => {
     const oldZoom = zoomLevel / 100;
@@ -1525,12 +1660,26 @@ export default function Editor({ sessionUser }) {
   // Load saved project data
   const loadProject = async (projectId) => {
     try {
+      // Show loading screen
+      setIsLoadingProject(true);
+      setLoadingMessage("Loading project data...");
+      
       // Set current project ID immediately to prevent race conditions
       setCurrentProjectId(projectId);
+      
+      // Update loading message
+      setLoadingMessage("Fetching project details...");
       
       const savedProject = await apiService.getProject(projectId);
       if (savedProject) {
         console.log(`📂 Loading project: ${savedProject.title}`, savedProject);
+        
+        // Load project status
+        if (savedProject.status) {
+          setCurrentProjectStatus(savedProject.status);
+        } else {
+          setCurrentProjectStatus('draft'); // Default status
+        }
       
       // Restore all project data
       if (savedProject.slides) {
@@ -1710,9 +1859,17 @@ export default function Editor({ sessionUser }) {
       }
       
         // console.log(`Successfully loaded project: ${savedProject.title}`);
+        setLoadingMessage("Project loaded successfully!");
+        
+        // Hide loading screen
+        setTimeout(() => {
+          setIsLoadingProject(false);
+        }, 500);
+        
         return true;
       } else {
         console.log(`📂 No project found for ID: ${projectId}`);
+        setIsLoadingProject(false);
         return false;
       }
     } catch (error) {
@@ -1740,28 +1897,45 @@ export default function Editor({ sessionUser }) {
           window.history.replaceState({}, '', newUrl);
           
           console.log('✅ Created new project after load failure:', newProjectId);
+          setIsLoadingProject(false);
           return true;
         } catch (createError) {
           console.error('❌ Failed to create new project:', createError);
+          setIsLoadingProject(false);
         }
       }
       
+      setIsLoadingProject(false);
       return false;
     }
   };
 
-  // Mark project as completed
-  const markProjectCompleted = async () => {
+  // Helper function to get status display text
+  const getStatusDisplay = (status) => {
+    switch (status) {
+      case 'approved': return 'Mark Approved';
+      case 'denied': return 'Mark Denied';
+      case 'conditional': return 'Mark Conditional';
+      default: return 'Mark Status';
+    }
+  };
+
+  // Update project status
+  const updateProjectStatus = async (newStatus) => {
     if (currentProjectId) {
       try {
         // Get current project data first
         const project = await apiService.getProject(currentProjectId);
         if (project) {
-          // Update project status to completed
+          // Update project status
           await apiService.updateProject(currentProjectId, {
             ...project,
-            status: 'completed'
+            status: newStatus
           });
+          
+          // Update local state
+          setCurrentProjectStatus(newStatus);
+          setShowStatusDropdown(false);
           
           // Clean up field activity tracking when project is completed
           if (currentFormId) {
@@ -1769,12 +1943,15 @@ export default function Editor({ sessionUser }) {
           }
           fieldActivityService.stopEditingField(sessionUser, `project-${currentProjectId}`);
           
-          alert('Project marked as completed!');
+          const statusText = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+          alert(`Project marked as ${statusText}!`);
+          
+          // Navigate back to home after marking status
           navigate('/');
         }
       } catch (error) {
-        console.error('Failed to mark project as completed:', error);
-        alert('Failed to mark project as completed. Please try again.');
+        console.error('Error updating project status:', error);
+        alert('Failed to update project status');
       }
     }
   };
@@ -1986,6 +2163,15 @@ export default function Editor({ sessionUser }) {
 
     console.log(`🆕 Creating new slide for Location ${selectedLocationIndex + 1}:`, initialFormData);
 
+    // Set default field positions for Comments slides
+    let defaultFieldPositions = {};
+    if (actualSlideType === 'comments') {
+      defaultFieldPositions = {
+        websiteInfo: { top: 630, right: 1.2 }, // Original bottom-right positioning
+        premiseLocation: { top: 670, right: 1.2 }  // Original bottom-right positioning
+      };
+    }
+
     setSlideData(prev => ({
       ...prev,
       [newSlide.id]: {
@@ -1993,6 +2179,7 @@ export default function Editor({ sessionUser }) {
         imageData: null,
         imagePosition: { top: 300, left: 400 },
         drawings: [],
+        fieldPositions: defaultFieldPositions,
         // Store the location index this slide belongs to
         locationIndex: newSlide.locationIndex
       }
@@ -2099,9 +2286,20 @@ export default function Editor({ sessionUser }) {
       }
 
       await exportToPDF(slideElements, filename);
-      
-      // PDF exported successfully
-      
+
+      // PDF exported successfully - save to exported items
+      try {
+        const exportedItem = exportedItemsService.addExportedItem({
+          filename: filename,
+          project_name: currentProjectName || 'Untitled Project',
+          file_size: null, // File size not available from browser export
+          file_path: filename
+        });
+        console.log('Exported item saved:', exportedItem);
+      } catch (error) {
+        console.error('Failed to save exported item metadata:', error);
+      }
+
       // Show success message
       alert(`PDF exported successfully as: ${filename}`);
 
@@ -2153,13 +2351,24 @@ export default function Editor({ sessionUser }) {
       currentFormId, // Add current form ID for specific field tracking
       slideData: slideSpecificData,
       updateSlideData: (updates) => updateSlideData(slideId, updates),
-      fieldPositions: slideSpecificData.fieldPositions,
+      fieldPositions: slideSpecificData.fieldPositions || {},
       setFieldPositions: (positions) => updateFieldPositions(slideId, positions),
       zoomLevel: zoomLevel,
       isActiveSlide: slideId === currentSlide,
       allSlideData: slideData, // Pass all slide data for cross-slide logic  
       slides: slides // Pass slides array to check slide types
     };
+
+    // Debug logging for Comments slide
+    if (slideData.type === 'comments') {
+      console.log('💬 Comments slideProps:', {
+        hasFormData: !!formDataToUse,
+        formData: formDataToUse,
+        hasFieldPositions: !!(slideSpecificData.fieldPositions),
+        fieldPositions: slideSpecificData.fieldPositions,
+        slideSpecificData: slideSpecificData
+      });
+    }
 
     // Handle all street view variants (street_view_1, street_view_2, etc.)
     if (slideData.type.startsWith('street_view')) {
@@ -2191,7 +2400,12 @@ export default function Editor({ sessionUser }) {
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'online_presence':
-        return <OnlinePresence 
+        return <OnlinePresence
+          {...slideProps}
+          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
+        />;
+      case 'license':
+        return <License
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
@@ -2253,41 +2467,47 @@ export default function Editor({ sessionUser }) {
     return renderSlide(currentSlide);
   };
 
+  // Show loading screen while project is loading
+  if (isLoadingProject) {
+    return (
+      <ProjectLoadingScreen
+        projectTitle={globalLocationData?.insuredName || "Property Project"}
+        message={loadingMessage}
+      />
+    );
+  }
+
   return (
     <div className={`editor-page position-relative ${device.isMobile ? 'mobile-layout' : ''} ${device.isTablet ? 'tablet-layout' : ''}`} style={{ height: "100vh", overflow: "hidden" }}>
       
-      {/* Mobile Toolbar */}
-      <MobileToolbar
-        currentSlide={currentSlide}
-        totalSlides={slides.length}
-        onSlideChange={setCurrentSlide}
-        onSave={async () => {
-          await saveProject(); // Manual save (isAutoSave = false by default)
-        }}
-        onExport={() => {
-          const slidesToExport = slides.map(slide => slideRefs.current[slide.id]).filter(Boolean);
-          exportToPDF(slidesToExport, slideData, `${globalLocationData.insuredName || 'Property_Review'}.pdf`);
-        }}
-        onBack={() => navigate('/')}
-        isSaving={isAutoSaving}
-        hasUnsavedChanges={hasUnsavedChanges}
-      />
-
-      {/* Canvas-style Mobile Slide Container */}
+      {/* Mobile Sidebar Toggle Button */}
       {device.isMobile && (
-        <div className="mobile-slide-container">
-          <div 
-            className="mobile-slide-content"
-            ref={(el) => {
-              if (el) {
-                slideRefs.current[currentSlide] = el;
-              }
-            }}
-          >
-            {renderCurrentSlide()}
-          </div>
-        </div>
+        <button
+          onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          style={{
+            position: "fixed",
+            top: NAVBAR_HEIGHT + 20,
+            right: 20,
+            width: "50px",
+            height: "50px",
+            backgroundColor: "#007bff",
+            color: "white",
+            border: "none",
+            borderRadius: "50%",
+            fontSize: "20px",
+            zIndex: 1100,
+            cursor: "pointer",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {isMobileSidebarOpen ? "×" : "☰"}
+        </button>
       )}
+      
+
 
       {/* Custom scrollbar styles */}
       <style>
@@ -2330,7 +2550,7 @@ export default function Editor({ sessionUser }) {
         `}
       </style>
       {/* Professional Navbar */}
-      <nav className={`navbar navbar-light bg-white shadow-sm px-3 py-0 d-flex justify-content-between align-items-center position-fixed w-100 ${device.isMobile ? 'd-none' : ''}`} style={{ top: 0, zIndex: 1003, height: NAVBAR_HEIGHT }}>
+      <nav className={`navbar navbar-light bg-white shadow-sm px-3 py-0 d-flex justify-content-between align-items-center position-fixed w-100`} style={{ top: 0, zIndex: 1003, height: NAVBAR_HEIGHT }}>
         {/* Left - Logo & Brand */}
         <div 
           className="d-flex align-items-center py-2" 
@@ -2358,7 +2578,7 @@ export default function Editor({ sessionUser }) {
         </div>
         
         {/* Right - Actions Toolbar */}
-        <div className="d-flex align-items-center" style={{ gap: "8px" }}>
+        <div className="d-flex align-items-center" style={{ gap: "4px" }}>
           {/* LRO Database Dropdown */}
           <div className="position-relative">
             <button
@@ -2374,7 +2594,8 @@ export default function Editor({ sessionUser }) {
               }}
             >
               <i className="bi bi-database me-1" style={{ fontSize: "12px", color: "#198754" }}></i>
-              {isLoadingLroForms ? 'Loading...' : 'Load from Database'}
+              <span className="d-none d-md-inline">{isLoadingLroForms ? 'Loading...' : 'Load from Database'}</span>
+              <span className="d-md-none">DB</span>
             </button>
             
             {isLroDropdownOpen && (
@@ -2481,27 +2702,97 @@ export default function Editor({ sessionUser }) {
             }}
           >
             <i className="bi bi-file-earmark-pdf me-1" style={{ fontSize: "12px", color: "white" }}></i>
-            Export PDF
+            <span className="d-none d-md-inline">Export PDF</span>
+            <span className="d-md-none">PDF</span>
           </button>
           
-          {/* Complete Button */}
-          <button 
-            className="btn btn-outline-success btn-sm d-flex align-items-center" 
-            onClick={markProjectCompleted}
-            title="Mark this project as completed and remove it from active projects"
-            style={{ 
-              height: "36px",
-              fontSize: "13px",
-              fontWeight: "500",
-              borderRadius: "6px",
-              padding: "0 12px",
-              borderColor: "#198754",
-              color: "#198754"
-            }}
-          >
-            <i className="bi bi-check-circle me-1" style={{ fontSize: "12px", color: "white" }}></i>
-            Mark Complete
-          </button>
+          {/* Status Dropdown */}
+          <div className="dropdown position-relative">
+            <button 
+              className="btn btn-outline-success btn-sm d-flex align-items-center" 
+              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+              title="Mark project status"
+              style={{ 
+                height: "36px",
+                fontSize: "13px",
+                fontWeight: "500",
+                borderRadius: "6px",
+                padding: "0 12px",
+                borderColor: "#198754",
+                color: "#198754"
+              }}
+            >
+              <i className="bi bi-check-circle me-1" style={{ fontSize: "12px" }}></i>
+              <span className="d-none d-md-inline">{getStatusDisplay(currentProjectStatus)}</span>
+              <span className="d-md-none">Status</span>
+              <i className="bi bi-chevron-down ms-2" style={{ fontSize: "10px" }}></i>
+            </button>
+            
+            {showStatusDropdown && (
+              <div 
+                className="dropdown-menu show position-absolute"
+                style={{ 
+                  top: '100%',
+                  left: 0,
+                  zIndex: 1000,
+                  minWidth: '160px',
+                  backgroundColor: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                }}
+              >
+                <button 
+                  className="dropdown-item"
+                  style={{ 
+                    padding: "8px 16px", 
+                    border: "none", 
+                    background: "none", 
+                    textAlign: "left",
+                    color: "#28a745"
+                  }}
+                  onClick={() => updateProjectStatus('approved')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                >
+                  <i className="bi bi-check-circle me-2" style={{ color: "#28a745" }}></i>
+                  Mark Approved
+                </button>
+                <button 
+                  className="dropdown-item"
+                  style={{ 
+                    padding: "8px 16px", 
+                    border: "none", 
+                    background: "none", 
+                    textAlign: "left",
+                    color: "#dc3545"
+                  }}
+                  onClick={() => updateProjectStatus('denied')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                >
+                  <i className="bi bi-x-circle me-2" style={{ color: "#dc3545" }}></i>
+                  Mark Denied
+                </button>
+                <button 
+                  className="dropdown-item"
+                  style={{ 
+                    padding: "8px 16px", 
+                    border: "none", 
+                    background: "none", 
+                    textAlign: "left",
+                    color: "#ffc107"
+                  }}
+                  onClick={() => updateProjectStatus('conditional')}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                >
+                  <i className="bi bi-exclamation-triangle me-2" style={{ color: "#ffc107" }}></i>
+                  Mark Conditional
+                </button>
+              </div>
+            )}
+          </div>
           
           {/* Save Button */}
           <button 
@@ -2521,7 +2812,7 @@ export default function Editor({ sessionUser }) {
             }}
           >
             <i className="bi bi-save me-1" style={{ fontSize: "12px", color: "#6c757d" }}></i>
-            Save
+            <span className="d-none d-md-inline">Save</span>
           </button>
         </div>
       </nav>
@@ -2568,76 +2859,142 @@ export default function Editor({ sessionUser }) {
 
       {/* Editor Layout */}
       <div className="d-flex" style={{ height: "100vh", paddingTop: NAVBAR_HEIGHT }}>
-        {/* Sidebar */}
-        <div
-          className="editor-sidebar bg-light border-end p-3 shadow custom-scrollbar"
-          style={{
-            position: "fixed",
-            top: NAVBAR_HEIGHT,
-            bottom: showSlidesBar ? SLIDES_BAR_HEIGHT : 0,
-            left: showToolbar ? 0 : -SIDEBAR_WIDTH,
-            width: SIDEBAR_WIDTH,
-            zIndex: 1000,
-            transition: "left 0.3s ease-in-out, bottom 0.3s ease",
-            overflowY: "auto", // Enable vertical scrolling
-            overflowX: "hidden", // Hide horizontal overflow
-            scrollbarWidth: "thin", // For Firefox
-            scrollbarColor: "#c1c1c1 #f1f1f1", // For Firefox
-          }}
-        >
-          <Sidebar 
-            getCurrentLocation={getCurrentLocation}
-            showRatings={showRatings}
-            businessesAtLocation={businessesAtLocation}
-            searchBusinessRatings={searchBusinessRatings}
-            multipleLocationsMode={multipleLocationsMode}
-            selectedLocationIndex={selectedLocationIndex}
-            globalLocationData={globalLocationData}
-            parseMultipleLocations={parseMultipleLocations}
-            slides={slides}
-            currentSlide={currentSlide}
-            slideData={slideData}
-            getSlideData={getSlideData}
-            updateSlideData={updateSlideData}
-            setSelectedLocationIndex={setSelectedLocationIndex}
-            setMultipleLocationsMode={setMultipleLocationsMode}
-            locationDataService={locationDataService}
-            currentProjectId={currentProjectId}
-            apiService={apiService}
-            setBusinessesAtLocation={setBusinessesAtLocation}
-            // Font size props
-            selectedField={selectedField}
-            fontSizes={fontSizes}
-            handleFontSizeChange={handleFontSizeChange}
-            // Website toggle props
-            showWebsite={showWebsite}
-            setShowWebsite={setShowWebsite}
-            // Slide-specific options props
-            updateSlideFormData={updateSlideFormData}
-            showCustomCommentInput={showCustomCommentInput}
-            setShowCustomCommentInput={setShowCustomCommentInput}
-            customCommentText={customCommentText}
-            setCustomCommentText={setCustomCommentText}
-            isInteriorBuilderVisible={isInteriorBuilderVisible}
-            setIsInteriorBuilderVisible={setIsInteriorBuilderVisible}
-            // Drawing and text alignment props
-            textAlignments={textAlignments}
-            setTextAlignments={setTextAlignments}
-            isDrawingMode={isDrawingMode}
-            setIsDrawingMode={setIsDrawingMode}
-            isSquareEditMode={isSquareEditMode}
-            setIsSquareEditMode={setIsSquareEditMode}
-            selectedDrawingIndex={selectedDrawingIndex}
-            setSelectedDrawingIndex={setSelectedDrawingIndex}
-            setSlideData={setSlideData}
-            showToolbar={showToolbar}
-            setShowToolbar={setShowToolbar}
-            BUTTON_STYLES={BUTTON_STYLES}
-            // Fire station props
-            setFontSizes={setFontSizes}
-            editorApiService={editorApiService}
-          />
-        </div>
+        {/* Desktop/Tablet Sidebar */}
+        {!device.isMobile && (
+          <div
+            className="editor-sidebar bg-light border-end p-3 shadow custom-scrollbar"
+            style={{
+              position: "fixed",
+              top: NAVBAR_HEIGHT,
+              bottom: showSlidesBar ? SLIDES_BAR_HEIGHT : 0,
+              left: showToolbar ? 0 : -SIDEBAR_WIDTH,
+              width: SIDEBAR_WIDTH,
+              zIndex: 1000,
+              transition: "left 0.3s ease-in-out, bottom 0.3s ease",
+              overflowY: "auto",
+              overflowX: "hidden",
+              scrollbarWidth: "thin",
+              scrollbarColor: "#c1c1c1 #f1f1f1",
+            }}
+          >
+            <Sidebar 
+              getCurrentLocation={getCurrentLocation}
+              showRatings={showRatings}
+              businessesAtLocation={businessesAtLocation}
+              searchBusinessRatings={searchBusinessRatings}
+              multipleLocationsMode={multipleLocationsMode}
+              selectedLocationIndex={selectedLocationIndex}
+              globalLocationData={globalLocationData}
+              parseMultipleLocations={parseMultipleLocations}
+              slides={slides}
+              currentSlide={currentSlide}
+              slideData={slideData}
+              getSlideData={getSlideData}
+              updateSlideData={updateSlideData}
+              setSelectedLocationIndex={setSelectedLocationIndex}
+              setMultipleLocationsMode={setMultipleLocationsMode}
+              locationDataService={locationDataService}
+              currentProjectId={currentProjectId}
+              apiService={apiService}
+              setBusinessesAtLocation={setBusinessesAtLocation}
+              selectedField={selectedField}
+              fontSizes={fontSizes}
+              handleFontSizeChange={handleFontSizeChange}
+              showWebsite={showWebsite}
+              setShowWebsite={setShowWebsite}
+              updateSlideFormData={updateSlideFormData}
+              showCustomCommentInput={showCustomCommentInput}
+              setShowCustomCommentInput={setShowCustomCommentInput}
+              customCommentText={customCommentText}
+              setCustomCommentText={setCustomCommentText}
+              isInteriorBuilderVisible={isInteriorBuilderVisible}
+              setIsInteriorBuilderVisible={setIsInteriorBuilderVisible}
+              textAlignments={textAlignments}
+              setTextAlignments={setTextAlignments}
+              isDrawingMode={isDrawingMode}
+              setIsDrawingMode={setIsDrawingMode}
+              isSquareEditMode={isSquareEditMode}
+              setIsSquareEditMode={setIsSquareEditMode}
+              selectedDrawingIndex={selectedDrawingIndex}
+              setSelectedDrawingIndex={setSelectedDrawingIndex}
+              setSlideData={setSlideData}
+              showToolbar={showToolbar}
+              setShowToolbar={setShowToolbar}
+              BUTTON_STYLES={BUTTON_STYLES}
+              setFontSizes={setFontSizes}
+              editorApiService={editorApiService}
+            />
+          </div>
+        )}
+
+        {/* Mobile Sidebar */}
+        {device.isMobile && (
+          <div
+            className={`mobile-sidebar bg-light border-start p-3 shadow custom-scrollbar ${isMobileSidebarOpen ? 'mobile-sidebar-open' : ''}`}
+            style={{
+              position: "fixed",
+              top: NAVBAR_HEIGHT,
+              right: isMobileSidebarOpen ? 0 : -SIDEBAR_WIDTH,
+              width: SIDEBAR_WIDTH,
+              height: `calc(100vh - ${NAVBAR_HEIGHT}px)`,
+              zIndex: 1050,
+              transition: "right 0.3s ease-in-out",
+              overflowY: "auto",
+              overflowX: "hidden",
+              scrollbarWidth: "thin",
+              scrollbarColor: "#c1c1c1 #f1f1f1",
+            }}
+          >
+            <Sidebar 
+              getCurrentLocation={getCurrentLocation}
+              showRatings={showRatings}
+              businessesAtLocation={businessesAtLocation}
+              searchBusinessRatings={searchBusinessRatings}
+              multipleLocationsMode={multipleLocationsMode}
+              selectedLocationIndex={selectedLocationIndex}
+              globalLocationData={globalLocationData}
+              parseMultipleLocations={parseMultipleLocations}
+              slides={slides}
+              currentSlide={currentSlide}
+              slideData={slideData}
+              getSlideData={getSlideData}
+              updateSlideData={updateSlideData}
+              setSelectedLocationIndex={setSelectedLocationIndex}
+              setMultipleLocationsMode={setMultipleLocationsMode}
+              locationDataService={locationDataService}
+              currentProjectId={currentProjectId}
+              apiService={apiService}
+              setBusinessesAtLocation={setBusinessesAtLocation}
+              selectedField={selectedField}
+              fontSizes={fontSizes}
+              handleFontSizeChange={handleFontSizeChange}
+              showWebsite={showWebsite}
+              setShowWebsite={setShowWebsite}
+              updateSlideFormData={updateSlideFormData}
+              showCustomCommentInput={showCustomCommentInput}
+              setShowCustomCommentInput={setShowCustomCommentInput}
+              customCommentText={customCommentText}
+              setCustomCommentText={setCustomCommentText}
+              isInteriorBuilderVisible={isInteriorBuilderVisible}
+              setIsInteriorBuilderVisible={setIsInteriorBuilderVisible}
+              textAlignments={textAlignments}
+              setTextAlignments={setTextAlignments}
+              isDrawingMode={isDrawingMode}
+              setIsDrawingMode={setIsDrawingMode}
+              isSquareEditMode={isSquareEditMode}
+              setIsSquareEditMode={setIsSquareEditMode}
+              selectedDrawingIndex={selectedDrawingIndex}
+              setSelectedDrawingIndex={setSelectedDrawingIndex}
+              setSlideData={setSlideData}
+              showToolbar={isMobileSidebarOpen}
+              setShowToolbar={setIsMobileSidebarOpen}
+              BUTTON_STYLES={BUTTON_STYLES}
+              setFontSizes={setFontSizes}
+              editorApiService={editorApiService}
+              isMobile={true}
+            />
+          </div>
+        )}
 
         {/* Main Content Area */}
         <div 
@@ -3005,6 +3362,9 @@ export default function Editor({ sessionUser }) {
               )}
               {slideData.type === 'online_presence' && (
                 <OnlinePresence {...slideProps} />
+              )}
+              {slideData.type === 'license' && (
+                <License {...slideProps} />
               )}
               {slideData.type === 'comments' && (
                 <Comments {...slideProps} />

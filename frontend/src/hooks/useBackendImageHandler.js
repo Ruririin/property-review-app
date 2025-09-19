@@ -83,7 +83,7 @@ export const useBackendImageHandler = (
    */
   const uploadImageToBackend = async (base64Data) => {
     try {
-      const response = await fetch('http://localhost:8000/api/slides/upload-image/', {
+      const response = await fetch('http://127.0.0.1:8080/api/slides/upload-image/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ export const useBackendImageHandler = (
    */
   const deleteImageFromBackend = async (filePath) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/slides/${projectId}/${slideId}/delete-image/`, {
+      const response = await fetch(`http://127.0.0.1:8080/api/slides/${projectId}/${slideId}/delete-image/`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

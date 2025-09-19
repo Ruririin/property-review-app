@@ -5,7 +5,7 @@
 
 class ApiService {
   constructor() {
-    this.baseURL = 'http://localhost:8000/api';
+    this.baseURL = 'https://pr-neitclem.gratusinc.org/api';
     this.headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -354,6 +354,38 @@ class ApiService {
         service_type: serviceType 
       })
     });
+  }
+
+  /**
+   * Exported Items Management APIs
+   */
+  async saveExportedItem(exportData) {
+    return this.request('/exported-items/', {
+      method: 'POST',
+      body: JSON.stringify({
+        filename: exportData.filename,
+        project_id: exportData.projectId,
+        project_name: exportData.projectName,
+        file_size: exportData.fileSize,
+        file_path: exportData.filePath,
+        exported_by: exportData.exportedBy,
+        export_date: new Date().toISOString()
+      })
+    });
+  }
+
+  async getExportedItems(userId) {
+    return this.request(`/exported-items/?exported_by=${userId}`);
+  }
+
+  async deleteExportedItem(itemId) {
+    return this.request(`/exported-items/${itemId}/`, {
+      method: 'DELETE'
+    });
+  }
+
+  async getExportedItemFile(itemId) {
+    return this.request(`/exported-items/${itemId}/download/`);
   }
 
   /**

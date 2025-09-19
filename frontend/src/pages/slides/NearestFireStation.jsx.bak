@@ -1,0 +1,613 @@
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useImageHandler } from "../../hooks/useImageHandler";
+import MultiImageComponent from "../../components/MultiImageComponent";
+import slideApiService from "../../services/slideApiService";
+
+const NearestFireStation = forwardRef(({
+  formData,
+  setFormData,
+  onSelect,
+  selectedField,
+  fontSizes,
+  textAlignments,
+  showWebsite,
+  fieldPositions,
+  setFieldPositions,
+  zoomLevel,
+  slideData,
+  updateSlideData,
+  isActiveSlide,
+  multipleLocationsMode,
+  selectedLocationIndex,
+  currentProjectId,
+}, ref) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [draggingField, setDraggingField] = useState(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeStart, setResizeStart] = useState({ width: 0, height: 0 });
+  const [resizingField, setResizingField] = useState(null);
+  const [resizeMode, setResizeMode] = useState("");
+  
+  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+
+  // Expose method to sync current state positions to DOM for PDF export
+  useImperativeHandle(ref, () => ({
+    syncPositionsToDom: () => {
+      if (setFieldPositions) {
+        setFieldPositions({ ...(fieldPositions || {}) });
+      }
+    }
+  }));
+
+  const handleChange = (field, value) => {
+    if (setFormData) {
+      const actualField = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
+      setFormData({ [actualField]: value || "" }); // Ensure value is always a string
+    }
+  };
+
+  const handleResizeMouseDown = (e, field, mode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setIsResizing(true);
+    setResizingField(field);
+    setResizeMode(mode);
+    
+    const fieldElement = e.currentTarget.parentElement.querySelector('textarea');
+    const rect = fieldElement.getBoundingClientRect();
+    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    
+    const zoomFactor = (zoomLevel || 100) / 100;
+    
+    setResizeStart({
+      x: (e.clientX - containerRect.left) / zoomFactor,
+      y: (e.clientY - containerRect.top) / zoomFactor,
+      width: rect.width / zoomFactor,
+      height: rect.height / zoomFactor,
+    });
+  };
+
+  const handleResizeMouseMove = (e) => {
+    if (!isResizing || !resizingField || !imageHandler.containerRef.current) return;
+
+    e.preventDefault();
+    
+    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const zoomFactor = (zoomLevel || 100) / 100;
+    
+    const currentX = (e.clientX - containerRect.left) / zoomFactor;
+    const currentY = (e.clientY - containerRect.top) / zoomFactor;
+    
+    let newWidth = resizeStart.width;
+    let newHeight = resizeStart.height;
+    
+    // Update dimensions based on resize mode
+    if (resizeMode.includes('right')) {
+      newWidth = Math.max(300, resizeStart.width + (currentX - resizeStart.x));
+    }
+    if (resizeMode.includes('left')) {
+      newWidth = Math.max(300, resizeStart.width - (currentX - resizeStart.x));
+    }
+    if (resizeMode.includes('bottom')) {
+      newHeight = Math.max(60, resizeStart.height + (currentY - resizeStart.y));
+    }
+    if (resizeMode.includes('top')) {
+      newHeight = Math.max(60, resizeStart.height - (currentY - resizeStart.y));
+    }
+    
+    // Update field positions with new dimensions
+    if (setFieldPositions && fieldPositions) {
+      const actualField = multipleLocationsMode ? `${resizingField}_loc${selectedLocationIndex}` : resizingField;
+      const existingField = fieldPositions[actualField] || {};
+      const updatedPositions = {
+        ...fieldPositions,
+        [actualField]: {
+          ...existingField,
+          width: newWidth,
+          height: newHeight
+        }
+      };
+      setFieldPositions(updatedPositions);
+    }
+  };
+
+  const handleResizeMouseUp = () => {
+    setIsResizing(false);
+    setResizingField(null);
+    setResizeMode("");
+  };
+
+  // Add document event listeners for resize
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleResizeMouseMove);
+      document.addEventListener('mouseup', handleResizeMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleResizeMouseMove);
+        document.removeEventListener('mouseup', handleResizeMouseUp);
+      };
+    }
+  }, [isResizing, resizingField, resizeMode, resizeStart]);
+
+  // Save field positions to backend when they change
+  useEffect(() => {
+    const saveFieldPositions = async () => {
+      if (!fieldPositions || Object.keys(fieldPositions).length === 0 || !currentProjectId) {
+        return;
+      }
+
+      const dimensionsToSave = {};
+      Object.entries(fieldPositions).forEach(([field, data]) => {
+        if (data.width && data.height) {
+          dimensionsToSave[field] = {
+            width: data.width,
+            height: data.height,
+            ...(data.x !== undefined && { x: data.x }),
+            ...(data.y !== undefined && { y: data.y }),
+            ...(data.top !== undefined && { top: data.top }),
+            ...(data.left !== undefined && { left: data.left })
+          };
+        }
+      });
+
+      if (Object.keys(dimensionsToSave).length > 0) {
+        try {
+          await slideApiService.updateFieldPositions(currentProjectId, 'nearest_fire_station_slide', 'nearest_fire_station', dimensionsToSave);
+          console.log('Saved nearest fire station field positions to backend');
+        } catch (error) {
+          console.warn('Failed to save nearest fire station field positions to backend:', error);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(saveFieldPositions, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [fieldPositions, currentProjectId]);
+
+  // Save nearest fire station content to backend when formData changes
+  useEffect(() => {
+    const saveNearestFireStationContent = async () => {
+      if (!formData || !currentProjectId) {
+        return;
+      }
+
+      try {
+        await slideApiService.updateContent(currentProjectId, 'nearest_fire_station_slide', 'nearest_fire_station', { nearestFireStationData: formData });
+        console.log('Saved nearest fire station content to backend');
+      } catch (error) {
+        console.warn('Failed to save nearest fire station content to backend:', error);
+      }
+    };
+
+    const timeoutId = setTimeout(saveNearestFireStationContent, 2000); // Longer delay for content
+    return () => clearTimeout(timeoutId);
+  }, [formData, currentProjectId]);
+
+  const autoResize = (el) => {
+    el.style.height = "auto"; 
+    el.style.height = el.scrollHeight + "px"; 
+  };
+
+  const handleFieldMouseDown = (e, field) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    setIsDragging(true);
+    setDraggingField(field);
+    
+    // Get the container element (the div that wraps bullet + textarea)
+    const fieldContainer = e.currentTarget.parentElement;
+    const fieldRect = fieldContainer.getBoundingClientRect();
+    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    
+    // Account for zoom level when calculating offset
+    const zoomFactor = (zoomLevel || 100) / 100;
+    
+    // Calculate offset from cursor to field container's position relative to main container
+    setDragOffset({
+      x: (e.clientX - fieldRect.left) / zoomFactor,
+      y: (e.clientY - fieldRect.top) / zoomFactor,
+    });
+  };
+
+  const handleMouseMove = (e) => {
+    if (isDragging && draggingField && imageHandler.containerRef.current) {
+      const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+      
+      // Account for zoom level when calculating new position
+      const zoomFactor = (zoomLevel || 100) / 100;
+      
+      // Calculate new field position maintaining the original offset
+      const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+      const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
+      
+      if (setFieldPositions) {
+        const newPosition = {
+          top: Math.max(0, newTop),
+          left: Math.max(0, Math.min(newLeft, 1000)), // Keep within reasonable bounds
+        };
+        
+        // Use location-aware field key for positioning
+        const actualFieldKey = multipleLocationsMode ? `${draggingField}_loc${selectedLocationIndex}` : draggingField;
+        const updatedPositions = {
+          ...(fieldPositions || {}),
+          [actualFieldKey]: newPosition
+        };
+        
+        setFieldPositions(updatedPositions);
+      }
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setDraggingField(null);
+  };
+
+  // Add document event listeners for dragging
+  useEffect(() => {
+    const handleDocumentMouseMove = (e) => {
+      if (isDragging && draggingField && imageHandler.containerRef.current) {
+        const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+        
+        // Account for zoom level when calculating new position
+        const zoomFactor = (zoomLevel || 100) / 100;
+        
+        // Calculate new field position maintaining the original offset
+        const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+        const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
+        
+        if (setFieldPositions) {
+          // Use location-aware field key for positioning
+          const actualFieldKey = multipleLocationsMode ? `${draggingField}_loc${selectedLocationIndex}` : draggingField;
+          setFieldPositions({
+            ...(fieldPositions || {}),
+            [actualFieldKey]: {
+              top: Math.max(0, newTop),
+              left: Math.max(0, Math.min(newLeft, 1000)), // Keep within reasonable bounds
+            }
+          });
+        }
+        e.preventDefault();
+      }
+    };
+
+    const handleDocumentMouseUp = () => {
+      if (isDragging) {
+        setIsDragging(false);
+        setDraggingField(null);
+      }
+    };
+    
+    if (isDragging) {
+      document.addEventListener('mousemove', handleDocumentMouseMove);
+      document.addEventListener('mouseup', handleDocumentMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleDocumentMouseMove);
+        document.removeEventListener('mouseup', handleDocumentMouseUp);
+      };
+    }
+  }, [isDragging, draggingField, dragOffset, zoomLevel, fieldPositions, setFieldPositions, imageHandler.containerRef]);
+
+
+  const renderBulletTextbox = (field, content, defaultTop = 300) => {
+    const isActive = selectedField === field;
+    
+    // Get position from fieldPositions or use default (centered)
+    const defaultFieldPositions = {
+      [field]: { top: defaultTop, left: 500 }, // Center horizontally
+    };
+    
+    // In multiple locations mode, append location index to field key
+    const actualField = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
+    const position = (fieldPositions && fieldPositions[actualField]) || defaultFieldPositions[field];
+    
+    return (
+      <div
+        key={field}
+        onClick={(e) => e.stopPropagation()} // Prevent deselection when clicking on text field area
+        style={{
+          position: "absolute",
+          top: position.top,
+          left: position.left,
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "8px",
+          background: "transparent",
+          borderRadius: "6px",
+          padding: "0",
+        }}
+      >
+        {/* Drag handle (bullet point) */}
+        <span 
+          onMouseDown={(e) => handleFieldMouseDown(e, field)}
+          style={{
+            color: "#8B9A5B",
+            fontFamily: "'Montserrat', sans-serif",
+            fontSize: fontSizes[field] || 16,
+            fontWeight: "bold",
+            marginTop: "10px", // Align with first line of text
+            flexShrink: 0,
+            cursor: isActive ? "move" : "default",
+            padding: "2px",
+            borderRadius: "3px",
+            background: isActive ? "rgba(139, 154, 91, 0.15)" : "transparent",
+            userSelect: "none",
+          }}
+          title={isActive ? "Drag to move" : ""}
+        >
+          •
+        </span>
+        
+        {/* Delete button - only show when active */}
+        {isActive && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              // Remove the field data and position using location-aware keys
+              const actualFieldKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
+              if (setFormData) {
+                setFormData({ [actualFieldKey]: "" });
+              }
+              if (setFieldPositions) {
+                const updatedPositions = { ...(fieldPositions || {}) };
+                delete updatedPositions[actualFieldKey];
+                setFieldPositions(updatedPositions);
+              }
+              // Deselect the field
+              onSelect(null);
+            }}
+            style={{
+              position: "absolute",
+              top: "-8px",
+              right: "-8px",
+              width: "20px",
+              height: "20px",
+              borderRadius: "50%",
+              background: "#ff4444",
+              color: "white",
+              border: "none",
+              fontSize: "12px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+            }}
+            title="Delete text field"
+          >
+            ×
+          </button>
+        )}
+        
+        {/* Free-form textbox for fire station info */}
+        <div style={{ position: "relative", width: "fit-content", height: "fit-content" }}>
+          <textarea
+            value={getActualFormData(field).toString()}
+            onChange={(e) => handleFormChange(field, e.target.value)}
+            placeholder={multipleLocationsMode ? `${content} - Location ${selectedLocationIndex + 1}` : content}
+            onFocus={() => onSelect(field)}
+            onKeyDown={(e) => {
+              // Allow Delete key to delete the entire field when empty
+              if (e.key === 'Delete' && e.target.value === "" && e.ctrlKey) {
+                e.preventDefault();
+                // Remove the field data and position
+                if (setFormData) {
+                  const fieldKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
+                  setFormData({ [fieldKey]: "" });
+                }
+                if (setFieldPositions) {
+                  const updatedPositions = { ...(fieldPositions || {}) };
+                  const positionKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
+                  delete updatedPositions[positionKey];
+                  setFieldPositions(updatedPositions);
+                }
+                // Deselect the field
+                onSelect(null);
+              }
+            }}
+            style={{
+              width: position.width ? `${position.width}px` : '500px',
+              height: position.height ? `${position.height}px` : '80px',
+              minWidth: "300px",
+              minHeight: "60px",
+              resize: "none", // Disable default resize, use custom handles
+              fontFamily: "'Montserrat', sans-serif",
+              fontSize: fontSizes[field] || 32,
+              color: "#8B9A5B",
+              backgroundColor: isActive ? "rgba(255, 255, 255, 0.95)" : "transparent",
+              border: isActive ? "2px solid rgba(0, 123, 255, 0.8)" : "1px solid transparent",
+              borderRadius: "6px",
+              padding: "12px",
+              outline: "none",
+              lineHeight: "1.4",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              boxShadow: isActive ? "0 0 0 2px rgba(0, 123, 255, 0.1)" : "none",
+              transition: "all 0.2s ease",
+              cursor: "text",
+              position: "relative",
+              top: "auto",
+              left: "auto",
+              right: "auto",
+              bottom: "auto",
+              textAlign: textAlignments?.[field] || 'left',
+              userSelect: "text"
+            }}
+          />
+          
+          {/* Blue resize handles - only show when active */}
+          {isActive && (
+            <>
+              {/* Corner resize handles */}
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
+                style={{
+                  position: "absolute",
+                  bottom: "-4px",
+                  right: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "nw-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
+                style={{
+                  position: "absolute",
+                  bottom: "-4px",
+                  left: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "ne-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-right')}
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  right: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "ne-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+              <div
+                onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-left')}
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  left: "-4px",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "#007bff",
+                  cursor: "nw-resize",
+                  borderRadius: "2px",
+                  zIndex: 1001,
+                }}
+                title="Resize"
+              />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Get actual form data based on location mode
+  const getActualFormData = (field) => {
+    if (multipleLocationsMode) {
+      return formData?.[`${field}_loc${selectedLocationIndex}`] || "";
+    }
+    return formData?.[field] || "";
+  };
+
+  // Handle change with location awareness
+  const handleFormChange = (field, value) => {
+    if (multipleLocationsMode) {
+      setFormData({ [`${field}_loc${selectedLocationIndex}`]: value });
+    } else {
+      setFormData({ [field]: value });
+    }
+  };
+
+  return (
+    <div
+      ref={imageHandler.containerRef}
+      style={{
+        width: "1280px",
+        height: "720px",
+        position: "relative",
+        background: "url('/Template/Template-07.png') center/100% 100% no-repeat", // Using Template-07 for fire station
+        margin: "0 auto",
+        border: "none",
+        borderRadius: "12px",
+        overflow: "hidden",
+        boxShadow: "0 0 20px rgba(0,0,0,0.15)",
+        fontFamily: "'Montserrat', sans-serif",
+        userSelect: "none",
+      }}
+      onMouseMove={(e) => {
+        // Always call imageHandler first for image drag/resize
+        imageHandler.handleMouseMove(e);
+        // Then handle text field dragging/resizing
+        handleMouseMove(e);
+      }}
+      onMouseUp={(e) => {
+        // Always call imageHandler first for image drag/resize
+        imageHandler.handleMouseUp(e);
+        // Then handle text field dragging/resizing
+        handleMouseUp(e);
+      }}
+      onClick={(e) => {
+        // Handle image click first
+        imageHandler.handleContainerClick(e, onSelect);
+        
+        // If clicking on empty area (not on text field or image), deselect
+        if (e.target === e.currentTarget) {
+          onSelect(null);
+        }
+      }}
+    >
+      {/* First Bullet - Fire Station Name and Address */}
+      {renderBulletTextbox('fireStationName', 'Fire station name and full address', 280)}
+      
+      {/* Second Bullet - Time and Distance */}
+      {renderBulletTextbox('fireStationDistance', 'Travel time and distance (e.g., 5 min / 1.2 miles away)', 380)}
+      
+      {/* Location indicator when in multiple locations mode */}
+      {multipleLocationsMode && (
+        <div 
+          style={{
+            position: "absolute",
+            top: "20px",
+            right: "20px",
+            backgroundColor: "rgba(139, 154, 91, 0.9)",
+            color: "white",
+            padding: "8px 12px",
+            borderRadius: "20px",
+            fontSize: "14px",
+            fontFamily: "'Montserrat', sans-serif",
+            fontWeight: "bold",
+            zIndex: 1000,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+          }}
+        >
+          Location {selectedLocationIndex + 1} Fire Station Data
+        </div>
+      )}
+      
+      
+      {/* Image Component for paste functionality */}
+      <MultiImageComponent
+        imageData={imageHandler.imageData}
+        imagePosition={imageHandler.imagePosition}
+        isImageSelected={imageHandler.isImageSelected}
+        isDraggingImage={imageHandler.isDraggingImage}
+        onMouseDownImage={imageHandler.handleMouseDownImage}
+        onResizeMouseDown={imageHandler.handleResizeMouseDown}
+        onDeleteImage={imageHandler.handleDeleteImage}
+      />
+    </div>
+  );
+});
+
+NearestFireStation.displayName = 'NearestFireStation';
+export default NearestFireStation;

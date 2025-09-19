@@ -2,10 +2,115 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+    
+    <!-- App Information -->
     <title>Property Review Editor</title>
+    <meta name="description" content="Professional property review and assessment application for insurance and real estate professionals" />
+    <meta name="keywords" content="property review, insurance, real estate, assessment, PWA" />
+    <meta name="author" content="Property Review Team" />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- App Icons -->
+    <link rel="icon" type="image/png" href="/NeitClemLogo.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="background-color" content="#ffffff" />
+    <meta name="display" content="standalone" />
+    <meta name="orientation" content="any" />
+    
+    <!-- iOS Specific -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="PropReview" />
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- Android/Chrome Specific -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Property Review Editor" />
+    
+    <!-- Microsoft Tiles -->
+    <meta name="msapplication-TileColor" content="#3b82f6" />
+    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
+    <meta name="msapplication-config" content="none" />
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Property Review Editor" />
+    <meta property="og:description" content="Professional property review and assessment application" />
+    <meta property="og:image" content="/icons/icon-512x512.png" />
+    <meta property="og:url" content="/" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Property Review Editor" />
+    <meta name="twitter:description" content="Professional property review and assessment application" />
+    <meta name="twitter:image" content="/icons/icon-512x512.png" />
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Critical Resource Hints for Mobile Performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    
+    <!-- Preload critical assets -->
+    <link rel="preload" href="/NeitClemLogo.png" as="image" type="image/png">
+    <link rel="preload" href="/manifest.json" as="manifest">
+    
+    <!-- Mobile performance hints -->
+    <link rel="prefetch" href="/home">
+    <link rel="prefetch" href="/editor">
+    
+    <!-- Resource hints for better mobile caching -->
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-title" content="PropReview">
+    
+    <!-- Performance optimizations -->
+    <meta http-equiv="x-dns-prefetch-control" content="on">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    
+    <!-- Viewport optimizations for mobile -->
+    <meta name="HandheldFriendly" content="true">
+    <meta name="MobileOptimized" content="320">
+    
+    <!-- Security -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+    
+    <!-- PWA Installation -->
+    <script>
+      // Register service worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(registration) {
+              console.log('SW registered: ', registration);
+            })
+            .catch(function(registrationError) {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+      
+      // Handle app installation
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        // Show install button or banner
+        console.log('PWA install prompt available');
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

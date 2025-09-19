@@ -186,8 +186,8 @@ class ProjectSaveService {
         throw error;
       }
 
-      // Skip slides saving since we disabled that functionality
-      // await this.saveProjectSlidesToDatabase(projectId, saveData);
+      // Save slides and images to database
+      await this.saveProjectSlidesToDatabase(projectId, saveData);
 
       return dbProject;
     } catch (error) {
@@ -235,7 +235,21 @@ class ProjectSaveService {
           dbSlide = await apiService.createSlide(projectId, slideData);
         }
 
-        // Handle image uploads
+        // Handle image uploads for MultiImageComponent format
+        if (slideContent.images && Array.isArray(slideContent.images) && dbSlide) {
+          for (const image of slideContent.images) {
+            if (image.src && image.src.startsWith('data:image/')) {
+              await this.handleImageUpload(dbSlide.id, image.src, {
+                x: image.position?.left || 0,
+                y: image.position?.top || 0,
+                width: image.width || 200,
+                height: image.height || 150
+              });
+            }
+          }
+        }
+        
+        // Legacy support for single imageData
         if (slideContent.imageData && dbSlide) {
           await this.handleImageUpload(dbSlide.id, slideContent.imageData, slideContent.imagePosition);
         }
@@ -277,16 +291,18 @@ class ProjectSaveService {
       const stored = localStorage.getItem('savedProjects');
       const projects = stored ? JSON.parse(stored) : {};
       
-      // Strip images for localStorage to avoid quota issues
+      // Keep images but compress them for localStorage
       const lightweightData = { ...saveData };
       if (lightweightData.slideData) {
-        lightweightData.slideData = {};
-        for (const [slideId, slideInfo] of Object.entries(saveData.slideData)) {
-          lightweightData.slideData[slideId] = {
-            ...slideInfo,
-            imageData: null, // Strip images
-            drawings: slideInfo.drawings || []
-          };
+        for (const [slideId, slideInfo] of Object.entries(lightweightData.slideData)) {
+          if (slideInfo.images && Array.isArray(slideInfo.images)) {
+            // Keep images but potentially compress them later if quota issues arise
+            lightweightData.slideData[slideId] = {
+              ...slideInfo,
+              images: slideInfo.images, // Keep pasted images
+              drawings: slideInfo.drawings || []
+            };
+          }
         }
       }
       
@@ -319,30 +335,33 @@ class ProjectSaveService {
   }
 
   /**
-   * Load project from database
+   * Load project from database (with lazy slide loading)
    */
   async loadProjectFromDatabase(projectId) {
     try {
+      // Check if project is already in memory cache
+      if (this.projects.has(projectId)) {
+        const cachedProject = this.projects.get(projectId);
+        // If slides not loaded yet, load them now
+        if (!cachedProject.slidesLoaded) {
+          await this.ensureProjectSlidesLoaded(projectId);
+        }
+        return cachedProject;
+      }
+
+      console.log(`🔄 Loading project ${projectId} from database...`);
       const dbProject = await apiService.getProject(projectId);
-      const dbSlides = await apiService.getProjectSlides(projectId);
       
-      // Convert database format to frontend format
-      console.log('🔄 LOAD DEBUG - dbProject from API:', dbProject);
-      console.log('🔄 LOAD DEBUG - dbSlides from API:', dbSlides);
-      
+      // Create project data with basic info only (no slides yet)
       const projectData = {
         id: dbProject.id,
         title: dbProject.title || dbProject.name || 'Untitled Project',
         insuredName: dbProject.title || dbProject.name || 'Untitled Project',
         description: dbProject.description || '',
         sessionUser: 'database-user', // TODO: Get from auth
-        slides: (dbSlides && Array.isArray(dbSlides)) ? dbSlides.map(slide => ({
-          id: slide.slide_number,
-          title: slide.title,
-          type: slide.template_type
-        })) : [], // Default to empty array if slides endpoint is disabled
-        slideData: dbProject.slideData || {}, // Load slideData from project
-        formData: dbProject.formData || {}, // Load formData from project
+        slides: [],
+        slideData: {},
+        formData: dbProject.formData || {},
         fieldPositions: {},
         fontSizes: {},
         showWebsite: false,
@@ -350,46 +369,61 @@ class ProjectSaveService {
         selectedLocationIndex: 0,
         status: dbProject.status || 'editing',
         currentSlide: 1,
-        totalSlides: (dbSlides && Array.isArray(dbSlides)) ? dbSlides.length : 0,
+        totalSlides: 0,
         lastModified: dbProject.updated_at ? new Date(dbProject.updated_at).getTime() : Date.now(),
-        created: dbProject.created_at ? new Date(dbProject.created_at).getTime() : Date.now()
+        created: dbProject.created_at ? new Date(dbProject.created_at).getTime() : Date.now(),
+        slidesLoaded: false
       };
 
-      console.log('📊 LOAD DEBUG - slideData loaded:', Object.keys(projectData.slideData));
-      console.log('📊 LOAD DEBUG - formData loaded:', projectData.formData);
-
-      // Process slides data (only if slides exist and are iterable)
-      if (dbSlides && Array.isArray(dbSlides)) {
-          for (const slide of dbSlides) {
-            projectData.slideData[slide.slide_number] = {
-              formData: slide.content?.formData || {},
-              fieldPositions: slide.field_dimensions || {},
-              drawings: slide.content?.drawings || [],
-              ...slide.content
-            };
-          }
-        }
-
+      // Cache the project
       this.projects.set(projectId, projectData);
-      console.log('✅ Project loaded from database:', projectData);
-      return projectData;
+      
+      // Now load slides asynchronously
+      await this.ensureProjectSlidesLoaded(projectId);
+      
+      console.log(`✅ Project ${projectId} loaded from database`);
+      return this.projects.get(projectId);
       
     } catch (error) {
-      console.error('❌ Database load failed:', error);
+      console.error(`❌ Database load failed for project ${projectId}:`, error);
       throw error;
     }
   }
 
   /**
-   * Load projects from database
+   * Load projects from database (optimized with caching)
    */
   async loadProjectsFromDatabase() {
     try {
-      const dbProjects = await apiService.listProjects();
+      // Check cache timestamp
+      const cacheKey = 'projectsCache';
+      const cacheTimeKey = 'projectsCacheTime';
+      const cacheExpiry = 2 * 60 * 1000; // 2 minutes cache
+      
+      const cachedTime = localStorage.getItem(cacheTimeKey);
+      const cachedData = localStorage.getItem(cacheKey);
+      
+      // Use cache if it's fresh and we have data in memory
+      if (cachedTime && cachedData && this.projects.size > 0) {
+        const age = Date.now() - parseInt(cachedTime);
+        if (age < cacheExpiry) {
+          console.log(`📂 Using cached projects (${Math.round(age/1000)}s old)`);
+          return;
+        }
+      }
+
+      console.log('📂 Fetching fresh projects from database...');
+      const startTime = performance.now();
+      
+      const dbProjects = await apiService.listProjects({
+        page_size: 100,  // Limit to 100 projects per request
+        ordering: '-updated_at'  // Most recently updated first
+      });
+      
       this.projects.clear(); // Clear existing cache
       
-      for (const dbProject of dbProjects.results || dbProjects) {
-        // Load basic project info into cache
+      // Load projects without slides first (much faster)
+      const projectPromises = (dbProjects.results || dbProjects).map(async (dbProject) => {
         const projectData = {
           id: dbProject.id,
           databaseId: dbProject.id,
@@ -402,43 +436,92 @@ class ProjectSaveService {
           created: dbProject.created_at ? new Date(dbProject.created_at).getTime() : Date.now(),
           status: dbProject.status || 'editing',
           formData: dbProject.formData || {},
-          slideData: dbProject.slideData || {},
+          slideData: {},
           slides: [],
           fieldPositions: {},
-          fontSizes: {}
+          fontSizes: {},
+          slidesLoaded: false // Flag to track if slides are loaded
         };
         
-        // Try to load project slides
-        try {
-          const slides = await apiService.getProjectSlides(dbProject.id);
-          if (slides && Array.isArray(slides)) {
-            projectData.slides = slides.map(slide => ({
-              id: slide.slide_number,
-              title: slide.title,
-              type: slide.template_type
-            }));
-            projectData.slideData = slides.reduce((acc, slide) => {
-              acc[slide.slide_number] = {
-                formData: slide.content?.formData || {},
-                fieldPositions: slide.field_dimensions || {},
-                drawings: slide.content?.drawings || [],
-                ...slide.content
-              };
-              return acc;
-            }, {});
-          }
-        } catch (error) {
-          console.warn(`⚠️ Could not load slides for project ${dbProject.id}:`, error);
-        }
-        
         this.projects.set(dbProject.id, projectData);
-      }
+        return projectData;
+      });
+
+      await Promise.all(projectPromises);
       
-      console.log(`📂 Loaded ${this.projects.size} projects from database`);
+      // Cache the project list
+      const projectsForCache = Array.from(this.projects.entries());
+      localStorage.setItem(cacheKey, JSON.stringify(projectsForCache));
+      localStorage.setItem(cacheTimeKey, Date.now().toString());
+      
+      const loadTime = Math.round(performance.now() - startTime);
+      console.log(`✅ Loaded ${this.projects.size} projects from database in ${loadTime}ms (slides will load on demand)`);
     } catch (error) {
       console.error('❌ Failed to load projects from database:', error);
-      this.loadProjectsFromLocalStorage();
+      // Try to use cached data even if expired
+      this.loadProjectsFromCache();
     }
+  }
+
+  /**
+   * Load projects from cache (fallback)
+   */
+  loadProjectsFromCache() {
+    try {
+      const cachedData = localStorage.getItem('projectsCache');
+      if (cachedData) {
+        const projectsArray = JSON.parse(cachedData);
+        this.projects = new Map(projectsArray);
+        console.log(`📂 Loaded ${this.projects.size} projects from cache (fallback)`);
+        return;
+      }
+    } catch (error) {
+      console.error('❌ Cache load failed:', error);
+    }
+    this.loadProjectsFromLocalStorage();
+  }
+
+  /**
+   * Load slides for a specific project when needed (lazy loading)
+   */
+  async ensureProjectSlidesLoaded(projectId) {
+    const project = this.projects.get(projectId);
+    if (!project || project.slidesLoaded) {
+      return project;
+    }
+
+    try {
+      console.log(`📋 Loading slides for project ${projectId}...`);
+      const slides = await apiService.getProjectSlides(projectId);
+      
+      if (slides && Array.isArray(slides)) {
+        project.slides = slides.map(slide => ({
+          id: slide.slide_number,
+          title: slide.title,
+          type: slide.template_type
+        }));
+        
+        project.slideData = slides.reduce((acc, slide) => {
+          acc[slide.slide_number] = {
+            formData: slide.content?.formData || {},
+            fieldPositions: slide.field_dimensions || {},
+            drawings: slide.content?.drawings || [],
+            ...slide.content
+          };
+          return acc;
+        }, {});
+        
+        project.slidesLoaded = true;
+        console.log(`✅ Loaded ${slides.length} slides for project ${projectId}`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Could not load slides for project ${projectId}:`, error);
+      project.slideData = {};
+      project.slides = [];
+      project.slidesLoaded = true; // Mark as loaded even if failed to prevent retry loops
+    }
+
+    return project;
   }
 
   /**

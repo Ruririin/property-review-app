@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const MobileToolbar = ({ 
   currentSlide, 
@@ -7,13 +7,26 @@ const MobileToolbar = ({
   onSave, 
   onExport, 
   onBack,
+  onUpdateProjectStatus,
+  currentProjectStatus = 'editing',
+  getStatusDisplay,
+  onToggleSidebar,
   isSaving = false,
   hasUnsavedChanges = false 
 }) => {
+  const [showStatusModal, setShowStatusModal] = useState(false);
+
+  const handleStatusSelect = (status) => {
+    if (onUpdateProjectStatus) {
+      onUpdateProjectStatus(status);
+    }
+    setShowStatusModal(false);
+  };
+
   return (
     <>
       {/* Canvas-style Top Mobile Header */}
-      <div className="mobile-header d-block d-md-none" style={{
+      <div className="mobile-header d-block d-xl-none" style={{
         position: 'fixed',
         top: 0,
         left: 0,
@@ -68,15 +81,21 @@ const MobileToolbar = ({
         </div>
         
         {/* Right - Actions */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ 
+          display: 'flex', 
+          gap: '4px', 
+          alignItems: 'center',
+          flexWrap: 'nowrap',
+          overflow: 'hidden'
+        }}>
           <button 
             style={{
               background: hasUnsavedChanges ? '#3b82f6' : '#f3f4f6',
               color: hasUnsavedChanges ? 'white' : '#6b7280',
               border: 'none',
               borderRadius: '8px',
-              padding: '8px 12px',
-              fontSize: '14px',
+              padding: '6px 8px',
+              fontSize: '12px',
               fontWeight: '500',
               cursor: 'pointer',
               display: 'flex',
@@ -111,8 +130,8 @@ const MobileToolbar = ({
               color: 'white',
               border: 'none',
               borderRadius: '8px',
-              padding: '8px 12px',
-              fontSize: '14px',
+              padding: '6px 8px',
+              fontSize: '12px',
               fontWeight: '500',
               cursor: 'pointer',
               display: 'flex',
@@ -130,11 +149,61 @@ const MobileToolbar = ({
             </svg>
             PDF
           </button>
+          
+          {onUpdateProjectStatus && (
+            <button 
+              style={{
+                background: getStatusDisplay ? getStatusDisplay(currentProjectStatus).color : '#198754',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onClick={() => setShowStatusModal(true)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                <line x1="4" y1="22" x2="4" y2="15"/>
+              </svg>
+              {getStatusDisplay ? getStatusDisplay(currentProjectStatus).text : 'Status'}
+            </button>
+          )}
+          
+          {onToggleSidebar && (
+            <button 
+              style={{
+                background: '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onClick={onToggleSidebar}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M9 3v18"/>
+              </svg>
+              Tools
+            </button>
+          )}
         </div>
       </div>
 
       {/* Canvas-style Bottom Mobile Navigation */}
-      <div className="mobile-navigation d-block d-md-none" style={{
+      <div className="mobile-navigation d-block d-xl-none" style={{
         position: 'fixed',
         bottom: 0,
         left: 0,
@@ -254,7 +323,7 @@ const MobileToolbar = ({
           100% { transform: rotate(360deg); }
         }
         
-        @media (max-width: 767px) {
+        @media (max-width: 1199px) {
           .editor-content {
             margin-top: 70px !important;
             margin-bottom: 80px !important;
@@ -272,7 +341,150 @@ const MobileToolbar = ({
           transform: translateY(-1px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
         }
+        
+        /* Responsive button sizing for small screens */
+        @media (max-width: 375px) {
+          .mobile-header button {
+            padding: 4px 6px !important;
+            font-size: 11px !important;
+          }
+          
+          .mobile-header button svg {
+            width: 12px !important;
+            height: 12px !important;
+          }
+        }
       `}</style>
+
+      {/* Mobile Status Selection Modal */}
+      {showStatusModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            padding: '24px',
+            width: '100%',
+            maxWidth: '400px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+          }}>
+            <h3 style={{ 
+              margin: '0 0 20px 0', 
+              fontSize: '18px', 
+              fontWeight: '600',
+              textAlign: 'center',
+              color: '#111827'
+            }}>
+              Mark Project Status
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button
+                onClick={() => handleStatusSelect('approved')}
+                style={{
+                  padding: '16px 20px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  justifyContent: 'flex-start'
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 12l2 2 4-4"/>
+                  <circle cx="12" cy="12" r="9"/>
+                </svg>
+                Mark Approved
+              </button>
+              
+              <button
+                onClick={() => handleStatusSelect('denied')}
+                style={{
+                  padding: '16px 20px',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  justifyContent: 'flex-start'
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                  <circle cx="12" cy="12" r="9"/>
+                </svg>
+                Mark Denied
+              </button>
+              
+              <button
+                onClick={() => handleStatusSelect('conditional')}
+                style={{
+                  padding: '16px 20px',
+                  background: '#f59e0b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  justifyContent: 'flex-start'
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 8v4"/>
+                  <path d="M12 16h.01"/>
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                </svg>
+                Mark Conditional
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setShowStatusModal(false)}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '16px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                marginTop: '16px'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 };

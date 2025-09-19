@@ -109,7 +109,7 @@ const EditorRefactorExample = ({ sessionUser }) => {
         onLoadLroForms={headerToolbar.loadLroForms}
         onExportPdf={() => headerToolbar.handleExportPdf(slides, slideData, globalLocationData, { syncPositionsToDom })}
         onSaveProject={() => headerToolbar.handleSaveProject(saveProject)}
-        onMarkComplete={headerToolbar.handleMarkComplete}
+        onUpdateProjectStatus={headerToolbar.handleUpdateProjectStatus}
         projectTitle="Property Review Maker"
         isExporting={headerToolbar.isExporting}
         isSaving={headerToolbar.isSaving}

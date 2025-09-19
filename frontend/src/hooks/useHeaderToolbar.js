@@ -136,26 +136,33 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     }
   }, []);
 
-  // Handle mark complete
-  const handleMarkComplete = useCallback(async () => {
+  // Handle update project status with three options
+  const handleUpdateProjectStatus = useCallback(async (newStatus) => {
     if (currentProjectId && sessionUser) {
       try {
         // Get current project data first
         const project = await apiService.getProject(currentProjectId);
         if (project) {
-          // Update project status to completed
+          // Update project status
           await apiService.updateProject(currentProjectId, {
             ...project,
-            status: 'completed'
+            status: newStatus
           });
-          console.log('✅ Project marked as completed');
-          alert('Project marked as completed!');
+          
+          const statusMessages = {
+            'approved': 'Project marked as approved!',
+            'denied': 'Project marked as denied!',
+            'conditional': 'Project marked as conditional!'
+          };
+          
+          console.log(`✅ Project marked as ${newStatus}`);
+          alert(statusMessages[newStatus] || 'Project status updated!');
           // Navigate back to home page
           window.location.href = '/';
         }
       } catch (error) {
-        console.error('Failed to mark project as completed:', error);
-        alert('Failed to mark project as completed. Please try again.');
+        console.error('Failed to update project status:', error);
+        alert('Failed to update project status. Please try again.');
       }
     }
   }, [currentProjectId, sessionUser]);
@@ -172,6 +179,6 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     handleLroFormSelect,
     handleExportPdf,
     handleSaveProject,
-    handleMarkComplete
+    handleUpdateProjectStatus
   };
 };

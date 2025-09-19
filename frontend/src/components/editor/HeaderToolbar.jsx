@@ -17,7 +17,7 @@ const HeaderToolbar = ({
   // Actions
   onExportPdf = () => {},
   onSaveProject = () => {},
-  onMarkComplete = () => {},
+  onUpdateProjectStatus = () => {},
   
   // Current project info
   projectTitle = "Property Review Maker",
@@ -77,24 +77,58 @@ const HeaderToolbar = ({
           {isExporting ? 'Exporting...' : 'Export PDF'}
         </button>
         
-        {/* Complete Button */}
-        <button 
-          className="btn btn-outline-success btn-sm d-flex align-items-center" 
-          onClick={onMarkComplete}
-          title="Mark this project as completed and remove it from active projects"
-          style={{ 
-            height: "36px",
-            fontSize: "13px",
-            fontWeight: "500",
-            borderRadius: "6px",
-            padding: "0 12px",
-            borderColor: "#198754",
-            color: "#198754"
-          }}
-        >
-          <i className="bi bi-check-circle me-1" style={{ fontSize: "12px" }}></i>
-          Mark Complete
-        </button>
+        {/* Status Dropdown */}
+        <div className="dropdown">
+          <button 
+            className="btn btn-outline-success btn-sm d-flex align-items-center dropdown-toggle" 
+            type="button"
+            id="statusDropdownHeader"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            title="Mark project status"
+            style={{ 
+              height: "36px",
+              fontSize: "13px",
+              fontWeight: "500",
+              borderRadius: "6px",
+              padding: "0 12px",
+              borderColor: "#198754",
+              color: "#198754"
+            }}
+          >
+            <i className="bi bi-flag me-1" style={{ fontSize: "12px" }}></i>
+            Mark Status
+          </button>
+          <ul className="dropdown-menu" aria-labelledby="statusDropdownHeader">
+            <li>
+              <button 
+                className="dropdown-item d-flex align-items-center" 
+                onClick={() => onUpdateProjectStatus('approved')}
+              >
+                <i className="bi bi-check-circle me-2 text-success"></i>
+                Mark Approved
+              </button>
+            </li>
+            <li>
+              <button 
+                className="dropdown-item d-flex align-items-center" 
+                onClick={() => onUpdateProjectStatus('denied')}
+              >
+                <i className="bi bi-x-circle me-2 text-danger"></i>
+                Mark Denied
+              </button>
+            </li>
+            <li>
+              <button 
+                className="dropdown-item d-flex align-items-center" 
+                onClick={() => onUpdateProjectStatus('conditional')}
+              >
+                <i className="bi bi-exclamation-triangle me-2 text-warning"></i>
+                Mark Conditional
+              </button>
+            </li>
+          </ul>
+        </div>
         
         {/* Save Button */}
         <button 

@@ -176,9 +176,9 @@ def session_status_view(request):
     })
     return add_cors_headers(response)
 
-@csrf_exempt
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
+@csrf_exempt
 def session_logout_view(request):
     """Simple session logout"""
     if request.method == 'OPTIONS':

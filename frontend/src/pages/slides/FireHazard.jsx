@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import MultiImageComponent from "../../components/MultiImageComponent";
 import slideApiService from "../../services/slideApiService";
 
 const FireHazard = forwardRef(({
@@ -28,7 +27,15 @@ const FireHazard = forwardRef(({
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   
   const stablePositionsRef = useRef({});
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  const containerRef = useRef(null); // For container reference instead of imageHandler
+
+  // Helper function to handle both mouse and touch events
+  const getEventCoordinates = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
 
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
@@ -51,13 +58,13 @@ const FireHazard = forwardRef(({
 
   // Auto-resize all textareas when formData changes
   useEffect(() => {
-    const textareas = imageHandler.containerRef.current?.querySelectorAll('textarea');
+    const textareas = containerRef.current?.querySelectorAll('textarea');
     if (textareas) {
       textareas.forEach(textarea => {
         autoResize(textarea);
       });
     }
-  }, [formData, imageHandler.containerRef]);
+  }, [formData, containerRef]);
 
   // Load slide content and field positions from backend
   useEffect(() => {
@@ -82,11 +89,28 @@ const FireHazard = forwardRef(({
         }
 
         // Load fire hazard content if it exists
-        if (result.content && result.content.fireHazardData && setFormData) {
-          setFormData(prev => ({
-            ...prev,
-            ...result.content.fireHazardData
-          }));
+        if (result.content && setFormData) {
+          // Try both nested and direct content structures
+          const fireHazardData = result.content.fireHazardData || result.content;
+          
+          // Only load if we have actual form data (not just structural data)
+          const hasFormData = Object.keys(fireHazardData).some(key => 
+            !['slide_id', 'slide_type', 'field_positions'].includes(key) && 
+            fireHazardData[key] && 
+            fireHazardData[key].toString().trim() !== ''
+          );
+          
+          if (hasFormData) {
+            console.log('🔄 Loading fire hazard data:', fireHazardData);
+            setFormData(prev => ({
+              ...prev,
+              ...fireHazardData
+            }));
+          } else {
+            console.log('⚠️ No fire hazard form data found in result:', result);
+          }
+        } else {
+          console.log('⚠️ No content found in result:', result);
         }
 
         console.log('Loaded fire hazard slide data from backend for slide:', slideId);
@@ -107,10 +131,11 @@ const FireHazard = forwardRef(({
 
       const dimensionsToSave = {};
       Object.entries(fieldPositions).forEach(([field, data]) => {
-        if (data.width && data.height) {
+        // Save if there's any positioning data (not just width/height)
+        if (data && (data.top !== undefined || data.left !== undefined || data.width || data.height)) {
           dimensionsToSave[field] = {
-            width: data.width,
-            height: data.height,
+            ...(data.width !== undefined && { width: data.width }),
+            ...(data.height !== undefined && { height: data.height }),
             ...(data.x !== undefined && { x: data.x }),
             ...(data.y !== undefined && { y: data.y }),
             ...(data.top !== undefined && { top: data.top }),
@@ -129,7 +154,7 @@ const FireHazard = forwardRef(({
       }
     };
 
-    const timeoutId = setTimeout(saveDimensions, 1000);
+    const timeoutId = setTimeout(saveDimensions, 5000);
     return () => clearTimeout(timeoutId);
   }, [fieldPositions, slideId, currentProjectId]);
 
@@ -141,21 +166,23 @@ const FireHazard = forwardRef(({
       }
 
       try {
-        await slideApiService.updateContent(currentProjectId, slideId, 'fire_hazard', { fireHazardData: formData });
-        console.log('Saved fire hazard content to backend for slide:', slideId);
+        console.log('💾 Saving fire hazard data:', formData);
+        await slideApiService.updateFireHazard(currentProjectId, slideId, formData);
+        console.log('✅ Saved fire hazard content to backend for slide:', slideId);
       } catch (error) {
-        console.warn('Failed to save fire hazard content to backend:', error);
+        console.error('❌ Failed to save fire hazard content to backend:', error);
       }
     };
 
-    const timeoutId = setTimeout(saveFireHazardContent, 2000); // Longer delay for content
+    const timeoutId = setTimeout(saveFireHazardContent, 5000); // Longer delay for content to prevent ERR_INSUFFICIENT_RESOURCES
     return () => clearTimeout(timeoutId);
   }, [formData, slideId, currentProjectId]);
 
   const handleChange = (field, value) => {
     if (setFormData) {
       const stringValue = String(value || "");
-      setFormData({ [field]: stringValue });
+      console.log(`🔄 FireHazard updating field ${field} with value:`, stringValue);
+      setFormData(prev => ({ ...prev, [field]: stringValue }));
     }
   };
 
@@ -176,13 +203,14 @@ const FireHazard = forwardRef(({
       ? e.currentTarget.parentElement 
       : e.currentTarget;
     const fieldRect = fieldContainer.getBoundingClientRect();
-    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
     
     const zoomFactor = (zoomLevel || 100) / 100;
     
+    const coords = getEventCoordinates(e);
     setDragOffset({
-      x: (e.clientX - fieldRect.left) / zoomFactor,
-      y: (e.clientY - fieldRect.top) / zoomFactor,
+      x: (coords.clientX - fieldRect.left) / zoomFactor,
+      y: (coords.clientY - fieldRect.top) / zoomFactor,
     });
   };
 
@@ -197,25 +225,27 @@ const FireHazard = forwardRef(({
     
     const fieldElement = e.currentTarget.parentElement.querySelector('textarea');
     const rect = fieldElement.getBoundingClientRect();
-    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
     
     const zoomFactor = (zoomLevel || 100) / 100;
     
+    const coords = getEventCoordinates(e);
     setResizeStart({
-      x: (e.clientX - containerRect.left) / zoomFactor,
-      y: (e.clientY - containerRect.top) / zoomFactor,
+      x: (coords.clientX - containerRect.left) / zoomFactor,
+      y: (coords.clientY - containerRect.top) / zoomFactor,
       width: rect.width / zoomFactor,
       height: rect.height / zoomFactor,
     });
   };
 
   const handleMouseMove = (e) => {
-    if (isDragging && draggingField && imageHandler.containerRef.current) {
-      const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    if (isDragging && draggingField && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
       const zoomFactor = (zoomLevel || 100) / 100;
       
-      const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
-      const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
+      const coords = getEventCoordinates(e);
+      const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+      const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
       
       if (setFieldPositions) {
         const existingField = fieldPositions?.[draggingField] || {};
@@ -225,6 +255,9 @@ const FireHazard = forwardRef(({
           ...stableField,
           top: Math.max(0, newTop),
           left: Math.max(0, Math.min(newLeft, 1000)),
+          // Ensure width and height are preserved for saving
+          width: existingField.width || stableField.width || 400,
+          height: existingField.height || stableField.height || 80,
         };
         
         stablePositionsRef.current[draggingField] = newPosition;
@@ -234,12 +267,13 @@ const FireHazard = forwardRef(({
           [draggingField]: newPosition
         });
       }
-    } else if (isResizing && resizingField && imageHandler.containerRef.current) {
-      const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    } else if (isResizing && resizingField && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
       const zoomFactor = (zoomLevel || 100) / 100;
       
-      const currentX = (e.clientX - containerRect.left) / zoomFactor;
-      const currentY = (e.clientY - containerRect.top) / zoomFactor;
+      const coords = getEventCoordinates(e);
+      const currentX = (coords.clientX - containerRect.left) / zoomFactor;
+      const currentY = (coords.clientY - containerRect.top) / zoomFactor;
       
       let newWidth = resizeStart.width;
       let newHeight = resizeStart.height;
@@ -290,7 +324,7 @@ const FireHazard = forwardRef(({
   // Document event listeners for dragging and resizing - same as Comments
   useEffect(() => {
     const handleDocumentMouseMove = (e) => {
-      if ((isDragging || isResizing) && imageHandler.containerRef.current) {
+      if ((isDragging || isResizing) && containerRef.current) {
         handleMouseMove(e);
         e.preventDefault();
       }
@@ -338,12 +372,14 @@ const FireHazard = forwardRef(({
           left: position.left,
           width: position.width + 30, // Add space for bullet
           height: position.height,
+          zIndex: 1000, // Ensure text fields are above images
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle (bullet point) - positioned absolutely, hidden in print/export */}
         <span 
           onMouseDown={(e) => handleFieldMouseDown(e, field)}
+          onTouchStart={(e) => handleFieldMouseDown(e, field)}
           className="no-print-bullet"
           style={{
             position: "absolute",
@@ -370,7 +406,7 @@ const FireHazard = forwardRef(({
             onClick={(e) => {
               e.stopPropagation();
               if (setFormData) {
-                setFormData({ [field]: "" });
+                setFormData({ ...formData, [field]: "" });
               }
               if (setFieldPositions) {
                 const updatedPositions = { ...(fieldPositions || {}) };
@@ -420,8 +456,9 @@ const FireHazard = forwardRef(({
             onMouseMove={(e) => {
               if (selectedField === field) {
                 const rect = e.target.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const clickY = e.clientY - rect.top;
+                const coords = getEventCoordinates(e);
+                const clickX = coords.clientX - rect.left;
+                const clickY = coords.clientY - rect.top;
                 const borderThickness = 8;
                 
                 const isOnLeftEdge = clickX <= borderThickness;
@@ -439,8 +476,28 @@ const FireHazard = forwardRef(({
             onMouseDown={(e) => {
               if (selectedField === field) {
                 const rect = e.target.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const clickY = e.clientY - rect.top;
+                const coords = getEventCoordinates(e);
+                const clickX = coords.clientX - rect.left;
+                const clickY = coords.clientY - rect.top;
+                const borderThickness = 8;
+                
+                const isOnLeftEdge = clickX <= borderThickness;
+                const isOnRightEdge = clickX >= rect.width - borderThickness;
+                const isOnTopEdge = clickY <= borderThickness;
+                const isOnBottomEdge = clickY >= rect.height - borderThickness;
+                
+                if (isOnLeftEdge || isOnRightEdge || isOnTopEdge || isOnBottomEdge) {
+                  e.preventDefault();
+                  handleFieldMouseDown(e, field);
+                }
+              }
+            }}
+            onTouchStart={(e) => {
+              if (selectedField === field) {
+                const rect = e.target.getBoundingClientRect();
+                const coords = getEventCoordinates(e);
+                const clickX = coords.clientX - rect.left;
+                const clickY = coords.clientY - rect.top;
                 const borderThickness = 8;
                 
                 const isOnLeftEdge = clickX <= borderThickness;
@@ -482,6 +539,7 @@ const FireHazard = forwardRef(({
               {/* Corner resize handles */}
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
                 style={{
                   position: "absolute",
                   bottom: "-4px",
@@ -497,6 +555,7 @@ const FireHazard = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
                 style={{
                   position: "absolute",
                   bottom: "-4px",
@@ -512,6 +571,7 @@ const FireHazard = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-right')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'top-right')}
                 style={{
                   position: "absolute",
                   top: "-4px",
@@ -527,6 +587,7 @@ const FireHazard = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-left')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'top-left')}
                 style={{
                   position: "absolute",
                   top: "-4px",
@@ -550,7 +611,7 @@ const FireHazard = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -565,20 +626,22 @@ const FireHazard = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        // Always call imageHandler first for image drag/resize
-        imageHandler.handleMouseMove(e);
-        // Then handle text field dragging/resizing
+        // Handle text field dragging/resizing
         handleMouseMove(e);
       }}
       onMouseUp={(e) => {
-        // Always call imageHandler first for image drag/resize
-        imageHandler.handleMouseUp(e);
-        // Then handle text field dragging/resizing
+        // Handle text field dragging/resizing
+        handleMouseUp(e);
+      }}
+      onTouchMove={(e) => {
+        // Handle text field dragging/resizing
+        handleMouseMove(e);
+      }}
+      onTouchEnd={(e) => {
+        // Handle text field dragging/resizing
         handleMouseUp(e);
       }}
       onClick={(e) => {
-        // Handle image click first
-        imageHandler.handleContainerClick(e, onSelect);
         
         // If clicking on empty area (not on text field or image), deselect
         if (e.target === e.currentTarget) {
@@ -614,14 +677,15 @@ const FireHazard = forwardRef(({
       ))}
 
       {/* Image Component for paste functionality */}
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+          }
+        }}
+        zoomLevel={zoomLevel}
+        isActiveSlide={isActiveSlide}
       />
     </div>
   );

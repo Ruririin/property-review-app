@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import MultiImageComponent from "../../components/MultiImageComponent";
 
 const Comments = forwardRef(({
   formData,
@@ -25,7 +24,14 @@ const Comments = forwardRef(({
   const [initialSize, setInitialSize] = useState({ width: 0, height: 0 });
   
   const containerRef = useRef(null);
-  const { handleImageChange, getImageSrc } = useImageHandler();
+
+  // Helper function to handle both mouse and touch events
+  const getEventCoordinates = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
 
   // Expose method to sync positions for PDF export
   useImperativeHandle(ref, () => ({
@@ -80,7 +86,8 @@ const Comments = forwardRef(({
         const containerRect = containerRef.current.getBoundingClientRect();
         const zoomFactor = (zoomLevel || 100) / 100;
         
-        const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+        const coords = getEventCoordinates(e);
+        const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
         const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
         
         // Convert to right positioning for consistency with SlideOne
@@ -110,11 +117,15 @@ const Comments = forwardRef(({
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleMouseMove, { passive: false });
+      document.addEventListener('touchend', handleMouseUp);
     }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleMouseMove);
+      document.removeEventListener('touchend', handleMouseUp);
     };
   }, [isDragging, draggingField, dragOffset, zoomLevel, setFieldPositions]);
 
@@ -132,6 +143,7 @@ const Comments = forwardRef(({
           right: position.right,
           width: position.width || 400,
           height: position.height || 100,
+          zIndex: isActive ? 1001 : 1000, // Ensure text fields are above images
         }}
       >
         <textarea
@@ -143,8 +155,9 @@ const Comments = forwardRef(({
           onMouseMove={(e) => {
             if (isActive) {
               const rect = e.target.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const clickY = e.clientY - rect.top;
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
               const borderThickness = 8;
               
               const isOnLeftEdge = clickX <= borderThickness;
@@ -162,8 +175,27 @@ const Comments = forwardRef(({
           onMouseDown={(e) => {
             if (isActive) {
               const rect = e.target.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const clickY = e.clientY - rect.top;
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
+              const borderThickness = 8;
+              
+              const isOnLeftEdge = clickX <= borderThickness;
+              const isOnRightEdge = clickX >= rect.width - borderThickness;
+              const isOnTopEdge = clickY <= borderThickness;
+              const isOnBottomEdge = clickY >= rect.height - borderThickness;
+              
+              if (isOnLeftEdge || isOnRightEdge || isOnTopEdge || isOnBottomEdge) {
+                handleFieldMouseDown(e, field);
+              }
+            }
+          }}
+          onTouchStart={(e) => {
+            if (isActive) {
+              const rect = e.target.getBoundingClientRect();
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
               const borderThickness = 8;
               
               const isOnLeftEdge = clickX <= borderThickness;
@@ -216,6 +248,15 @@ const Comments = forwardRef(({
                 height: position.height || 100
               });
             }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              setIsResizing(true);
+              setResizeField(field);
+              setInitialSize({
+                width: position.width || 400,
+                height: position.height || 100
+              });
+            }}
           />
         )}
       </div>
@@ -232,8 +273,9 @@ const Comments = forwardRef(({
         const position = fieldPositions?.[resizeField];
         if (position) {
           const fieldLeft = containerRect.width - position.right - position.width;
-          const newWidth = Math.max(100, (e.clientX - containerRect.left) / zoomFactor - fieldLeft);
-          const newHeight = Math.max(50, (e.clientY - containerRect.top) / zoomFactor - position.top);
+          const coords = getEventCoordinates(e);
+          const newWidth = Math.max(100, (coords.clientX - containerRect.left) / zoomFactor - fieldLeft);
+          const newHeight = Math.max(50, (coords.clientY - containerRect.top) / zoomFactor - position.top);
           
           if (setFieldPositions) {
             setFieldPositions(prev => ({
@@ -257,11 +299,15 @@ const Comments = forwardRef(({
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleMouseMove, { passive: false });
+      document.addEventListener('touchend', handleMouseUp);
     }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleMouseMove);
+      document.removeEventListener('touchend', handleMouseUp);
     };
   }, [isResizing, resizeField, fieldPositions, zoomLevel, setFieldPositions]);
 
@@ -290,16 +336,14 @@ const Comments = forwardRef(({
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '1280px', height: '720px' }}>
       {/* Background Image */}
-      <ImageComponent
-        src={getImageSrc('Template-06.png')}
-        alt="Comments slide template"
+      <div
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
           width: '100%',
           height: '100%',
-          objectFit: 'cover',
+          background: "url('/Template/Template-06.png') center/100% 100% no-repeat",
           zIndex: -1
         }}
       />

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import MultiImageComponent from "../../components/MultiImageComponent";
 import slideApiService from "../../services/slideApiService";
 
 const NearestFireStation = forwardRef(({
@@ -20,6 +19,7 @@ const NearestFireStation = forwardRef(({
   multipleLocationsMode,
   selectedLocationIndex,
   currentProjectId,
+  slideId = 'nearestFireStation',
 }, ref) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -29,7 +29,15 @@ const NearestFireStation = forwardRef(({
   const [resizingField, setResizingField] = useState(null);
   const [resizeMode, setResizeMode] = useState("");
   
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  const containerRef = useRef(null); // For container reference instead of imageHandler
+
+  // Helper function to handle both mouse and touch events
+  const getEventCoordinates = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
 
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
@@ -43,7 +51,7 @@ const NearestFireStation = forwardRef(({
   const handleChange = (field, value) => {
     if (setFormData) {
       const actualField = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
-      setFormData({ [actualField]: value || "" }); // Ensure value is always a string
+      setFormData({ ...formData, [actualField]: value || "" }); // Ensure value is always a string
     }
   };
 
@@ -57,27 +65,29 @@ const NearestFireStation = forwardRef(({
     
     const fieldElement = e.currentTarget.parentElement.querySelector('textarea');
     const rect = fieldElement.getBoundingClientRect();
-    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
     
     const zoomFactor = (zoomLevel || 100) / 100;
     
+    const coords = getEventCoordinates(e);
     setResizeStart({
-      x: (e.clientX - containerRect.left) / zoomFactor,
-      y: (e.clientY - containerRect.top) / zoomFactor,
+      x: (coords.clientX - containerRect.left) / zoomFactor,
+      y: (coords.clientY - containerRect.top) / zoomFactor,
       width: rect.width / zoomFactor,
       height: rect.height / zoomFactor,
     });
   };
 
   const handleResizeMouseMove = (e) => {
-    if (!isResizing || !resizingField || !imageHandler.containerRef.current) return;
+    if (!isResizing || !resizingField || !containerRef.current) return;
 
     e.preventDefault();
     
-    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
     const zoomFactor = (zoomLevel || 100) / 100;
     
-    const currentX = (e.clientX - containerRect.left) / zoomFactor;
+    const coords = getEventCoordinates(e);
+    const currentX = (coords.clientX - containerRect.left) / zoomFactor;
     const currentY = (e.clientY - containerRect.top) / zoomFactor;
     
     let newWidth = resizeStart.width;
@@ -141,10 +151,11 @@ const NearestFireStation = forwardRef(({
 
       const dimensionsToSave = {};
       Object.entries(fieldPositions).forEach(([field, data]) => {
-        if (data.width && data.height) {
+        // Save if there's any positioning data (not just width/height)
+        if (data && (data.top !== undefined || data.left !== undefined || data.width || data.height)) {
           dimensionsToSave[field] = {
-            width: data.width,
-            height: data.height,
+            ...(data.width !== undefined && { width: data.width }),
+            ...(data.height !== undefined && { height: data.height }),
             ...(data.x !== undefined && { x: data.x }),
             ...(data.y !== undefined && { y: data.y }),
             ...(data.top !== undefined && { top: data.top }),
@@ -163,7 +174,7 @@ const NearestFireStation = forwardRef(({
       }
     };
 
-    const timeoutId = setTimeout(saveFieldPositions, 1000);
+    const timeoutId = setTimeout(saveFieldPositions, 5000);
     return () => clearTimeout(timeoutId);
   }, [fieldPositions, currentProjectId]);
 
@@ -175,14 +186,14 @@ const NearestFireStation = forwardRef(({
       }
 
       try {
-        await slideApiService.updateContent(currentProjectId, 'nearest_fire_station_slide', 'nearest_fire_station', { nearestFireStationData: formData });
+        await slideApiService.updateSlideContent(currentProjectId, 'nearest_fire_station_slide', 'nearest_fire_station', { nearestFireStationData: formData });
         console.log('Saved nearest fire station content to backend');
       } catch (error) {
         console.warn('Failed to save nearest fire station content to backend:', error);
       }
     };
 
-    const timeoutId = setTimeout(saveNearestFireStationContent, 2000); // Longer delay for content
+    const timeoutId = setTimeout(saveNearestFireStationContent, 5000); // Longer delay for content to prevent ERR_INSUFFICIENT_RESOURCES
     return () => clearTimeout(timeoutId);
   }, [formData, currentProjectId]);
 
@@ -201,27 +212,29 @@ const NearestFireStation = forwardRef(({
     // Get the container element (the div that wraps bullet + textarea)
     const fieldContainer = e.currentTarget.parentElement;
     const fieldRect = fieldContainer.getBoundingClientRect();
-    const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
     
     // Account for zoom level when calculating offset
     const zoomFactor = (zoomLevel || 100) / 100;
     
     // Calculate offset from cursor to field container's position relative to main container
+    const coords = getEventCoordinates(e);
     setDragOffset({
-      x: (e.clientX - fieldRect.left) / zoomFactor,
-      y: (e.clientY - fieldRect.top) / zoomFactor,
+      x: (coords.clientX - fieldRect.left) / zoomFactor,
+      y: (coords.clientY - fieldRect.top) / zoomFactor,
     });
   };
 
   const handleMouseMove = (e) => {
-    if (isDragging && draggingField && imageHandler.containerRef.current) {
-      const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+    if (isDragging && draggingField && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
       
       // Account for zoom level when calculating new position
       const zoomFactor = (zoomLevel || 100) / 100;
       
       // Calculate new field position maintaining the original offset
-      const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+      const coords = getEventCoordinates(e);
+      const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
       const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
       
       if (setFieldPositions) {
@@ -250,24 +263,30 @@ const NearestFireStation = forwardRef(({
   // Add document event listeners for dragging
   useEffect(() => {
     const handleDocumentMouseMove = (e) => {
-      if (isDragging && draggingField && imageHandler.containerRef.current) {
-        const containerRect = imageHandler.containerRef.current.getBoundingClientRect();
+      if (isDragging && draggingField && containerRef.current) {
+        const containerRect = containerRef.current.getBoundingClientRect();
         
         // Account for zoom level when calculating new position
         const zoomFactor = (zoomLevel || 100) / 100;
         
         // Calculate new field position maintaining the original offset
-        const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+        const coords = getEventCoordinates(e);
+      const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
         const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
         
         if (setFieldPositions) {
           // Use location-aware field key for positioning
           const actualFieldKey = multipleLocationsMode ? `${draggingField}_loc${selectedLocationIndex}` : draggingField;
+          const existingField = fieldPositions?.[actualFieldKey] || {};
           setFieldPositions({
             ...(fieldPositions || {}),
             [actualFieldKey]: {
+              ...existingField,
               top: Math.max(0, newTop),
               left: Math.max(0, Math.min(newLeft, 1000)), // Keep within reasonable bounds
+              // Ensure width and height are preserved for saving
+              width: existingField.width || 500,
+              height: existingField.height || 80,
             }
           });
         }
@@ -291,7 +310,7 @@ const NearestFireStation = forwardRef(({
         document.removeEventListener('mouseup', handleDocumentMouseUp);
       };
     }
-  }, [isDragging, draggingField, dragOffset, zoomLevel, fieldPositions, setFieldPositions, imageHandler.containerRef]);
+  }, [isDragging, draggingField, dragOffset, zoomLevel, fieldPositions, setFieldPositions, containerRef]);
 
 
   const renderBulletTextbox = (field, content, defaultTop = 300) => {
@@ -320,11 +339,13 @@ const NearestFireStation = forwardRef(({
           background: "transparent",
           borderRadius: "6px",
           padding: "0",
+          zIndex: 1000, // Ensure text fields are above images
         }}
       >
         {/* Drag handle (bullet point) */}
         <span 
           onMouseDown={(e) => handleFieldMouseDown(e, field)}
+          onTouchStart={(e) => handleFieldMouseDown(e, field)}
           style={{
             color: "#8B9A5B",
             fontFamily: "'Montserrat', sans-serif",
@@ -351,7 +372,7 @@ const NearestFireStation = forwardRef(({
               // Remove the field data and position using location-aware keys
               const actualFieldKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
               if (setFormData) {
-                setFormData({ [actualFieldKey]: "" });
+                setFormData({ ...formData, [actualFieldKey]: "" });
               }
               if (setFieldPositions) {
                 const updatedPositions = { ...(fieldPositions || {}) };
@@ -398,7 +419,7 @@ const NearestFireStation = forwardRef(({
                 // Remove the field data and position
                 if (setFormData) {
                   const fieldKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
-                  setFormData({ [fieldKey]: "" });
+                  setFormData({ ...formData, [fieldKey]: "" });
                 }
                 if (setFieldPositions) {
                   const updatedPositions = { ...(fieldPositions || {}) };
@@ -446,6 +467,7 @@ const NearestFireStation = forwardRef(({
               {/* Corner resize handles */}
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'bottom-right')}
                 style={{
                   position: "absolute",
                   bottom: "-4px",
@@ -461,6 +483,7 @@ const NearestFireStation = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'bottom-left')}
                 style={{
                   position: "absolute",
                   bottom: "-4px",
@@ -476,6 +499,7 @@ const NearestFireStation = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-right')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'top-right')}
                 style={{
                   position: "absolute",
                   top: "-4px",
@@ -491,6 +515,7 @@ const NearestFireStation = forwardRef(({
               />
               <div
                 onMouseDown={(e) => handleResizeMouseDown(e, field, 'top-left')}
+                onTouchStart={(e) => handleResizeMouseDown(e, field, 'top-left')}
                 style={{
                   position: "absolute",
                   top: "-4px",
@@ -522,15 +547,15 @@ const NearestFireStation = forwardRef(({
   // Handle change with location awareness
   const handleFormChange = (field, value) => {
     if (multipleLocationsMode) {
-      setFormData({ [`${field}_loc${selectedLocationIndex}`]: value });
+      setFormData({ ...formData, [`${field}_loc${selectedLocationIndex}`]: value });
     } else {
-      setFormData({ [field]: value });
+      setFormData({ ...formData, [field]: value });
     }
   };
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -545,20 +570,30 @@ const NearestFireStation = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        // Always call imageHandler first for image drag/resize
-        imageHandler.handleMouseMove(e);
-        // Then handle text field dragging/resizing
-        handleMouseMove(e);
+        // Handle text field dragging
+        if (isDragging && draggingField) {
+          handleMouseMove(e);
+        }
       }}
       onMouseUp={(e) => {
-        // Always call imageHandler first for image drag/resize
-        imageHandler.handleMouseUp(e);
-        // Then handle text field dragging/resizing
-        handleMouseUp(e);
+        // Handle text field dragging/resizing
+        if (isDragging) {
+          handleMouseUp(e);
+        }
+      }}
+      onTouchMove={(e) => {
+        // Handle text field dragging
+        if (isDragging && draggingField) {
+          handleMouseMove(e);
+        }
+      }}
+      onTouchEnd={(e) => {
+        // Handle text field dragging/resizing
+        if (isDragging) {
+          handleMouseUp(e);
+        }
       }}
       onClick={(e) => {
-        // Handle image click first
-        imageHandler.handleContainerClick(e, onSelect);
         
         // If clicking on empty area (not on text field or image), deselect
         if (e.target === e.currentTarget) {
@@ -596,14 +631,19 @@ const NearestFireStation = forwardRef(({
       
       
       {/* Image Component for paste functionality */}
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          console.log('🔄 NearestFireStation onUpdateImages called with:', updatedImages);
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+            console.log('✅ Called updateSlideData for slideId:', slideId);
+          } else {
+            console.warn('❌ updateSlideData not available');
+          }
+        }}
+        zoomLevel={zoomLevel}
+        isActiveSlide={isActiveSlide}
       />
     </div>
   );

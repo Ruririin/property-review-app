@@ -1,6 +1,5 @@
-import { forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import { useRef, forwardRef, useImperativeHandle } from "react";
+import MultiImageComponent from "../../components/MultiImageComponent";
 
 const Interior = forwardRef(({
   formData,
@@ -17,7 +16,8 @@ const Interior = forwardRef(({
   fieldPositions,
   setFieldPositions,
 }, ref) => {
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  
+  const containerRef = useRef(null);
 
   // Expose method for PDF export
   useImperativeHandle(ref, () => ({
@@ -47,7 +47,6 @@ const Interior = forwardRef(({
       return (
         <div
           key={field}
-          onClick={() => onSelect(field)}
           style={{
             position: "absolute",
             width: `${estimatedWidth}px`,
@@ -72,11 +71,12 @@ const Interior = forwardRef(({
               ? { bottom: `${position.bottom}px` }
               : { top: `${position.top}px` }),
             right: `${position.right}%`,
+            zIndex: isActive ? 1001 : 1000, // Ensure text fields are above images
           }}
         >
           <input
             value={formData[field] || ""}
-            onChange={(e) => setFormData({ [field]: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
             onFocus={() => onSelect(field)}
             placeholder={placeholder}
             style={{
@@ -101,7 +101,7 @@ const Interior = forwardRef(({
         key={field}
         value={formData[field] || ""}
         onChange={(e) =>
-          setFormData({ [field]: e.target.value })
+          setFormData({ ...formData, [field]: e.target.value })
         }
         onFocus={() => onSelect(field)}
         placeholder={placeholder}
@@ -125,6 +125,7 @@ const Interior = forwardRef(({
             ? { bottom: `${position.bottom}px` }
             : { top: `${position.top}px` }),
           right: `${position.right}%`,
+          zIndex: isActive ? 1001 : 1000, // Ensure text fields are above images
         }}
       />
     );
@@ -132,7 +133,7 @@ const Interior = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -144,21 +145,24 @@ const Interior = forwardRef(({
         borderRadius: "12px",
         boxShadow: "0 0 20px rgba(0,0,0,0.15)",
       }}
-      onMouseMove={imageHandler.handleMouseMove}
-      onMouseUp={imageHandler.handleMouseUp}
-      onClick={(e) => imageHandler.handleContainerClick(e, onSelect)}
+      onClick={(e) => {
+        // If clicking on empty area (not on text field or image), deselect
+        if (e.target === e.currentTarget) {
+          onSelect(null);
+        }
+      }}
     >
       {renderField("websiteInfo", "www.(source).com/(source) – (mm/yyyy)")}
       {renderField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
       
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+          }
+        }}
+        zoomLevel={zoomLevel}
       />
     </div>
   );

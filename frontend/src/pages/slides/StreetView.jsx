@@ -1,6 +1,5 @@
-import { forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import { forwardRef, useImperativeHandle, useRef } from "react";
+import MultiImageComponent from "../../components/MultiImageComponent";
 
 const StreetView = forwardRef(({
   formData,
@@ -17,8 +16,8 @@ const StreetView = forwardRef(({
   fieldPositions,
   setFieldPositions,
 }, ref) => {
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'street');
-
+  const containerRef = useRef(null); // For container reference
+  
   // Expose method for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
@@ -47,7 +46,6 @@ const StreetView = forwardRef(({
       return (
         <div
           key={field}
-          onClick={() => onSelect(field)}
           style={{
             position: "absolute",
             width: `${estimatedWidth}px`,
@@ -72,11 +70,12 @@ const StreetView = forwardRef(({
               ? { bottom: `${position.bottom}px` }
               : { top: `${position.top}px` }),
             right: `${position.right}%`,
+            zIndex: isActive ? 1001 : 1000, // Ensure text fields are above images
           }}
         >
           <input
             value={formData[field] || ""}
-            onChange={(e) => setFormData({ [field]: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
             onFocus={() => onSelect(field)}
             placeholder={placeholder}
             style={{
@@ -101,7 +100,7 @@ const StreetView = forwardRef(({
         key={field}
         value={formData[field] || ""}
         onChange={(e) =>
-          setFormData({ [field]: e.target.value })
+          setFormData({ ...formData, [field]: e.target.value })
         }
         onFocus={() => onSelect(field)}
         placeholder={placeholder}
@@ -125,6 +124,7 @@ const StreetView = forwardRef(({
             ? { bottom: `${position.bottom}px` }
             : { top: `${position.top}px` }),
           right: `${position.right}%`,
+          zIndex: isActive ? 1001 : 1000, // Ensure text fields are above images
         }}
       />
     );
@@ -132,7 +132,7 @@ const StreetView = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -141,19 +141,20 @@ const StreetView = forwardRef(({
         backgroundSize: "100% 100%",
         margin: "0 auto",
         overflow: "hidden",
-        userSelect: "none",
         borderRadius: "12px",
         boxShadow: "0 0 20px rgba(0,0,0,0.15)",
       }}
-      onMouseMove={imageHandler.handleMouseMove}
-      onMouseUp={imageHandler.handleMouseUp}
-      onClick={(e) => imageHandler.handleContainerClick(e, onSelect)}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onSelect(null);
+        }
+      }}
     >
       {renderField("websiteInfo", "www.(source).com/(source) – (mm/yyyy)")}
       {renderField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
       
       {/* Screenshot area - users can paste street view images here */}
-      {!imageHandler.imageData && (
+      {(!slideData?.images || slideData.images.length === 0) && (
         <div
           style={{
             position: "absolute",
@@ -187,14 +188,15 @@ const StreetView = forwardRef(({
         </div>
       )}
 
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+          }
+        }}
+        zoomLevel={zoomLevel}
+        isActiveSlide={isActiveSlide}
       />
     </div>
   );

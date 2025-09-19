@@ -7,6 +7,51 @@ const ImageComponent = ({
   onResizeMouseDown,
   onDeleteImage,
 }) => {
+  // Touch event handlers for tablet compatibility
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const syntheticEvent = {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        target: e.target,
+        preventDefault: () => {
+          if (e.cancelable) {
+            e.preventDefault();
+          }
+        },
+        stopPropagation: () => e.stopPropagation()
+      };
+      onMouseDownImage(syntheticEvent);
+    }
+    // Only prevent default if the event is cancelable
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+  };
+  
+  const handleResizeTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const syntheticEvent = {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        target: e.target,
+        preventDefault: () => {
+          if (e.cancelable) {
+            e.preventDefault();
+          }
+        },
+        stopPropagation: () => e.stopPropagation()
+      };
+      onResizeMouseDown(syntheticEvent);
+    }
+    // Only prevent default if the event is cancelable
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+  };
+
   if (!imageData) return null;
 
   return (
@@ -22,6 +67,7 @@ const ImageComponent = ({
         src={imageData.src}
         alt="Pasted"
         onMouseDown={onMouseDownImage}
+        onTouchStart={handleTouchStart}
         style={{
           width: imageData.width,
           height: imageData.height,
@@ -38,6 +84,7 @@ const ImageComponent = ({
           {/* Corner resize handles for better control */}
           <div
             onMouseDown={onResizeMouseDown}
+            onTouchStart={handleResizeTouchStart}
             style={{
               position: "absolute",
               bottom: "-6px",
@@ -56,6 +103,7 @@ const ImageComponent = ({
           {/* Additional resize handles for better UX */}
           <div
             onMouseDown={onResizeMouseDown}
+            onTouchStart={handleResizeTouchStart}
             style={{
               position: "absolute",
               bottom: "-6px",
@@ -74,6 +122,7 @@ const ImageComponent = ({
           
           <div
             onMouseDown={onResizeMouseDown}
+            onTouchStart={handleResizeTouchStart}
             style={{
               position: "absolute",
               right: "-6px",

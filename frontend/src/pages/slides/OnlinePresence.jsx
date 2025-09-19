@@ -1,6 +1,5 @@
-import { useState, forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import { useState, useRef, forwardRef, useImperativeHandle } from "react";
+import MultiImageComponent from "../../components/MultiImageComponent";
 
 const OnlinePresence = forwardRef(({
   formData,
@@ -16,8 +15,17 @@ const OnlinePresence = forwardRef(({
   fieldPositions,
   setFieldPositions
 }, ref) => {
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
   
+  const containerRef = useRef(null);
+
+  // Helper function to handle both mouse and touch events
+  const getEventCoordinates = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
+
   // Expose method for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
@@ -33,8 +41,9 @@ const OnlinePresence = forwardRef(({
     if (selectedField !== field) return;
     
     e.preventDefault();
-    const initialMouseX = e.clientX;
-    const initialMouseY = e.clientY;
+    const coords = getEventCoordinates(e);
+    const initialMouseX = coords.clientX;
+    const initialMouseY = coords.clientY;
     
     const fieldElement = e.target.parentElement;
     const position = (fieldPositions && fieldPositions[field]) || defaultFieldPositions[field];
@@ -43,8 +52,9 @@ const OnlinePresence = forwardRef(({
     const initialRight = position.right || 0.5;
     
     const handleMouseMove = (moveEvent) => {
-      const deltaX = moveEvent.clientX - initialMouseX;
-      const deltaY = moveEvent.clientY - initialMouseY;
+      const coords = getEventCoordinates(moveEvent);
+      const deltaX = coords.clientX - initialMouseX;
+      const deltaY = coords.clientY - initialMouseY;
       
       let updatedPosition;
       if (initialBottom !== null) {
@@ -70,10 +80,14 @@ const OnlinePresence = forwardRef(({
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleMouseMove);
+      document.removeEventListener('touchend', handleMouseUp);
     };
     
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleMouseMove, { passive: false });
+    document.addEventListener('touchend', handleMouseUp);
   };
 
   const autoResize = (textarea) => {
@@ -82,7 +96,7 @@ const OnlinePresence = forwardRef(({
   };
 
   const handleChange = (field, value) => {
-    setFormData({ [field]: value });
+    setFormData({ ...formData, [field]: value });
   };
 
   const renderField = (field, placeholder) => {
@@ -118,6 +132,7 @@ const OnlinePresence = forwardRef(({
             : { top: `${position.top}px` }),
           right: `${position.right}%`,
           width: `${estimatedWidth}px`,
+          zIndex: selectedField === field ? 1001 : 1000, // Ensure text fields are above images
         }}
       >
         <textarea
@@ -130,8 +145,9 @@ const OnlinePresence = forwardRef(({
             // Change cursor based on position when field is selected
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const clickY = e.clientY - rect.top;
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
               const borderThickness = 20;
               
               const isOnLeftEdge = clickX <= borderThickness;
@@ -150,8 +166,29 @@ const OnlinePresence = forwardRef(({
             // Only start dragging if clicking on the border/edge area, not in the text content
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const clickY = e.clientY - rect.top;
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
+              const borderThickness = 20;
+              
+              const isOnLeftEdge = clickX <= borderThickness;
+              const isOnRightEdge = clickX >= rect.width - borderThickness;
+              const isOnTopEdge = clickY <= borderThickness;
+              const isOnBottomEdge = clickY >= rect.height - borderThickness;
+              
+              if (isOnLeftEdge || isOnRightEdge || isOnTopEdge || isOnBottomEdge) {
+                e.preventDefault();
+                handleFieldMouseDown(e, field);
+              }
+            }
+          }}
+          onTouchStart={(e) => {
+            // Only start dragging if touching on the border/edge area, not in the text content
+            if (selectedField === field) {
+              const rect = e.target.getBoundingClientRect();
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
               const borderThickness = 20;
               
               const isOnLeftEdge = clickX <= borderThickness;
@@ -186,7 +223,7 @@ const OnlinePresence = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -198,14 +235,17 @@ const OnlinePresence = forwardRef(({
         borderRadius: "12px",
         boxShadow: "0 0 20px rgba(0,0,0,0.15)",
       }}
-      onMouseMove={imageHandler.handleMouseMove}
-      onMouseUp={imageHandler.handleMouseUp}
-      onClick={(e) => imageHandler.handleContainerClick(e, onSelect)}
+      onClick={(e) => {
+        // If clicking on empty area (not on text field or image), deselect
+        if (e.target === e.currentTarget) {
+          onSelect(null);
+        }
+      }}
     >
       {renderField("websiteInfo", "www.(source).com/")}
 
       {/* Screenshot area - users can paste images here */}
-      {!imageHandler.imageData && (
+      {(slideData?.images || []).length === 0 && (
         <div
           style={{
             position: "absolute",
@@ -239,14 +279,14 @@ const OnlinePresence = forwardRef(({
         </div>
       )}
 
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+          }
+        }}
+        zoomLevel={zoomLevel}
       />
     </div>
   );

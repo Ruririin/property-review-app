@@ -11,6 +11,14 @@ export const useImageHandler = (slideData, updateSlideData, zoomLevel, isActiveS
   const imageData = slideData?.imageData || null;
   const imagePosition = slideData?.imagePosition || { top: 300, left: 400 };
 
+  // Helper function to handle both mouse and touch events
+  const getEventCoordinates = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
+
   // Handle paste events for adding images - only for the active slide
   useEffect(() => {
     const handlePaste = (e) => {
@@ -114,9 +122,10 @@ export const useImageHandler = (slideData, updateSlideData, zoomLevel, isActiveS
     // Account for zoom level when calculating offset
     const zoomFactor = (zoomLevel || 100) / 100;
     
+    const coords = getEventCoordinates(e);
     setDragOffset({
-      x: (e.clientX - rect.left) / zoomFactor,
-      y: (e.clientY - rect.top) / zoomFactor,
+      x: (coords.clientX - rect.left) / zoomFactor,
+      y: (coords.clientY - rect.top) / zoomFactor,
     });
   };
 
@@ -128,8 +137,9 @@ export const useImageHandler = (slideData, updateSlideData, zoomLevel, isActiveS
       // Account for zoom level when calculating new position
       const zoomFactor = (zoomLevel || 100) / 100;
       
-      const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
-      const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
+      const coords = getEventCoordinates(e);
+      const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+      const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
       
       updateSlideData({
         imagePosition: {
@@ -141,8 +151,9 @@ export const useImageHandler = (slideData, updateSlideData, zoomLevel, isActiveS
 
     if (isResizingImage && resizeStart && imageData && containerRef.current) {
       // Simple resize based on mouse movement from start position
-      const deltaX = e.clientX - resizeStart.x;
-      const deltaY = e.clientY - resizeStart.y;
+      const coords = getEventCoordinates(e);
+      const deltaX = coords.clientX - resizeStart.x;
+      const deltaY = coords.clientY - resizeStart.y;
       
       // Use the larger delta for resizing (horizontal or vertical movement)
       const delta = Math.max(deltaX, deltaY);
@@ -178,9 +189,10 @@ export const useImageHandler = (slideData, updateSlideData, zoomLevel, isActiveS
     setIsResizingImage(true);
     setIsImageSelected(true);
     
+    const coords = getEventCoordinates(e);
     setResizeStart({
-      x: e.clientX,
-      y: e.clientY,
+      x: coords.clientX,
+      y: coords.clientY,
       startWidth: imageData.width,
       startHeight: imageData.height,
     });

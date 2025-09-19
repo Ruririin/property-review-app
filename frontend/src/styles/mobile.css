@@ -1,59 +1,46 @@
 /* Mobile-Responsive Design - Canvas-Inspired */
 
-/* Mobile-First Approach */
-@media (max-width: 768px) {
+/* Mobile-only Approach (smartphones) */
+@media (max-width: 767px) {
   /* Hide desktop-only elements on mobile */
   .desktop-only {
     display: none !important;
   }
 
-  /* Canvas-style full-screen mobile layout */
+  /* Mobile layout adjustments - keep desktop functionality */
   .editor-page.mobile-layout {
-    background: #f8f9fa !important;
+    background: #ffffff !important;
     padding: 0 !important;
     margin: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    overflow: hidden !important;
-  }
-
-  /* Hide desktop navbar completely on mobile */
-  .editor-page.mobile-layout .navbar {
-    display: none !important;
-  }
-
-  /* Canvas-style mobile slide area */
-  .mobile-slide-container {
-    position: absolute !important;
-    top: 60px !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 80px !important;
-    background: #ffffff !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    padding: 20px !important;
     overflow: auto !important;
-    -webkit-overflow-scrolling: touch;
   }
 
-  /* Canvas-style slide scaling */
-  .mobile-slide-content {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    aspect-ratio: 16/9 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
-    overflow: hidden !important;
-    position: relative !important;
+  /* Keep desktop navbar visible on mobile */
+  .editor-page.mobile-layout .navbar {
+    display: flex !important;
+  }
+
+
+  
+  /* Make sidebar mobile-friendly with desktop navbar */
+  .editor-page.mobile-layout .right-sidebar-container {
+    position: fixed !important;
+    top: 72px !important; /* Account for desktop navbar height */
+    right: -350px !important; /* Hidden by default */
+    width: 350px !important;
+    height: calc(100vh - 72px) !important; /* Account for desktop navbar */
     background: white !important;
+    border-left: 1px solid #e5e7eb !important;
+    z-index: 1040 !important;
+    transition: right 0.3s ease !important;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.1) !important;
   }
-
-  /* Hide desktop sidebars on mobile */
-  .editor-page.mobile-layout > *:not(.mobile-header):not(.mobile-navigation):not(.mobile-slide-container) {
-    display: none !important;
+  
+  /* Show sidebar when active */
+  .editor-page.mobile-layout .right-sidebar-container.mobile-sidebar-open {
+    right: 0 !important;
   }
 
   /* Toolbar adjustments for mobile */
@@ -92,17 +79,14 @@
     font-size: 16px;
   }
 
-  /* Navigation adjustments */
+  /* Navigation adjustments - use desktop layout */
   .slides-sidebar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 80px;
+    position: relative;
+    height: auto;
     background: white;
-    border-top: 1px solid #ccc;
+    border-top: none;
     display: flex;
-    overflow-x: auto;
+    overflow-x: visible;
     z-index: 1000;
   }
 
@@ -141,28 +125,74 @@
   }
 }
 
-/* Tablet optimizations (768px - 1024px) */
-@media (min-width: 768px) and (max-width: 1024px) {
-  .tablet-optimized {
-    display: block;
+/* Tablet optimizations (768px - 1199px) - Extended range for better tablet support */
+@media (min-width: 768px) and (max-width: 1199px) {
+  /* Tablet layout improvements - prevent clipping */
+  .editor-page.tablet-layout {
+    background: #ffffff !important;
+    padding: 10px !important;
+    overflow: visible !important; /* Fix clipping issues */
   }
 
-  /* Two-column layout for tablets */
+  /* Keep desktop navbar but make it compact */
+  .editor-page.tablet-layout .navbar {
+    display: block !important;
+    padding: 0.5rem 1rem !important;
+    min-height: 50px !important;
+  }
+  
+  /* Compact navbar buttons for tablets */
+  .editor-page.tablet-layout .navbar .btn {
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.875rem !important;
+    margin: 0 2px !important;
+  }
+
+  /* Sidebar optimizations for tablets - fix clipping */
+  .sidebar, .sidebar-panel {
+    width: 280px !important; /* Reduce sidebar width to prevent clipping */
+    max-width: 280px !important;
+    max-height: calc(100vh - 70px) !important; /* Account for navbar */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    z-index: 1000 !important; /* Ensure sidebar appears above content */
+    box-shadow: -2px 0 10px rgba(0,0,0,0.1) !important; /* Add shadow for depth */
+    background: #f8f9fa;
+    padding: 15px !important; /* Reduced padding */
+  }
+
+  /* Two-column layout improvements */
   .editor-layout {
     display: grid;
-    grid-template-columns: 1fr 300px;
-    gap: 20px;
-    height: 100vh;
+    grid-template-columns: 1fr 280px; /* Reduced sidebar width */
+    gap: 15px;
+    height: calc(100vh - 70px); /* Account for navbar and padding */
+    overflow: visible !important;
   }
 
   .main-editor {
-    overflow: auto;
+    overflow: visible !important; /* Fix slide clipping */
+    padding: 10px;
   }
 
-  .sidebar-panel {
-    background: #f8f9fa;
-    padding: 20px;
-    overflow-y: auto;
+  /* Ensure mobile-specific elements don't show on tablets */
+  .mobile-slide-container {
+    display: none !important; /* Don't use mobile slide container on tablets */
+  }
+
+  /* Slide container adjustments for tablets */
+  .slide-container {
+    position: relative !important; /* Fix positioning issues */
+    margin: 20px auto !important;
+    max-width: calc(100vw - 320px) !important; /* Account for sidebar */
+    overflow: visible !important; /* Ensure slides aren't clipped */
+    z-index: 1 !important;
+  }
+
+  /* Main content area for tablets */
+  .main-content {
+    overflow: visible !important;
+    padding: 20px !important;
   }
 
   /* Larger touch targets for tablets */
@@ -219,6 +249,56 @@
 .scroll-container {
   -webkit-overflow-scrolling: touch;
   overflow-scrolling: touch;
+}
+
+/* Canvas touch handling for tablet drag functionality */
+@media (max-width: 1024px) {
+  .canvas-container {
+    /* Only disable touch actions on actual touch devices, not desktop */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Only apply touch-action: none on touch devices */
+  @media (hover: none) and (pointer: coarse) {
+    .canvas-container {
+      touch-action: none; /* Only on mobile/tablet devices */
+    }
+  }
+  
+  /* Only prevent touch actions during dragging on touch devices */
+  @media (hover: none) and (pointer: coarse) {
+    .canvas-container[data-dragging="true"] {
+      touch-action: none !important;
+      cursor: grabbing !important;
+    }
+  }
+}
+
+/* Pasted images touch handling for tablets */
+@media (max-width: 1024px) {
+  img[alt="Pasted"] {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Only apply touch-action: none on actual touch devices */
+  @media (hover: none) and (pointer: coarse) {
+    img[alt="Pasted"] {
+      touch-action: none;
+    }
+    
+    /* Image resize handles - make them larger for touch */
+    .canvas-container img[alt="Pasted"] + div > div {
+      min-width: 20px !important;
+      min-height: 20px !important;
+      touch-action: none;
+    }
+  }
 }
 
 /* Mobile-specific utilities */

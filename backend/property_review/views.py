@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
+from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
@@ -20,7 +21,7 @@ from PIL import Image
 import io
 
 from .models import Project, PropertySlide, Template, ProjectLocation
-from .serializers import ProjectSerializer, PropertySlideSerializer, TemplateSerializer, ProjectLocationSerializer
+from .serializers import ProjectSerializer, LightProjectSerializer, PropertySlideSerializer, TemplateSerializer, ProjectLocationSerializer
 from .pdf_service import pdf_exporter
 
 # PPTX Template extraction (equivalent to Express route)
@@ -54,10 +55,17 @@ def extract_template_view(request):
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# ViewSets for CRUD operations
+# ViewSets for CRUD operations - OPTIMIZED FOR PERFORMANCE
+@method_decorator(csrf_exempt, name='dispatch')
 class ProjectViewSet(viewsets.ModelViewSet):
-    serializer_class = ProjectSerializer
+    serializer_class = ProjectSerializer  # Default serializer
     permission_classes = [AllowAny]  # Allow unauthenticated access for testing
+    
+    def get_serializer_class(self):
+        """Use lightweight serializer for list, full serializer for details"""
+        if self.action == 'list':
+            return LightProjectSerializer  # 46MB -> 1-2MB improvement!
+        return ProjectSerializer
     
     def get_queryset(self):
         return Project.objects.all()  # Return all projects for testing
@@ -143,6 +151,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'selectedLocationIndex': project.selectedLocationIndex
         })
 
+@method_decorator(csrf_exempt, name='dispatch')
 class PropertySlideViewSet(viewsets.ModelViewSet):
     serializer_class = PropertySlideSerializer
     permission_classes = [AllowAny]  # Allow unauthenticated access for testing
@@ -193,6 +202,7 @@ class TemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Template.objects.filter(is_active=True)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class ProjectLocationViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectLocationSerializer
     permission_classes = [AllowAny]  # Allow unauthenticated access for testing
@@ -512,6 +522,17 @@ def delete_slide_image_view(request, project_id, slide_id):
         return Response({
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# CSRF Token View
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_csrf_token_view(request):
+    """
+    Get CSRF token for session-based authentication
+    """
+    return JsonResponse({
+        'csrf_token': get_token(request)
+    })
 
 # Session Authentication Views
 @api_view(['POST'])

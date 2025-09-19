@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
-import ImageComponent from "../../components/ImageComponent";
+import MultiImageComponent from "../../components/MultiImageComponent";
 
 const Ratings = forwardRef(({
   formData,
@@ -15,9 +14,10 @@ const Ratings = forwardRef(({
   slideData,
   updateSlideData,
   isActiveSlide,
+  slideId = 'ratings',
 }, ref) => {
   
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  const containerRef = useRef(null);
 
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
@@ -30,7 +30,7 @@ const Ratings = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -47,20 +47,7 @@ const Ratings = forwardRef(({
         fontFamily: "'Montserrat', sans-serif",
         userSelect: "none",
       }}
-      onMouseMove={(e) => {
-        if (imageHandler.isDraggingImage) {
-          imageHandler.handleMouseMove(e);
-        }
-      }}
-      onMouseUp={(e) => {
-        if (imageHandler.isDraggingImage) {
-          imageHandler.handleMouseUp(e);
-        }
-      }}
       onClick={(e) => {
-        // Handle image click first
-        imageHandler.handleContainerClick(e, onSelect);
-        
         // If clicking on empty area (not on image), deselect
         if (e.target === e.currentTarget) {
           onSelect(null);
@@ -68,7 +55,7 @@ const Ratings = forwardRef(({
       }}
     >
       {/* Screenshot area - users can paste Google reviews screenshots here */}
-      {!imageHandler.imageData && (
+      {(slideData?.images || []).length === 0 && (
         <div
           style={{
             position: "absolute",
@@ -102,14 +89,14 @@ const Ratings = forwardRef(({
         </div>
       )}
 
-      <ImageComponent
-        imageData={imageHandler.imageData}
-        imagePosition={imageHandler.imagePosition}
-        isImageSelected={imageHandler.isImageSelected}
-        isDraggingImage={imageHandler.isDraggingImage}
-        onMouseDownImage={imageHandler.handleMouseDownImage}
-        onResizeMouseDown={imageHandler.handleResizeMouseDown}
-        onDeleteImage={imageHandler.handleDeleteImage}
+      <MultiImageComponent
+        images={slideData?.images || []}
+        onUpdateImages={async (updatedImages) => {
+          if (updateSlideData) {
+            await updateSlideData({ images: updatedImages });
+          }
+        }}
+        zoomLevel={zoomLevel}
       />
     </div>
   );

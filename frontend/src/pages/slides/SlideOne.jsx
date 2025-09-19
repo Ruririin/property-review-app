@@ -47,6 +47,14 @@ const SlideOne = forwardRef(({
   
   const containerRef = useRef(null);
 
+  // Helper function to handle both mouse and touch events
+  const getEventCoordinates = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
+
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
@@ -195,9 +203,10 @@ const SlideOne = forwardRef(({
     const zoomFactor = (zoomLevel || 100) / 100;
     
     // Calculate offset from cursor to field container's position, accounting for zoom
+    const coords = getEventCoordinates(e);
     setDragOffset({
-      x: (e.clientX - fieldRect.left) / zoomFactor,
-      y: (e.clientY - fieldRect.top) / zoomFactor,
+      x: (coords.clientX - fieldRect.left) / zoomFactor,
+      y: (coords.clientY - fieldRect.top) / zoomFactor,
     });
   };
 
@@ -209,8 +218,9 @@ const SlideOne = forwardRef(({
       const zoomFactor = (zoomLevel || 100) / 100;
       
       // Calculate new field position maintaining the original offset, accounting for zoom
-      const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
-      const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
+      const coords = getEventCoordinates(e);
+      const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+      const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
       
       // Get field width for right positioning calculation
       let fieldWidth;
@@ -252,8 +262,9 @@ const SlideOne = forwardRef(({
         const zoomFactor = (zoomLevel || 100) / 100;
         
         // Calculate new field position maintaining the original offset, accounting for zoom
-        const newLeft = (e.clientX - containerRect.left) / zoomFactor - dragOffset.x;
-        const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
+        const coords = getEventCoordinates(e);
+        const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+        const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
         
         // Get field width for right positioning calculation
         let fieldWidth;
@@ -287,14 +298,63 @@ const SlideOne = forwardRef(({
         setDraggingField(null);
       }
     };
+
+    const handleDocumentTouchMove = (e) => {
+      if (isDragging && draggingField) {
+        const containerRect = containerRef.current.getBoundingClientRect();
+        
+        // Account for zoom level when calculating new position
+        const zoomFactor = (zoomLevel || 100) / 100;
+        
+        // Calculate new field position maintaining the original offset, accounting for zoom
+        const coords = getEventCoordinates(e);
+        const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
+        const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
+        
+        // Get field width for right positioning calculation
+        let fieldWidth;
+        if (draggingField === 'lineBusiness' || draggingField === 'isoClass') {
+          const layout = calculateDynamicLayout();
+          fieldWidth = draggingField === 'lineBusiness' ? layout.lineBusinessWidth : layout.isoClassWidth;
+        } else {
+          fieldWidth = 960; // Match the width used in renderField function
+        }
+        
+        // Convert to right positioning (container is 1280px wide)
+        const containerWidth = 1280;
+        const newRight = containerWidth - newLeft - fieldWidth;
+        
+        if (setFieldPositions) {
+          setFieldPositions({
+            ...(fieldPositions || {}),
+            [draggingField]: {
+              top: Math.max(0, newTop),
+              right: Math.max(0, newRight),
+            }
+          });
+        }
+        e.preventDefault();
+      }
+    };
+
+    const handleDocumentTouchEnd = () => {
+      if (isDragging) {
+        setIsDragging(false);
+        setDraggingField(null);
+      }
+    };
     
     if (isDragging) {
       document.addEventListener('mousemove', handleDocumentMouseMove);
       document.addEventListener('mouseup', handleDocumentMouseUp);
+      document.addEventListener('touchmove', handleDocumentTouchMove, { passive: false });
+      document.addEventListener('touchend', handleDocumentTouchEnd);
       
       return () => {
         document.removeEventListener('mousemove', handleDocumentMouseMove);
         document.removeEventListener('mouseup', handleDocumentMouseUp);
+        document.removeEventListener('touchmove', handleDocumentTouchMove);
+        document.removeEventListener('touchend', handleDocumentTouchEnd);
       };
     }
   }, [isDragging, draggingField, dragOffset]);
@@ -583,6 +643,11 @@ const SlideOne = forwardRef(({
               handleFieldMouseDown(e, 'description');
             }
           }}
+          onTouchStart={(e) => {
+            if (selectedField === 'description') {
+              handleFieldMouseDown(e, 'description');
+            }
+          }}
           style={{
             position: "relative",
             top: "0",
@@ -766,8 +831,9 @@ const SlideOne = forwardRef(({
             // Change cursor based on position when field is selected
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const clickY = e.clientY - rect.top;
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
               const borderThickness = 8; // Reduced from 20 to 8 pixels
               
               const isOnLeftEdge = clickX <= borderThickness;
@@ -786,11 +852,34 @@ const SlideOne = forwardRef(({
             // Only start dragging if clicking on the border/edge area, not in the text content
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const clickY = e.clientY - rect.top;
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
               const borderThickness = 8; // Reduced from 20 to 8 pixels for better text selection
               
               // Check if click is near the edges (drag zones)
+              const isOnLeftEdge = clickX <= borderThickness;
+              const isOnRightEdge = clickX >= rect.width - borderThickness;
+              const isOnTopEdge = clickY <= borderThickness;
+              const isOnBottomEdge = clickY >= rect.height - borderThickness;
+              
+              if (isOnLeftEdge || isOnRightEdge || isOnTopEdge || isOnBottomEdge) {
+                e.preventDefault(); // Prevent text selection only in drag zones
+                handleFieldMouseDown(e, field);
+              }
+              // Otherwise, allow normal text selection behavior
+            }
+          }}
+          onTouchStart={(e) => {
+            // Only start dragging if touching on the border/edge area, not in the text content
+            if (selectedField === field) {
+              const rect = e.target.getBoundingClientRect();
+              const coords = getEventCoordinates(e);
+              const clickX = coords.clientX - rect.left;
+              const clickY = coords.clientY - rect.top;
+              const borderThickness = 8; // Reduced from 20 to 8 pixels for better text selection
+              
+              // Check if touch is near the edges (drag zones)
               const isOnLeftEdge = clickX <= borderThickness;
               const isOnRightEdge = clickX >= rect.width - borderThickness;
               const isOnTopEdge = clickY <= borderThickness;
@@ -845,6 +934,8 @@ const SlideOne = forwardRef(({
       }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onTouchMove={handleMouseMove}
+      onTouchEnd={handleMouseUp}
       onClick={(e) => {
         // If clicking on the container background (not on a field), deselect
         if (e.target === e.currentTarget) {
