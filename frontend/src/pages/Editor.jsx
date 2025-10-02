@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDevice } from "../hooks/useDevice";
 import ProjectLoadingScreen from "../components/ProjectLoadingScreen";
@@ -28,199 +28,50 @@ import editorApiService from "../services/editorApiService";
 import FieldEditorTag from "../components/FieldEditorTag";
 import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
+import SlideRenderer from "../components/SlideRenderer";
 
-const NAVBAR_HEIGHT = 72;
-const SIDEBAR_WIDTH = 350; // Increased to accommodate wider comment options
-const SLIDES_BAR_HEIGHT = 160; // Increased height to show scroll bar properly
-const ZOOM_MIN = 50;
-const ZOOM_MAX = 200;
-const ZOOM_STEP = 10;
+// Debug utilities (available in browser console)
+import '../utils/debugProject.js';
+import '../utils/cleanupSlides.js';
+import '../utils/bestPlacesAnalyzer.js';
+import '../utils/testChartData.js';
+import { useDrawing } from "../hooks/useDrawing";
+import { useProjectManager } from "../hooks/useProjectManager";
+import { useCanvasInteraction } from "../hooks/useCanvasInteraction";
+import { useSlideManager } from "../hooks/useSlideManager";
+import { EditorProvider } from "../contexts/EditorContext";
+import { useProjectState } from "../hooks/useProjectState";
+import { useUIState } from "../hooks/useUIState";
+import { useEditorState } from "../hooks/useEditorState";
+import {
+  NAVBAR_HEIGHT,
+  SIDEBAR_WIDTH,
+  SLIDES_BAR_HEIGHT,
+  ZOOM_MIN,
+  ZOOM_MAX,
+  ZOOM_STEP,
+  BUTTON_STYLES
+} from "../utils/editorConstants";
+import { handleBestPlacesClickSept4_2025_FINAL } from "../utils/editorHelpers";
+import SlidePreview from "../components/SlidePreview";
 
-// CACHE-BUSTER: New Best Places function to force browser refresh
-const handleBestPlacesClickSept4_2025_FINAL = (globalLocationData, multipleLocationsMode, parseMultipleLocations, slides, currentSlide, selectedLocationIndex) => {
-  console.log('🆕🆕🆕 BRAND NEW FUNCTION EXECUTED - SEPT 4 2025! 🆕🆕🆕');
-  alert('✅ SUCCESS! New function is working!');
-  
-  console.log('� Parameters:', { globalLocationData, multipleLocationsMode, slides, currentSlide, selectedLocationIndex });
-  
-  let location = '';
-  if (multipleLocationsMode && globalLocationData.premiseLocation) {
-    const locations = parseMultipleLocations(globalLocationData.premiseLocation);
-    const currentSlideInfo = slides.find(s => s.id === currentSlide);
-    
-    if (locations.length > 1) {
-      if (currentSlideInfo && typeof currentSlideInfo.locationIndex === 'number') {
-        location = locations[currentSlideInfo.locationIndex] || locations[0];
-      } else {
-        location = locations[selectedLocationIndex] || locations[0];
-      }
-    } else {
-      location = locations[0] || globalLocationData.premiseLocation;
-    }
-  } else {
-    location = globalLocationData.premiseLocation;
-  }
-  
-  if (location) {
-    console.log('🏠 FRESH Best Places - Processing location:', location);
-    const zipMatch = location.match(/\b(\d{5})/);
-    
-    if (zipMatch) {
-      const zipCode = zipMatch[1];
-      const bestPlacesUrl = `https://www.bestplaces.net/search/?q=${zipCode}`;
-      console.log('🔍 FRESH Best Places - Zip code:', zipCode);
-      console.log('🌐 FRESH Best Places - URL:', bestPlacesUrl);
-      window.open(bestPlacesUrl, '_blank');
-    } else {
-      console.log('❌ FRESH Best Places - No zip code found in:', location);
-      alert('Could not extract zip code from the location.');
-    }
-  } else {
-    alert('Please enter a location first');
-  }
-};
 
-const BUTTON_STYLES = {
-  toggleArrow: {
-    position: "absolute",
-    width: "20px",
-    height: "60px",
-    backgroundColor: "#f8f9fa",
-    border: "1px solid #ddd",
-    borderRadius: "0 6px 6px 0",
-    padding: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer"
-  },
-  zoomButton: {
-    width: "28px",
-    height: "28px",
-    padding: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "14px",
-    fontWeight: "bold"
-  },
-  slideToggle: {
-    position: "absolute",
-    top: "-20px",
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: "60px",
-    height: "20px",
-    backgroundColor: "#f8f9fa",
-    border: "1px solid #ddd",
-    borderBottom: "none",
-    borderRadius: "6px 6px 0 0",
-    padding: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer"
-  }
-};
-
-const SlidePreview = ({ slide, index, isActive, onClick, onDelete, canDelete, multipleLocationsMode, slideLocationIndex }) => (
-  <div
-    className={`position-relative cursor-pointer border ${isActive ? "border-primary border-2" : "border-light"}`}
-    onClick={() => onClick(slide.id)}
-    style={{
-      width: "130px", // Fixed width instead of minWidth
-      height: "80px", // Fixed height
-      cursor: "pointer",
-      borderRadius: "8px",
-      background: isActive ? "#f8f9ff" : "#f8f9fa",
-      margin: "10px 8px 10px 8px",
-      flexShrink: 0, // Crucial for horizontal scrolling
-      boxShadow: isActive ? "0 2px 8px rgba(0,123,255,0.3)" : "0 1px 3px rgba(0,0,0,0.1)",
-      transition: "all 0.2s ease"
-    }}
-  >
-    {/* Location indicator for multiple locations mode */}
-    {multipleLocationsMode && slideLocationIndex !== undefined && (
-      <div
-        style={{
-          position: "absolute",
-          top: "4px",
-          right: "4px",
-          backgroundColor: "#8B9A5B",
-          color: "white",
-          fontSize: "10px",
-          padding: "2px 6px",
-          borderRadius: "10px",
-          fontWeight: "bold",
-          zIndex: 10
-        }}
-      >
-        L{slideLocationIndex + 1}
-      </div>
-    )}
-    
-    <div className="h-100 d-flex align-items-center justify-content-center p-2">
-      <small 
-        className="text-center" 
-        style={{ 
-          fontSize: "10px", 
-          lineHeight: "1.2",
-          fontWeight: isActive ? "600" : "normal",
-          color: isActive ? "#0d6efd" : "#6c757d",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          display: "-webkit-box",
-          WebkitLineClamp: 3, // Allow max 3 lines
-          WebkitBoxOrient: "vertical",
-          wordBreak: "break-word"
-        }}
-      >
-        {slide.title}
-      </small>
-    </div>
-    <span
-      className="position-absolute bg-primary text-white rounded-circle d-flex align-items-center justify-content-center"
-      style={{ 
-        top: "5px", left: "5px", // Moved inside the container
-        width: "20px", height: "20px", 
-        fontSize: "10px", 
-        fontWeight: "bold",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
-      }}
-    >
-      {index + 1}
-    </span>
-    {canDelete && (
-      <button
-        className="btn btn-sm position-absolute"
-        style={{
-          backgroundColor: '#2d5016',
-          borderColor: '#2d5016',
-          color: 'white',
-          bottom: "5px", right: "5px", // Moved to bottom-right corner
-          width: "20px", height: "20px",
-          fontSize: "12px", padding: 0,
-          borderRadius: "50%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-          border: "2px solid white"
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(slide.id);
-        }}
-        title="Delete slide"
-      >
-        ×
-      </button>
-    )}
-  </div>
-);
 
 export default function Editor({ sessionUser }) {
+  // Refs - must be declared before any hooks that use them
+  const addButtonRef = useRef(null);
+  const canvasRef = useRef(null);
+  const slideRefs = useRef({});
+  const slideComponentRefs = useRef({});
+  const slidesContainerRef = useRef(null);
+  const navigate = useNavigate();
+
   const device = useDevice();
+
+  // Custom hooks for organized state management
+  const projectState = useProjectState();
+  const uiState = useUIState();
+  const editorState = useEditorState();
   const [slides, setSlides] = useState([{ id: 1, type: 'cover', title: 'Cover Page' }]);
   const [currentSlide, setCurrentSlide] = useState(1);
   const [nextSlideId, setNextSlideId] = useState(2); // Track next available ID
@@ -230,67 +81,7 @@ export default function Editor({ sessionUser }) {
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Loading project...");
   
-  // Drawing tool state
-  const [isDrawingMode, setIsDrawingMode] = useState(false);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [currentDrawing, setCurrentDrawing] = useState(null);
-  const [selectedDrawingIndex, setSelectedDrawingIndex] = useState(null);
-  const [isResizing, setIsResizing] = useState(false);
-  const [resizeHandle, setResizeHandle] = useState(null); // 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
-  const [isSquareEditMode, setIsSquareEditMode] = useState(false); // New state for square editing after drawing
-  const [isDraggingPoint, setIsDraggingPoint] = useState(false);
-  const [draggingPointIndex, setDraggingPointIndex] = useState(null); // 0=topLeft, 1=topRight, 2=bottomLeft, 3=bottomRight
 
-  // Add keyboard support for deleting selected drawings
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((isDrawingMode || isSquareEditMode) && selectedDrawingIndex !== null && (e.key === 'Delete' || e.key === 'Backspace')) {
-        deleteDrawing(selectedDrawingIndex);
-        setSelectedDrawingIndex(null);
-        e.preventDefault();
-      }
-      
-      // ESC to exit square edit mode
-      if (e.key === 'Escape' && isSquareEditMode) {
-        setIsSquareEditMode(false);
-        setSelectedDrawingIndex(null);
-        e.preventDefault();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isDrawingMode, isSquareEditMode, selectedDrawingIndex]);
-  
-  // Automatically enable square edit mode when exiting drawing mode if squares exist
-  useEffect(() => {
-    if (!isDrawingMode && !isSquareEditMode) {
-      const currentSlideDrawings = getSlideData(currentSlide)?.drawings || [];
-      if (currentSlideDrawings.length > 0) {
-        setIsSquareEditMode(true);
-      }
-    }
-  }, [isDrawingMode, currentSlide]);
-
-  // Helper function to convert rectangle to points (for backward compatibility)
-  const rectToPoints = (drawing) => {
-    if (drawing.points) {
-      return drawing.points; // Already has points
-    }
-    
-    // Convert old rectangle format to points
-    const minX = Math.min(drawing.startX, drawing.endX);
-    const minY = Math.min(drawing.startY, drawing.endY);
-    const maxX = Math.max(drawing.startX, drawing.endX);
-    const maxY = Math.max(drawing.startY, drawing.endY);
-    
-    return [
-      { x: minX, y: minY },     // topLeft
-      { x: maxX, y: minY },     // topRight  
-      { x: minX, y: maxY },     // bottomLeft
-      { x: maxX, y: maxY }      // bottomRight
-    ];
-  };
 
   // Helper function to get bounds from points (for rendering)
   const getPointsBounds = (points) => {
@@ -304,41 +95,6 @@ export default function Editor({ sessionUser }) {
     };
   };
 
-  // Start dragging individual point
-  const startPointDrag = (e, drawingIndex, pointIndex) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    setIsDraggingPoint(true);
-    setDraggingPointIndex(pointIndex);
-    setSelectedDrawingIndex(drawingIndex);
-    setIsResizing(false); // Disable other resize modes
-  };
-
-  // Update point position during drag
-  const updatePointPosition = (drawingIndex, pointIndex, newX, newY) => {
-    const updatedDrawings = [...(slideData[currentSlide]?.drawings || [])];
-    const drawing = updatedDrawings[drawingIndex];
-    
-    if (drawing) {
-      // Ensure drawing has points array
-      if (!drawing.points) {
-        drawing.points = rectToPoints(drawing);
-      }
-      
-      // Update the specific point
-      drawing.points[pointIndex] = { x: newX, y: newY };
-      
-      // Update slide data
-      setSlideData(prev => ({
-        ...prev,
-        [currentSlide]: {
-          ...prev[currentSlide],
-          drawings: updatedDrawings
-        }
-      }));
-    }
-  };
   
   // Multiple locations state
   const [multipleLocationsMode, setMultipleLocationsMode] = useState(false);
@@ -412,9 +168,200 @@ export default function Editor({ sessionUser }) {
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
   const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  
+
+  // Autosave state - MUST be declared before custom hooks
+  const [lastSaveTime, setLastSaveTime] = useState(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [isProjectModified, setIsProjectModified] = useState(false);
+
+  // Derived values for current slide's field positions
+  const currentSlideData = slideData[currentSlide] || {};
+  const fieldPositions = currentSlideData.fieldPositions || {};
+  const setFieldPositions = (positions) => {
+    setSlideData(prev => ({
+      ...prev,
+      [currentSlide]: {
+        ...prev[currentSlide],
+        fieldPositions: positions
+      }
+    }));
+  };
+
+  // Drawing functionality using custom hook (after all required state is declared)
+  const drawing = useDrawing(slideData, setSlideData, currentSlide, zoomLevel, canvasOffset);
+
+  // Extract drawing state for easier access
+  const {
+    isDrawingMode, setIsDrawingMode, isDrawing, setIsDrawing,
+    currentDrawing, setCurrentDrawing, selectedDrawingIndex, setSelectedDrawingIndex,
+    isResizing, setIsResizing, resizeHandle, setResizeHandle,
+    isSquareEditMode, setIsSquareEditMode, isDraggingPoint, setIsDraggingPoint,
+    draggingPointIndex, setDraggingPointIndex,
+    rectToPoints, startPointDrag, updatePointPosition, deleteDrawing, startResize, updateDrawingSize
+  } = drawing;
+
+  // Project management functionality using custom hook
+  const {
+    loadProject,
+    saveProject,
+    createNewProject,
+    updateProjectStatus,
+    startAutoSave,
+    stopAutoSave
+  } = useProjectManager(
+    sessionUser,
+    slides,
+    setSlides,
+    slideData,
+    setSlideData,
+    globalLocationData,
+    setGlobalLocationData,
+    multipleLocationsMode,
+    setMultipleLocationsMode,
+    slideTypeCounts,
+    setSlideTypeCounts,
+    nextSlideId,
+    setNextSlideId,
+    setCurrentSlide,
+    fieldPositions,
+    setFieldPositions,
+    setIsLoadingProject,
+    setLoadingMessage,
+    currentProjectId,
+    setCurrentProjectId,
+    setCurrentProjectStatus,
+    setIsProjectModified,
+    setLastSaveTime,
+    setShowWebsite
+  );
+
+  // Canvas interaction functionality using custom hook
+  const {
+    handleCanvasMouseDown,
+    handleCanvasMouseMove,
+    handleCanvasMouseUp,
+    handleCanvasTouch,
+    handleCanvasTouchMove,
+    handleCanvasTouchEnd,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    handleKeyDown,
+    isLongPress
+  } = useCanvasInteraction(
+    isDrawingMode,
+    setIsDrawing,
+    setCurrentDrawing,
+    setIsDraggingCanvas,
+    setDragStart,
+    isDraggingCanvas,
+    dragStart,
+    canvasOffset,
+    setCanvasOffset,
+    zoomLevel,
+    canvasRef,
+    currentDrawing,
+    slideData,
+    setSlideData,
+    currentSlide,
+    rectToPoints
+  );
+
+  // Slide management functionality using custom hook
+  const {
+    getSlideData,
+    updateSlideData,
+    updateFieldPositions,
+    updateSlideFormData,
+    addSlide,
+    deleteSlide,
+    duplicateSlide,
+    navigateToSlide,
+    updateSlideType,
+    getNextSlideId,
+    getSlideById,
+    getSlidesByType
+  } = useSlideManager(
+    slides,
+    setSlides,
+    slideData,
+    setSlideData,
+    globalLocationData,
+    setGlobalLocationData,
+    multipleLocationsMode,
+    selectedLocationIndex,
+    slideTypeCounts,
+    setSlideTypeCounts,
+    nextSlideId,
+    setNextSlideId,
+    currentSlide,
+    setCurrentSlide,
+    fieldPositions,
+    setFieldPositions,
+    sessionUser,
+    currentProjectId,
+    setIsProjectModified
+  );
+
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
-  
+
+  // Drag and drop state for slide reordering
+  const [draggedSlideIndex, setDraggedSlideIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  // Drag and drop handlers for slide reordering
+  const handleDragStart = (e, index, slide) => {
+    setDraggedSlideIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target.outerHTML);
+    e.dataTransfer.setDragImage(e.target, 0, 0);
+  };
+
+  const handleDragEnd = (e) => {
+    setDraggedSlideIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (index !== draggedSlideIndex) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+
+    if (draggedSlideIndex === null || draggedSlideIndex === dropIndex) {
+      return;
+    }
+
+    // Create new slides array with reordered slides
+    const newSlides = [...slides];
+    const draggedSlide = newSlides[draggedSlideIndex];
+
+    // Remove the dragged slide from its original position
+    newSlides.splice(draggedSlideIndex, 1);
+
+    // Insert the dragged slide at the new position
+    const actualDropIndex = draggedSlideIndex < dropIndex ? dropIndex - 1 : dropIndex;
+    newSlides.splice(actualDropIndex, 0, draggedSlide);
+
+    // Update slides state
+    setSlides(newSlides);
+
+    // Mark project as modified
+    setIsProjectModified(true);
+
+    // Reset drag state
+    setDraggedSlideIndex(null);
+    setDragOverIndex(null);
+
+    console.log(`✅ Moved slide from position ${draggedSlideIndex} to ${actualDropIndex}`);
+  };
+
   // Interior View Builder State
   const [selectedFeatures, setSelectedFeatures] = useState([]);
   const [waterStainStatus, setWaterStainStatus] = useState('none');
@@ -423,18 +370,36 @@ export default function Editor({ sessionUser }) {
   // Custom comment state
   const [customCommentText, setCustomCommentText] = useState('');
   const [showCustomCommentInput, setShowCustomCommentInput] = useState(false);
-  
-  // Autosave state
-  const [lastSaveTime, setLastSaveTime] = useState(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
-  
-  const addButtonRef = useRef(null);
-  const canvasRef = useRef(null);
-  const slideRefs = useRef({});
-  const slideComponentRefs = useRef({});
-  const slidesContainerRef = useRef(null);
-  const navigate = useNavigate();
+
+  // Zoom functions
+  const handleZoomIn = () => {
+    if (zoomLevel < ZOOM_MAX) {
+      const newZoom = Math.min(ZOOM_MAX, zoomLevel + ZOOM_STEP);
+      setZoomLevel(newZoom);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (zoomLevel > ZOOM_MIN) {
+      const newZoom = Math.max(ZOOM_MIN, zoomLevel - ZOOM_STEP);
+      setZoomLevel(newZoom);
+    }
+  };
+
+  const handleZoomReset = () => {
+    setZoomLevel(100);
+    setCanvasOffset({ x: 0, y: 0 });
+  };
+
+  const zoomAtPoint = (newZoom, mouseX, mouseY) => {
+    const zoomFactor = newZoom / zoomLevel;
+    const newOffset = {
+      x: mouseX - (mouseX - canvasOffset.x) * zoomFactor,
+      y: mouseY - (mouseY - canvasOffset.y) * zoomFactor
+    };
+    setZoomLevel(newZoom);
+    setCanvasOffset(newOffset);
+  };
 
   // Load LRO forms and check for existing project on component mount
   useEffect(() => {
@@ -446,152 +411,256 @@ export default function Editor({ sessionUser }) {
   // Initialize project when sessionUser changes
   useEffect(() => {
     const initializeProject = async () => {
-    if (sessionUser) {
-      // First check if we already have a project ID
-      let projectId = currentProjectId;
+      console.log('🔍 initializeProject called - sessionUser:', sessionUser, 'currentProjectId:', currentProjectId);
       
-      // If no current project ID, try to get it from URL
-      if (!projectId) {
+      if (sessionUser && !currentProjectId) { // Only initialize if no project exists
+        // Check URL for existing project ID first
         const urlParams = new URLSearchParams(window.location.search);
-        let urlProjectId = urlParams.get('projectId');
-        if (!urlProjectId) {
-          // Check for 'project' parameter for backward compatibility
-          urlProjectId = urlParams.get('project');
-        }
+        const urlProjectId = urlParams.get('projectId') || urlParams.get('project');
         
-        if (urlProjectId) {
-          // Set project ID immediately to prevent race conditions
-          projectId = urlProjectId;
-          setCurrentProjectId(urlProjectId);
-        }
-        
-        if (urlProjectId) {
-          // Always try to load project from URL (database or cache)
-          console.log('🔄 Loading project from URL:', urlProjectId);
-          setCurrentProjectId(urlProjectId); // Set this immediately to prevent race conditions
-          const loadResult = await loadProject(urlProjectId);
-          if (loadResult) {
-            return; // Exit early only if project was successfully loaded
-          }
-          // If load failed, continue to create new project
-        }
-        
-        // Create new project
-        console.log('🆕 Creating new project');
-        
-        // Create initial project save with cleaned up data structure
-        const initialProjectData = {
-          title: 'New Property Review',
-          name: 'New Property Review',
-          description: '',
-          sessionUser: sessionUser,
-          multipleLocationsMode: false, // Include at top level
-          selectedLocationIndex: 0,
-          status: 'editing',
-          formData: {
-            insuredName: "",
-            website: "",
-            description: ""
-          },
-          slideData: {
-            1: {
-              formData: {},
-              imageData: null,
-              imagePosition: { top: 300, left: 400 },
-              drawings: [],
-              fieldPositions: {}
-            },
-            // Include application state in slideData for consistency
-            _appState: {
-              showWebsite: false,
-              multipleLocationsMode: false,
-              fontSizes: fontSizes
+        // Check session storage for backup in case of tab refresh
+        const lastSavedProject = sessionStorage.getItem('lastSavedProject');
+        if (lastSavedProject) {
+          try {
+            const parsed = JSON.parse(lastSavedProject);
+            console.log('📦 Found session storage backup:', parsed);
+            if (parsed.projectId === urlProjectId) {
+              console.log('✅ Session storage backup matches URL project ID');
             }
-          },
-          slides: [{ id: 1, type: 'cover', title: 'Cover Page' }]
-        };
-        
-        try {
-          const newProject = await apiService.createProject(initialProjectData);
-          projectId = newProject.id;
-          console.log('✅ Created new project:', projectId);
-          setCurrentProjectId(projectId); // Set the current project ID immediately
-          
-          // Initialize location data service for the new project
-          locationDataService.initializeFromProject(initialProjectData, initialProjectData.multipleLocationsMode);
-          console.log('🏗️ Initialized location data service for new project');
-          
-          window.history.replaceState({}, '', `/editor?projectId=${projectId}`); // Fixed URL parameter name to match loadProject
-        } catch (error) {
-          console.error('❌ Failed to create project:', error);
+          } catch (error) {
+            console.warn('⚠️ Failed to parse session storage backup:', error);
+          }
         }
         
-        // Track project-level editing activity for new projects
-        if (sessionUser) {
-          fieldActivityService.startEditingField(
-            sessionUser, 
-            `project-${projectId}`, 
-            'Project: New Property Review'
-          );
+        console.log('🔍 URL parameters:', {
+          urlProjectId,
+          sessionUser,
+          currentProjectId,
+          fullURL: window.location.href
+        });
+
+        let projectLoadedSuccessfully = false;
+
+        if (urlProjectId) {
+          // There's a project ID in URL - load it, don't create new
+          console.log('🔄 Loading existing project:', urlProjectId);
+
+          try {
+            await loadProject(urlProjectId);
+            console.log('✅ Successfully loaded project:', urlProjectId);
+            projectLoadedSuccessfully = true;
+
+            // Start autosave for loaded project
+            startAutoSave(urlProjectId);
+            console.log('🔄 Started autosave for project:', urlProjectId);
+
+            // Set up activity tracking for loaded project
+            const currentFormData = getSlideData(1)?.formData;
+            const projectName = currentFormData?.insuredName?.trim() || 'Loaded Property Review';
+            userActivityService.startWorking(sessionUser, urlProjectId, projectName);
+
+            // Set up heartbeat
+            const heartbeatInterval = setInterval(() => {
+              userActivityService.updateHeartbeat(sessionUser, urlProjectId);
+            }, 30000);
+
+            // Return cleanup function
+            return () => {
+              stopAutoSave();
+              userActivityService.stopWorking(sessionUser, urlProjectId);
+              clearInterval(heartbeatInterval);
+              if (urlProjectId) {
+                fieldActivityService.stopEditingField(sessionUser, `project-${urlProjectId}`);
+              }
+              if (currentFormId) {
+                fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
+              }
+              if (fieldHeartbeatInterval) {
+                clearInterval(fieldHeartbeatInterval);
+              }
+            };
+          } catch (error) {
+            console.error('❌ Failed to load project:', error);
+
+            // Clear invalid project ID from state and URL  
+            setCurrentProjectId(null);
+            window.history.replaceState({}, '', '/editor');
+            sessionStorage.removeItem('lastSavedProject');
+
+            console.log('🧹 Cleared invalid project ID, creating new project instead');
+
+            // projectLoadedSuccessfully remains false, so we'll create a new project below
+          }
+        }
+
+        // Create new project if no URL project ID OR if loading existing project failed
+        if (!urlProjectId || !projectLoadedSuccessfully) {
+          // No URL project ID or failed to load - create new project
+          console.log('🆕 Creating new project for sessionUser:', sessionUser);
+          let projectId;
+
+          // Create initial project save with cleaned up data structure
+          const initialProjectData = {
+            title: 'New Property Review',
+            name: 'New Property Review',
+            description: '',
+            sessionUser: sessionUser,
+            multipleLocationsMode: false, // Include at top level
+            selectedLocationIndex: 0,
+            status: 'editing',
+            formData: {
+              insuredName: "",
+              website: "",
+              description: ""
+            },
+            slideData: {
+              1: {
+                formData: {},
+                imageData: null,
+                imagePosition: { top: 300, left: 400 },
+                drawings: [],
+                fieldPositions: {}
+              },
+              // Include application state in slideData for consistency
+              _appState: {
+                showWebsite: showWebsite,
+                multipleLocationsMode: multipleLocationsMode,
+                fontSizes: fontSizes
+              }
+            },
+            slides: [{ id: 1, type: 'cover', title: 'Cover Page' }]
+          };
+
+          try {
+            const newProject = await apiService.createProject(initialProjectData);
+            projectId = newProject.id;
+            setCurrentProjectId(projectId); // Set the current project ID immediately
+
+            // Initialize location data service for the new project
+            locationDataService.initializeFromProject(initialProjectData, initialProjectData.multipleLocationsMode);
+
+            // Start autosave for new project
+            startAutoSave(projectId);
+            console.log('🔄 Started autosave for new project:', projectId);
+
+            window.history.replaceState({}, '', `/editor?projectId=${projectId}`);
+            console.log('✅ Created new project:', projectId);
+          } catch (error) {
+            console.error('❌ Failed to create project:', error);
+            return;
+          }
+
+          // Track project-level editing activity for new projects
+          if (sessionUser) {
+            fieldActivityService.startEditingField(
+              sessionUser,
+              `project-${projectId}`,
+              'Project: New Property Review'
+            );
+          }
+
+          const currentFormData = getSlideData(1)?.formData;
+          const projectName = currentFormData?.insuredName?.trim() || 'New Property Review';
+
+          userActivityService.startWorking(sessionUser, projectId, projectName);
+
+          // Set up heartbeat to keep activity alive
+          const heartbeatInterval = setInterval(() => {
+            userActivityService.updateHeartbeat(sessionUser, projectId);
+          }, 30000); // Every 30 seconds
+
+          // Cleanup when component unmounts or user changes
+          return () => {
+            stopAutoSave();
+            userActivityService.stopWorking(sessionUser, projectId);
+            clearInterval(heartbeatInterval);
+
+            // Clean up project-level field activity tracking
+            if (projectId) {
+              fieldActivityService.stopEditingField(sessionUser, `project-${projectId}`);
+            }
+
+            // Clean up form-level field activity tracking
+            if (currentFormId) {
+              fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
+            }
+
+            // Also clean up field heartbeat
+            if (fieldHeartbeatInterval) {
+              clearInterval(fieldHeartbeatInterval);
+            }
+          };
         }
       }
-      setCurrentProjectId(projectId);
-      
-      const currentFormData = getSlideData(1)?.formData;
-      const projectName = currentFormData?.insuredName?.trim() || 'New Property Review';
-      
-      userActivityService.startWorking(sessionUser, projectId, projectName);
-      
-      // Set up heartbeat to keep activity alive
-      const heartbeatInterval = setInterval(() => {
-        userActivityService.updateHeartbeat(sessionUser, projectId);
-      }, 30000); // Every 30 seconds
-      
-      // Cleanup when component unmounts or user changes
-      return () => {
-        userActivityService.stopWorking(sessionUser, projectId);
-        clearInterval(heartbeatInterval);
-        
-        // Clean up project-level field activity tracking
-        if (projectId) {
-          fieldActivityService.stopEditingField(sessionUser, `project-${projectId}`);
-        }
-        
-        // Clean up form-level field activity tracking
-        if (currentFormId) {
-          fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
-        }
-        
-        // Also clean up field heartbeat
-        if (fieldHeartbeatInterval) {
-          clearInterval(fieldHeartbeatInterval);
-        }
-      };
-    }
     };
     
     initializeProject();
-  }, [sessionUser]);
+  }, [sessionUser]); // Removed currentProjectId from deps to prevent re-runs
 
-  // Unified auto-save system - triggers on data changes with smart debouncing
+  // Handle tab visibility changes - save when tab becomes hidden
   useEffect(() => {
-    if (sessionUser && currentProjectId && (slideData || globalLocationData)) {
-      // Debounce auto-save to avoid excessive saves (10 seconds for auto-save to reduce DB load)
-      const timeoutId = setTimeout(async () => {
-        // Auto-save triggered
-        await saveProject(true); // Pass 'true' to indicate this is an auto-save
-      }, 10000); // 10 second debounce for auto-save (reduced frequency to prevent localStorage quota issues)
-      
-      return () => clearTimeout(timeoutId);
-    } else {
-      // console.log('Auto-save skipped - missing requirements:', {
-      //   sessionUser: !!sessionUser,
-      //   currentProjectId: !!currentProjectId,
-      //   hasSlideData: !!slideData,
-      //   hasGlobalLocationData: !!globalLocationData
-      // });
-    }
-  }, [sessionUser, currentProjectId, slideData, globalLocationData, slides]);
+    const handleVisibilityChange = async () => {
+      if (document.hidden && currentProjectId) {
+        // Tab is being hidden - trigger a save to prevent data loss
+        console.log('📱 Tab hidden - triggering save for project:', currentProjectId);
+        try {
+          await saveProject("tab-switch", currentProjectId);
+        } catch (error) {
+          console.error('❌ Failed to save on tab switch:', error);
+        }
+      } else if (!document.hidden && currentProjectId) {
+        // Tab is visible again - restart autosave in case it was paused
+        console.log('📱 Tab visible - ensuring autosave is running for project:', currentProjectId);
+        startAutoSave(currentProjectId);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentProjectId, saveProject, startAutoSave]);
+
+  // Handle page unload - save before closing
+  useEffect(() => {
+    const handleBeforeUnload = async (e) => {
+      if (currentProjectId) {
+        console.log('🔚 Page unloading - attempting final save for project:', currentProjectId);
+        
+        // Use navigator.sendBeacon for reliability during page unload
+        const projectData = {
+          title: `Property Review ${new Date().toLocaleDateString()}`,
+          formData: globalLocationData,
+          slideData: slideData,
+          slides: slides,
+          fieldPositions: fieldPositions,
+          sessionUser: sessionUser,
+          _appState: {
+            globalLocationData: globalLocationData,
+            multipleLocationsMode: multipleLocationsMode,
+            lroFormId: globalLocationData?.lroFormId,
+            timestamp: new Date().toISOString()
+          }
+        };
+
+        // Try to use sendBeacon for more reliable saving during unload
+        try {
+          const blob = new Blob([JSON.stringify(projectData)], { type: 'application/json' });
+          const success = navigator.sendBeacon(`/api/projects/${currentProjectId}`, blob);
+          console.log('📡 SendBeacon save result:', success);
+        } catch (error) {
+          console.error('❌ SendBeacon save failed:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [currentProjectId, globalLocationData, slideData, slides, fieldPositions, sessionUser, multipleLocationsMode]);
 
   // Set up mouse wheel event listener for slides container
   useEffect(() => {
@@ -632,7 +701,6 @@ export default function Editor({ sessionUser }) {
       const forms = await lroDataService.getAllForms();
       setLroForms(forms);
     } catch (error) {
-      console.error('Error loading LRO forms:', error);
     } finally {
       setIsLoadingLroForms(false);
     }
@@ -656,7 +724,6 @@ export default function Editor({ sessionUser }) {
       // console.log('No match found in CSV for code:', isoCode);
       return null;
     } catch (error) {
-      console.error('Error searching CSV ISO codes:', error);
       return null;
     }
   };
@@ -697,8 +764,7 @@ export default function Editor({ sessionUser }) {
             fullIsoDescription = apiResponse.isoClass || '';
           }
         } catch (error) {
-          console.error('Error searching CSV ISO codes:', error);
-          fullIsoDescription = apiResponse.isoClass || '';
+              fullIsoDescription = apiResponse.isoClass || '';
         }
       }
       
@@ -785,7 +851,6 @@ export default function Editor({ sessionUser }) {
       setIsLroDropdownOpen(false);
       setLroSearchTerm('');
     } catch (error) {
-      console.error('Error loading form data:', error);
       alert('Error loading form data. Please try again.');
     }
   };
@@ -820,23 +885,49 @@ export default function Editor({ sessionUser }) {
     }
   }, [isDraggingCanvas, dragStart]);
 
-  useEffect(() => {
+  // Update dropdown position dynamically
+  const updateDropdownPosition = () => {
     if (showPopupDropdown && addButtonRef.current) {
       const rect = addButtonRef.current.getBoundingClientRect();
       const dropdownWidth = 180;
+      const dropdownHeight = 200; // Approximate height of dropdown
       const viewportWidth = window.innerWidth;
-      
+
       // Calculate if dropdown would go off-screen
       let leftPosition = rect.left;
       if (rect.left + dropdownWidth > viewportWidth - 20) {
         // Position from right edge of button if it would overflow
         leftPosition = rect.right - dropdownWidth;
       }
-      
+
       setPopupPosition({
-        top: rect.top - 210,
+        top: rect.top - dropdownHeight - 8, // Position above the button with 8px gap
         left: Math.max(20, leftPosition), // Ensure minimum 20px from left edge
       });
+    }
+  };
+
+  // Update position when dropdown opens and when button might move
+  useEffect(() => {
+    updateDropdownPosition();
+  }, [showPopupDropdown]);
+
+  // Follow button position during scroll and resize
+  useEffect(() => {
+    if (showPopupDropdown) {
+      const handlePositionUpdate = () => updateDropdownPosition();
+
+      window.addEventListener('scroll', handlePositionUpdate, true); // Capture phase for all scrolls
+      window.addEventListener('resize', handlePositionUpdate);
+
+      // Also update on animation frames for smooth following
+      const animationFrame = requestAnimationFrame(handlePositionUpdate);
+
+      return () => {
+        window.removeEventListener('scroll', handlePositionUpdate, true);
+        window.removeEventListener('resize', handlePositionUpdate);
+        cancelAnimationFrame(animationFrame);
+      };
     }
   }, [showPopupDropdown]);
 
@@ -874,14 +965,6 @@ export default function Editor({ sessionUser }) {
     };
   }, [zoomLevel, canvasOffset]); // Dependencies needed for zoomAtPoint
 
-  // Set up backup autosave interval (every 5 minutes) - less frequent to reduce database load
-  useEffect(() => {
-    const interval = setInterval(() => {
-      autoSave();
-    }, 300000); // 5 minutes - backup autosave (increased from 2 minutes)
-
-    return () => clearInterval(interval);
-  }, [sessionUser, currentProjectId, hasUnsavedChanges]); // Re-run when these change
 
   // Close status dropdown on outside click
   useEffect(() => {
@@ -901,10 +984,9 @@ export default function Editor({ sessionUser }) {
       if (hasUnsavedChanges && sessionUser && currentProjectId) {
         // Try to save the project (async but browser may not wait)
         try {
-          saveProject();
+          saveProject("auto", currentProjectId);
           // console.log('Project saved before page unload');
         } catch (error) {
-          console.error('Failed to save before unload:', error);
         }
         
         // Show browser confirmation dialog
@@ -920,6 +1002,14 @@ export default function Editor({ sessionUser }) {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [hasUnsavedChanges, sessionUser, currentProjectId]);
+
+  // Restore showWebsite state from loaded project data
+  useEffect(() => {
+    if (slideData && slideData._appState && typeof slideData._appState.showWebsite !== 'undefined') {
+      console.log('🔧 Restoring showWebsite state from project data:', slideData._appState.showWebsite);
+      setShowWebsite(slideData._appState.showWebsite);
+    }
+  }, [slideData._appState?.showWebsite]);
 
   // Track changes to mark as unsaved
   useEffect(() => {
@@ -938,7 +1028,6 @@ export default function Editor({ sessionUser }) {
     if (multipleLocationsMode && globalLocationData.premiseLocation) {
       // Ensure location data service is properly initialized
       if (locationDataService.getLocationCount() === 0) {
-        console.log('🔄 Auto-initializing location data service');
         locationDataService.initializeFromProject({
           formData: globalLocationData
         }, multipleLocationsMode);
@@ -991,8 +1080,8 @@ export default function Editor({ sessionUser }) {
         // Save to backend if we have a current project
         if (currentProjectId) {
           apiService.updateAppState(currentProjectId, { fontSizes: newFontSizes })
-            .then(() => console.log('✅ Font size saved to backend:', selectedField, size))
-            .catch(error => console.error('❌ Failed to save font size:', error));
+            .then(() => {})
+            .catch(error => {});
         }
         
         return newFontSizes;
@@ -1073,842 +1162,20 @@ export default function Editor({ sessionUser }) {
     return isInside;
   };
 
-  // Function to delete a drawing
-  const deleteDrawing = (drawingIndex) => {
-    const updatedDrawings = (slideData[currentSlide]?.drawings || []).filter((_, index) => index !== drawingIndex);
-    
-    setSlideData(prev => ({
-      ...prev,
-      [currentSlide]: {
-        ...prev[currentSlide],
-        drawings: updatedDrawings
-      }
-    }));
-  };
-
-  // Function to start resizing a drawing
-  const startResize = (e, drawingIndex, handle) => {
-    console.log('🔧 Starting resize:', drawingIndex, handle);
-    e.preventDefault();
-    e.stopPropagation();
-    
-    setSelectedDrawingIndex(drawingIndex);
-    setIsResizing(true);
-    setResizeHandle(handle);
-    
-    // Store initial mouse position and drawing bounds
-    const rect = canvasRef.current.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left - canvasOffset.x) / (zoomLevel / 100);
-    const mouseY = (e.clientY - rect.top - canvasOffset.y) / (zoomLevel / 100);
-    
-    // Store initial drawing bounds for resize calculation
-    const drawing = slideData[currentSlide]?.drawings[drawingIndex];
-    if (drawing) {
-      setCurrentDrawing({
-        ...drawing,
-        initialMouseX: mouseX,
-        initialMouseY: mouseY,
-        originalStartX: drawing.startX,
-        originalStartY: drawing.startY,
-        originalEndX: drawing.endX,
-        originalEndY: drawing.endY
-      });
-    }
-  };
-
-  // Function to update drawing during resize
-  const updateDrawingSize = (drawingIndex, newStartX, newStartY, newEndX, newEndY) => {
-    const updatedDrawings = [...(slideData[currentSlide]?.drawings || [])];
-    if (updatedDrawings[drawingIndex]) {
-      updatedDrawings[drawingIndex] = {
-        ...updatedDrawings[drawingIndex],
-        startX: newStartX,
-        startY: newStartY,
-        endX: newEndX,
-        endY: newEndY
-      };
-      
-      setSlideData(prev => ({
-        ...prev,
-        [currentSlide]: {
-          ...prev[currentSlide],
-          drawings: updatedDrawings
-        }
-      }));
-    }
-  };
-
-  // Canvas drag handlers
-  const handleCanvasMouseDown = (e) => {
-    if (isDrawingMode) {
-      // In drawing mode, allow drawing anywhere in the canvas area
-      const rect = canvasRef.current.getBoundingClientRect();
-      const startX = (e.clientX - rect.left - canvasOffset.x) / (zoomLevel / 100);
-      const startY = (e.clientY - rect.top - canvasOffset.y) / (zoomLevel / 100);
-      
-      setIsDrawing(true);
-      setCurrentDrawing({
-        type: 'rectangle',
-        startX,
-        startY,
-        endX: startX,
-        endY: startY,
-        stroke: 'red',
-        strokeWidth: 5,
-        fill: 'none'
-      });
-      e.preventDefault();
-      e.stopPropagation(); // Prevent other interactions
-    } else if (e.target === canvasRef.current) {
-      // Only start dragging if clicking on the canvas container itself (background area)
-      setIsDraggingCanvas(true);
-      setDragStart({
-        x: e.clientX - canvasOffset.x,
-        y: e.clientY - canvasOffset.y
-      });
-      e.preventDefault();
-    }
-  };
-
-  const handleCanvasMouseMove = (e) => {
-    // Update mouse position for zoom functionality
-    if (canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      setMousePosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
-    }
-
-    // Handle drawing
-    if (isDrawing && currentDrawing) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const endX = (e.clientX - rect.left - canvasOffset.x) / (zoomLevel / 100);
-      const endY = (e.clientY - rect.top - canvasOffset.y) / (zoomLevel / 100);
-      
-      setCurrentDrawing(prev => ({
-        ...prev,
-        endX,
-        endY
-      }));
-      e.preventDefault();
-      e.stopPropagation(); // Prevent other interactions while drawing
-    }
-
-    // Handle resizing
-    if (isResizing && currentDrawing && selectedDrawingIndex !== null && resizeHandle) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const mouseX = (e.clientX - rect.left - canvasOffset.x) / (zoomLevel / 100);
-      const mouseY = (e.clientY - rect.top - canvasOffset.y) / (zoomLevel / 100);
-      
-      const deltaX = mouseX - currentDrawing.initialMouseX;
-      const deltaY = mouseY - currentDrawing.initialMouseY;
-      
-      let newStartX = currentDrawing.originalStartX;
-      let newStartY = currentDrawing.originalStartY;
-      let newEndX = currentDrawing.originalEndX;
-      let newEndY = currentDrawing.originalEndY;
-      
-      // Apply resize based on handle
-      switch (resizeHandle) {
-        case 'nw': // Top-left corner
-          newStartX += deltaX;
-          newStartY += deltaY;
-          break;
-        case 'ne': // Top-right corner
-          newEndX += deltaX;
-          newStartY += deltaY;
-          break;
-        case 'sw': // Bottom-left corner
-          newStartX += deltaX;
-          newEndY += deltaY;
-          break;
-        case 'se': // Bottom-right corner
-          newEndX += deltaX;
-          newEndY += deltaY;
-          break;
-        case 'n': // Top edge
-          newStartY += deltaY;
-          break;
-        case 's': // Bottom edge
-          newEndY += deltaY;
-          break;
-        case 'w': // Left edge
-          newStartX += deltaX;
-          break;
-        case 'e': // Right edge
-          newEndX += deltaX;
-          break;
-      }
-      
-      // Update the drawing in real-time
-      updateDrawingSize(selectedDrawingIndex, newStartX, newStartY, newEndX, newEndY);
-      
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    // Handle individual point dragging
-    if (isDraggingPoint && draggingPointIndex !== null && selectedDrawingIndex !== null) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const mouseX = (e.clientX - rect.left - canvasOffset.x) / (zoomLevel / 100);
-      const mouseY = (e.clientY - rect.top - canvasOffset.y) / (zoomLevel / 100);
-      
-      updatePointPosition(selectedDrawingIndex, draggingPointIndex, mouseX, mouseY);
-      
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    // Handle canvas dragging
-    if (isDraggingCanvas) {
-      const newOffset = {
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      };
-      setCanvasOffset(newOffset);
-      e.preventDefault();
-    }
-  };
-
-  const handleCanvasMouseUp = () => {
-    setIsDraggingCanvas(false);
-    
-    // Handle drawing mode
-    if (isDrawingMode && isDrawing && currentDrawing) {
-      console.log('💾 Saving drawing with coordinates:', {
-        startX: currentDrawing.startX,
-        startY: currentDrawing.startY,
-        endX: currentDrawing.endX,
-        endY: currentDrawing.endY
-      });
-      
-      // Convert to point-based format for new drawings
-      const drawingWithPoints = {
-        ...currentDrawing,
-        points: rectToPoints(currentDrawing)
-      };
-      
-      // Save the completed drawing to the current slide
-      const updatedSlideData = {
-        ...slideData[currentSlide],
-        drawings: [...(slideData[currentSlide]?.drawings || []), drawingWithPoints]
-      };
-      
-      setSlideData(prev => ({
-        ...prev,
-        [currentSlide]: updatedSlideData
-      }));
-      
-      setIsDrawing(false);
-      setCurrentDrawing(null);
-    }
-
-    // Handle point dragging mode
-    if (isDraggingPoint) {
-      setIsDraggingPoint(false);
-      setDraggingPointIndex(null);
-    }
-
-    // Handle resize mode
-    if (isResizing) {
-      setIsResizing(false);
-      setResizeHandle(null);
-      setCurrentDrawing(null);
-    }
-  };
-
-  // Touch event handlers for mobile/tablet support
-  const handleCanvasTouchStart = (e) => {
-    if (e.touches.length === 1) {
-      // Single touch - treat as mouse down
-      const touch = e.touches[0];
-      const syntheticEvent = {
-        clientX: touch.clientX,
-        clientY: touch.clientY,
-        preventDefault: () => {},
-        stopPropagation: () => {}
-      };
-      handleCanvasMouseDown(syntheticEvent);
-    }
-    // preventDefault is handled by the non-passive event listener
-  };
-
-  const handleCanvasTouchMove = (e) => {
-    if (e.touches.length === 1) {
-      // Single touch - treat as mouse move
-      const touch = e.touches[0];
-      const syntheticEvent = {
-        clientX: touch.clientX,
-        clientY: touch.clientY,
-        preventDefault: () => {},
-        stopPropagation: () => {}
-      };
-      handleCanvasMouseMove(syntheticEvent);
-    }
-    // preventDefault is handled by the non-passive event listener
-  };
-
-  const handleCanvasTouchEnd = (e) => {
-    handleCanvasMouseUp();
-    // preventDefault is handled by the non-passive event listener
-  };
-
-  // Add non-passive touch event listeners to prevent scrolling during canvas interaction
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const handleTouchStart = (e) => {
-      if (e.touches.length === 1) {
-        e.preventDefault(); // Prevent scrolling
-        handleCanvasTouchStart(e);
-      }
-    };
-
-    const handleTouchMove = (e) => {
-      if (e.touches.length === 1) {
-        e.preventDefault(); // Prevent scrolling
-        handleCanvasTouchMove(e);
-      }
-    };
-
-    const handleTouchEnd = (e) => {
-      e.preventDefault(); // Prevent scrolling
-      handleCanvasTouchEnd(e);
-    };
-
-    // Add non-passive event listeners
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-
-    return () => {
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [canvasOffset, zoomLevel, isDrawingMode, isDraggingCanvas]);
-
-  // Long press handler for paste functionality on touch devices
-  const [longPressTimer, setLongPressTimer] = useState(null);
-  const [longPressTarget, setLongPressTarget] = useState(null);
-
-  const handleLongPressStart = (e, target) => {
-    const timer = setTimeout(() => {
-      // Show paste context menu or trigger paste
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        navigator.clipboard.readText().then(text => {
-          if (text && target && target.focus) {
-            target.focus();
-            // For input/textarea elements
-            if (target.setSelectionRange) {
-              const start = target.selectionStart;
-              const end = target.selectionEnd;
-              const value = target.value;
-              target.value = value.substring(0, start) + text + value.substring(end);
-              target.setSelectionRange(start + text.length, start + text.length);
-              
-              // Trigger change event
-              const event = new Event('input', { bubbles: true });
-              target.dispatchEvent(event);
-            }
-          }
-        }).catch(err => {
-          console.log('Clipboard read failed:', err);
-        });
-      }
-    }, 500); // 500ms long press
-    
-    setLongPressTimer(timer);
-    setLongPressTarget(target);
-  };
-
-  const handleLongPressEnd = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-    setLongPressTarget(null);
-  };
-
-  // Mouse-centered zoom functions
-  const zoomAtPoint = (newZoomLevel, mouseX, mouseY) => {
-    const oldZoom = zoomLevel / 100;
-    const newZoom = newZoomLevel / 100;
-    
-    // Calculate the zoom factor change
-    const zoomFactor = newZoom / oldZoom;
-    
-    // Calculate new offset to keep the mouse position fixed
-    const newOffsetX = mouseX - (mouseX - canvasOffset.x) * zoomFactor;
-    const newOffsetY = mouseY - (mouseY - canvasOffset.y) * zoomFactor;
-    
-    setCanvasOffset({ x: newOffsetX, y: newOffsetY });
-    setZoomLevel(newZoomLevel);
-  };
-
-  const handleZoomIn = () => {
-    const newZoom = Math.min(zoomLevel + ZOOM_STEP, ZOOM_MAX);
-    zoomAtPoint(newZoom, mousePosition.x, mousePosition.y);
-  };
-
-  const handleZoomOut = () => {
-    const newZoom = Math.max(zoomLevel - ZOOM_STEP, ZOOM_MIN);
-    zoomAtPoint(newZoom, mousePosition.x, mousePosition.y);
-  };
-
-  const handleZoomReset = () => {
-    setZoomLevel(100);
-    setCanvasOffset({ x: 0, y: 0 });
-  };
 
 
-  const getSlideData = (slideId) => {
-    const defaultFormData = {
-      insuredName: "",
-      website: "",
-      description: "",
-      lineBusiness: "",
-      websiteInfo: "",
-      premiseLocation: "",
-      isoClass: "",
-      originalLroFormId: "",
-    };
 
-    const slideSpecific = slideData[slideId] || {
-      formData: { ...defaultFormData },
-      imageData: null,
-      imagePosition: { top: 300, left: 400 },
-      fieldPositions: {
-        insuredName: { top: 200, right: 124 },
-        premiseLocation: { top: 330, right: 124 },
-        website: { top: 390, right: 124 },
-        description: { top: 450, right: 124 },
-        lineBusiness: { top: 546, right: 124 }, // Aligned with ISO
-        isoClass: { top: 510, right: 124 },
-      }
-    };
-    
-    // Determine which location data to use
-    let locationData;
-    let slideLocationIndex = selectedLocationIndex; // Default to current selection
-    
-    // Check if slide has a specific location assigned
-    if (slideSpecific.locationIndex !== undefined) {
-      slideLocationIndex = slideSpecific.locationIndex;
-    }
-    
-    if (multipleLocationsMode && slideLocationIndex !== undefined) {
-      // Ensure location data service is initialized
-      if (locationDataService.getLocationCount() === 0) {
-        locationDataService.initializeFromProject({
-          formData: globalLocationData
-        }, multipleLocationsMode);
-      }
-      
-      // Get data for the slide's location
-      const hasLocationData = locationDataService.getLocationCount() > slideLocationIndex;
-      if (hasLocationData) {
-        locationData = locationDataService.getLocationData(slideLocationIndex);
-        
-        // If location data is empty, populate it from global data
-        if (!locationData || Object.keys(locationData).length === 0) {
-          const premiseLocation = getLocationFromPremiseText(globalLocationData.premiseLocation, slideLocationIndex);
-          locationData = {
-            ...globalLocationData,
-            premiseLocation: premiseLocation
-          };
-          
-          // Update location data service
-          Object.entries(locationData).forEach(([field, value]) => {
-            locationDataService.updateLocationData(slideLocationIndex, field, value);
-          });
-        }
-        
-        // Using location-specific data
-      } else {
-        // Location service not properly initialized or index out of range, use global data
-        locationData = globalLocationData;
-        console.warn(`⚠️ Location ${slideLocationIndex} not found, using global data`);
-      }
-    } else if (slideSpecific.specificLocation) {
-      // Use specific location for this slide if available
-      locationData = { premiseLocation: slideSpecific.specificLocation };
-    } else {
-      // Fall back to global location data
-      locationData = globalLocationData;
-    }
-    
-    // Combine slide-specific data with location data and ensure all values are strings
-    const combinedFormData = {
-      ...slideSpecific.formData,
-      ...locationData
-    };
-    
-    // Ensure all form data values are strings to prevent controlled/uncontrolled input warnings
-    Object.keys(combinedFormData).forEach(key => {
-      if (combinedFormData[key] === null || combinedFormData[key] === undefined) {
-        combinedFormData[key] = "";
-      }
-    });
-    
-    return {
-      ...slideSpecific,
-      formData: combinedFormData,
-      // Store which location this slide is for
-      locationIndex: slideLocationIndex
-    };
-  };
 
-  const updateSlideData = (slideId, updates) => {
-    setSlideData(prev => ({
-      ...prev,
-      [slideId]: {
-        ...prev[slideId],
-        ...updates
-      }
-    }));
-  };
 
-  const updateFieldPositions = (slideId, positions) => {
-    setSlideData(prev => ({
-      ...prev,
-      [slideId]: {
-        ...prev[slideId],
-        fieldPositions: positions
-      }
-    }));
-  };
 
-  const updateSlideFormData = (slideId, formUpdates) => {
-    if (multipleLocationsMode && selectedLocationIndex !== undefined) {
-      // In multiple locations mode, update the location-specific data
-      Object.entries(formUpdates).forEach(([field, value]) => {
-        locationDataService.updateLocationData(selectedLocationIndex, field, value);
-      });
-      
-      // Only update globalLocationData if premiseLocation changed to avoid infinite loops
-      if ('premiseLocation' in formUpdates) {
-        const allLocationData = locationDataService.getAllLocationData();
-        setGlobalLocationData(prev => ({
-          ...prev,
-          ...allLocationData
-        }));
-      }
-    } else {
-      // Single location mode - handle SlideOne (property info) specially
-      const isPropertyInfoSlide = slideId === 1;
-      
-      if (isPropertyInfoSlide) {
-        // For property info slide, ALL updates go to globalLocationData
-        // Updating global data for property info slide
-        setGlobalLocationData(prev => ({
-          ...prev,
-          ...formUpdates
-        }));
-        
-        // Also update slide data for consistency
-        setSlideData(prev => ({
-          ...prev,
-          [slideId]: {
-            ...prev[slideId],
-            formData: {
-              ...prev[slideId]?.formData,
-              ...formUpdates
-            }
-          }
-        }));
-      } else {
-        // For other slides, use original logic
-        const locationFields = {};
-        const slideSpecificFields = {};
-        
-        Object.entries(formUpdates).forEach(([field, value]) => {
-          if (field === 'premiseLocation') {
-            locationFields[field] = value;
-          } else {
-            slideSpecificFields[field] = value;
-          }
-        });
-        
-        // Update global location data if there are location updates
-        if (Object.keys(locationFields).length > 0) {
-          setGlobalLocationData(prev => ({
-            ...prev,
-            ...locationFields
-          }));
-        }
-        
-        // Update slide-specific data if there are non-location updates
-        if (Object.keys(slideSpecificFields).length > 0) {
-          setSlideData(prev => ({
-            ...prev,
-            [slideId]: {
-              ...prev[slideId],
-              formData: {
-                ...prev[slideId]?.formData,
-                ...slideSpecificFields
-              }
-            }
-          }));
-        }
-      }
-    }
-  };
 
-  // Load saved project data
-  const loadProject = async (projectId) => {
-    try {
-      // Show loading screen
-      setIsLoadingProject(true);
-      setLoadingMessage("Loading project data...");
-      
-      // Set current project ID immediately to prevent race conditions
-      setCurrentProjectId(projectId);
-      
-      // Update loading message
-      setLoadingMessage("Fetching project details...");
-      
-      const savedProject = await apiService.getProject(projectId);
-      if (savedProject) {
-        console.log(`📂 Loading project: ${savedProject.title}`, savedProject);
-        
-        // Load project status
-        if (savedProject.status) {
-          setCurrentProjectStatus(savedProject.status);
-        } else {
-          setCurrentProjectStatus('draft'); // Default status
-        }
-      
-      // Restore all project data
-      if (savedProject.slides) {
-        setSlides(savedProject.slides);
-        
-        // Update slide type counts and nextSlideId based on loaded slides
-        const maxId = Math.max(...savedProject.slides.map(s => s.id));
-        setNextSlideId(maxId + 1);
-        
-        const counts = { street_view: 0 };
-        savedProject.slides.forEach(slide => {
-          if (slide.type === 'street_view') {
-            counts.street_view++;
-          }
-        });
-        setSlideTypeCounts(counts);
-      }
-      
-      if (savedProject.slideData) {
-        // Extract app state and slides from enhanced slideData
-        const { _appState, _slides, ...actualSlideData } = savedProject.slideData;
-        const restoredSlideData = { ...actualSlideData };
-        
-        // Restore slides if embedded in slideData
-        if (_slides && Array.isArray(_slides)) {
-          setSlides(_slides);
-          
-          // Update slide counts and nextSlideId
-          const maxId = Math.max(..._slides.map(s => s.id));
-          setNextSlideId(maxId + 1);
-          
-          const counts = { street_view: 0 };
-          _slides.forEach(slide => {
-            if (slide.type === 'street_view') {
-              counts.street_view++;
-            }
-          });
-          setSlideTypeCounts(counts);
-        }
-        
-        // Restore app state if embedded in slideData
-        if (_appState) {
-          // Load basic app state
-          if (typeof _appState.showWebsite === 'boolean') {
-            setShowWebsite(_appState.showWebsite);
-          }
-          if (_appState.fontSizes && typeof _appState.fontSizes === 'object') {
-            setFontSizes(prev => ({ ...prev, ..._appState.fontSizes }));
-          }
-          
-          // Check for complete globalLocationData first, then fallback to just premiseLocation
-          if (_appState.globalLocationData && typeof _appState.globalLocationData === 'object') {
-            console.log('🔄 Migration: Found complete globalLocationData in _appState:', _appState.globalLocationData);
-            setGlobalLocationData(_appState.globalLocationData);
-          } else if (_appState.premiseLocation) {
-            setGlobalLocationData(prev => ({
-              ...prev,
-              premiseLocation: _appState.premiseLocation
-            }));
-          }
-        }
-        
-        // console.log('🔍 LOAD DEBUG - Original slideData from saved project:', savedProject.slideData);
-        // console.log('🔍 LOAD DEBUG - Saved fieldPositions from project:', savedProject.fieldPositions);
-        
-        // If we have fieldPositions saved separately, merge them back into slideData
-        if (savedProject.fieldPositions) {
-          Object.entries(savedProject.fieldPositions).forEach(([slideKey, positions]) => {
-            // Handle both old format (field names) and new format (slide_X)
-            if (slideKey.startsWith('slide_')) {
-              // New format: "slide_2" -> "2"
-              const slideId = slideKey.replace('slide_', '');
-              // console.log(`🔍 LOAD DEBUG - Processing slide ${slideKey} -> ${slideId}:`, positions);
-              if (restoredSlideData[slideId]) {
-                restoredSlideData[slideId] = {
-                  ...restoredSlideData[slideId],
-                  fieldPositions: positions
-                };
-                // console.log(`🔍 LOAD DEBUG - Updated slideData[${slideId}].fieldPositions:`, restoredSlideData[slideId].fieldPositions);
-              } else {
-                console.warn(`🔍 LOAD DEBUG - No slideData found for slideId: ${slideId}`);
-              }
-            } else {
-              // Old format: field names directly - assume these belong to the Comments slide (slide 2)
-              // console.log(`🔍 LOAD DEBUG - Processing legacy field ${slideKey}:`, positions);
-              if (restoredSlideData['2']) {
-                if (!restoredSlideData['2'].fieldPositions) {
-                  restoredSlideData['2'].fieldPositions = {};
-                }
-                restoredSlideData['2'].fieldPositions[slideKey] = positions;
-                // console.log(`🔍 LOAD DEBUG - Added legacy field ${slideKey} to slide 2`);
-              }
-            }
-          });
-        }
-        
-        // console.log('🔍 LOAD DEBUG - Final restored slideData:', restoredSlideData);
-        setSlideData(restoredSlideData);
-        // console.log('📍 Restored fieldPositions from saved project:', savedProject.fieldPositions);
-      }
-      
-      // Initialize globalLocationData from saved project data (only if not already set by _appState)
-      setGlobalLocationData(currentGlobalData => {
-        // If _appState already set complete data, don't overwrite it
-        if (currentGlobalData.insuredName || currentGlobalData.website || currentGlobalData.description) {
-          console.log('🔄 Migration: globalLocationData already set by _appState, keeping existing data');
-          return currentGlobalData;
-        }
-        
-        // Otherwise, build from multiple sources for backward compatibility
-        const slide1FormData = savedProject.slideData?.[1]?.formData || {};
-        const savedFormData = savedProject.formData || {};
-        const savedPremiseLocation = savedProject.premiseLocation || '';
-        
-        // Combine all sources to get complete form data
-        const completeFormData = {
-          insuredName: slide1FormData.insuredName || savedFormData.insuredName || '',
-          premiseLocation: slide1FormData.premiseLocation || savedFormData.premiseLocation || savedPremiseLocation,
-          description: slide1FormData.description || savedFormData.description || '',
-          website: slide1FormData.website || savedFormData.website || '',
-          lineBusiness: slide1FormData.lineBusiness || savedFormData.lineBusiness || '',
-          isoClass: slide1FormData.isoClass || savedFormData.isoClass || '',
-          originalLroFormId: slide1FormData.originalLroFormId || savedFormData.originalLroFormId || ''
-        };
-        
-        console.log('🔄 Migration: Initializing globalLocationData from saved project sources:', completeFormData);
-        return completeFormData;
-      });
-      
-      if (typeof savedProject.multipleLocationsMode === 'boolean') {
-        setMultipleLocationsMode(savedProject.multipleLocationsMode);
-        
-        // Initialize location data service
-        locationDataService.initializeFromProject(savedProject, savedProject.multipleLocationsMode);
-        console.log('🏗️ Initialized location data service with', locationDataService.getLocationCount(), 'locations');
-      }
-      
-      if (typeof savedProject.selectedLocationIndex === 'number') {
-        setSelectedLocationIndex(savedProject.selectedLocationIndex);
-      }
-      
-      if (typeof savedProject.showWebsite === 'boolean') {
-        setShowWebsite(savedProject.showWebsite);
-      }
-      
-      if (savedProject.fontSizes && typeof savedProject.fontSizes === 'object') {
-        setFontSizes(prev => ({ ...prev, ...savedProject.fontSizes }));
-      }
-      
-      // Set the current slide to the first slide or stay on slide 1
-      if (savedProject.slides && savedProject.slides.length > 0) {
-        setCurrentSlide(savedProject.slides[0].id);
-      }
-      
-      setCurrentProjectId(projectId);
-      
-      // Track project-level editing activity when project is loaded
-      if (sessionUser) {
-        // console.log(`📋 Tracking project-level activity: project-${projectId} for user ${sessionUser}`);
-        fieldActivityService.startEditingField(
-          sessionUser, 
-          `project-${projectId}`, 
-          `Project: ${savedProject.title}`
-        );
-        
-        // Also track form-level activity if this project came from an LRO form
-        const originalLroFormId = savedProject.slideData?.[1]?.formData?.originalLroFormId;
-        if (originalLroFormId) {
-          // console.log(`🏷️ Tracking form-level activity for loaded project: form-${originalLroFormId} for user ${sessionUser}`);
-          fieldActivityService.startEditingField(
-            sessionUser, 
-            `form-${originalLroFormId}`, 
-            `Form: ${savedProject.title}`
-          );
-          setCurrentFormId(originalLroFormId);
-        }
-      }
-      
-        // console.log(`Successfully loaded project: ${savedProject.title}`);
-        setLoadingMessage("Project loaded successfully!");
-        
-        // Hide loading screen
-        setTimeout(() => {
-          setIsLoadingProject(false);
-        }, 500);
-        
-        return true;
-      } else {
-        console.log(`📂 No project found for ID: ${projectId}`);
-        setIsLoadingProject(false);
-        return false;
-      }
-    } catch (error) {
-      console.error(`❌ Failed to load project ${projectId}:`, error);
-      
-      // If loading failed, create a new project to prevent white screen
-      if (sessionUser) {
-        console.log('🆕 Creating new project due to load failure');
-        const initialProjectData = {
-          title: 'New Property Review',
-          insuredName: '',
-          premiseLocation: '',
-          description: '',
-          formData: {},
-          slideData: slideData
-        };
-        
-        try {
-          const newProject = await apiService.createProject(initialProjectData);
-          const newProjectId = newProject.id;
-          setCurrentProjectId(newProjectId);
-          
-          // Update URL to reflect the new project
-          const newUrl = `/editor?projectId=${newProjectId}`;
-          window.history.replaceState({}, '', newUrl);
-          
-          console.log('✅ Created new project after load failure:', newProjectId);
-          setIsLoadingProject(false);
-          return true;
-        } catch (createError) {
-          console.error('❌ Failed to create new project:', createError);
-          setIsLoadingProject(false);
-        }
-      }
-      
-      setIsLoadingProject(false);
-      return false;
-    }
-  };
+
+
+
+
+
+
+
 
   // Helper function to get status display text
   const getStatusDisplay = (status) => {
@@ -1917,332 +1184,6 @@ export default function Editor({ sessionUser }) {
       case 'denied': return 'Mark Denied';
       case 'conditional': return 'Mark Conditional';
       default: return 'Mark Status';
-    }
-  };
-
-  // Update project status
-  const updateProjectStatus = async (newStatus) => {
-    if (currentProjectId) {
-      try {
-        // Get current project data first
-        const project = await apiService.getProject(currentProjectId);
-        if (project) {
-          // Update project status
-          await apiService.updateProject(currentProjectId, {
-            ...project,
-            status: newStatus
-          });
-          
-          // Update local state
-          setCurrentProjectStatus(newStatus);
-          setShowStatusDropdown(false);
-          
-          // Clean up field activity tracking when project is completed
-          if (currentFormId) {
-            fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
-          }
-          fieldActivityService.stopEditingField(sessionUser, `project-${currentProjectId}`);
-          
-          const statusText = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
-          alert(`Project marked as ${statusText}!`);
-          
-          // Navigate back to home after marking status
-          navigate('/');
-        }
-      } catch (error) {
-        console.error('Error updating project status:', error);
-        alert('Failed to update project status');
-      }
-    }
-  };
-
-  // Manual save function
-  const saveProject = async (isAutoSave = false) => {
-    const saveType = isAutoSave ? 'AUTO-SAVE' : 'MANUAL SAVE';
-    // Save initiated
-    
-    if (!sessionUser) {
-      console.error(`❌ ${saveType} FAILED: No session user`);
-      if (!isAutoSave) alert('Save failed: No user session');
-      return false;
-    }
-    
-    // If no project ID, attempt to create one
-    if (!currentProjectId) {
-      try {
-        const initialProjectData = {
-          title: 'New Property Review',
-          insuredName: globalLocationData?.insuredName || '',
-          premiseLocation: globalLocationData?.premiseLocation || '',
-          description: globalLocationData?.description || '',
-          formData: globalLocationData || {},
-          slideData: slideData || {},
-          status: 'editing',
-          sessionUser: sessionUser
-        };
-        
-        const newProject = await apiService.createProject(initialProjectData);
-        if (newProject?.id) {
-          setCurrentProjectId(newProject.id);
-          window.history.replaceState({}, '', `/editor?projectId=${newProject.id}`);
-          console.log('✅ Created new project ID:', newProject.id);
-        } else {
-          console.error(`❌ ${saveType} FAILED: Could not create new project`);
-          if (!isAutoSave) alert('Save failed: Could not create new project');
-          return false;
-        }
-      } catch (error) {
-        console.error(`❌ ${saveType} FAILED: Error creating new project`, error);
-        if (!isAutoSave) alert('Save failed: Could not create new project');
-        return false;
-      }
-    }
-    
-    if (sessionUser && currentProjectId) {
-      // Use globalLocationData as the primary source for form data
-      // This ensures consistency between what user sees and what gets saved
-      const currentFormData = {
-        ...globalLocationData,
-        // Fallback to slide data if globalLocationData is incomplete
-        ...(getSlideData(1)?.formData || {})
-      };
-      
-      // Using current form data for save
-      
-      // Create comprehensive slideData that includes all app state
-      const enhancedSlideData = {
-        ...slideData,
-        // Store additional app state within slideData for now
-        _appState: {
-          showWebsite: showWebsite,
-          fontSizes: fontSizes,
-          premiseLocation: currentFormData.premiseLocation || '',
-          globalLocationData: globalLocationData, // Save complete global data
-          sessionUser: sessionUser, // Store session user for homepage display
-          fieldPositions: Object.keys(slideData).reduce((acc, slideId) => {
-            if (slideData[slideId]?.fieldPositions) {
-              acc[`slide_${slideId}`] = slideData[slideId].fieldPositions;
-            }
-            return acc;
-          }, {})
-        },
-        // Include slides data within slideData
-        _slides: slides
-      };
-      
-      const projectData = {
-        title: currentFormData.insuredName || 'Untitled Project',
-        name: currentFormData.insuredName || 'Untitled Project',
-        description: currentFormData.description || '',
-        formData: currentFormData,
-        slideData: enhancedSlideData,
-        // Also save at top level for backward compatibility
-        premiseLocation: currentFormData.premiseLocation || '',
-        insuredName: currentFormData.insuredName || '',
-        website: currentFormData.website || '',
-        isoClass: currentFormData.isoClass || ''
-      };
-      
-      // console.log('💾 SAVE DEBUG - Project data:', projectData);
-      
-      try {
-        const result = await apiService.updateProject(currentProjectId, projectData);
-        
-        // Save completed successfully
-        setHasUnsavedChanges(false);
-        setLastSaveTime(new Date());
-        
-        // Only show success message for manual saves
-        if (!isAutoSave) {
-          alert('Project saved successfully!');
-        }
-        return true;
-      } catch (error) {
-        console.error(`❌ ${saveType} ERROR:`, error);
-        if (!isAutoSave) {
-          alert('Save failed: ' + error.message);
-        }
-        return false;
-      }
-    }
-    return false;
-  };
-
-  // Unified auto-save function (now just calls the main saveProject with auto-save flag)
-  const autoSave = async () => {
-    if (sessionUser && currentProjectId && hasUnsavedChanges) {
-      // Interval auto-save triggered
-      setIsAutoSaving(true);
-      try {
-        const success = await saveProject(true); // true = isAutoSave
-        if (success) {
-          // Interval auto-save completed
-        }
-      } catch (error) {
-        console.error('❌ Interval auto-save failed:', error);
-      } finally {
-        setIsAutoSaving(false);
-      }
-    }
-  };
-
-  const addSlide = (slideType) => {
-    const slideTypeKey = slideType.toLowerCase().replace(/\s+/g, '_');
-    
-    // Check if this slide type has a maximum limit
-    if (slideTypeKey === 'street_view') {
-      if (slideTypeCounts.street_view >= 7) {
-        alert('Maximum of 7 Street View slides allowed');
-        setShowPopupDropdown(false);
-        return;
-      }
-    }
-    
-    // Create the new slide with proper numbering
-    let slideTitle = slideType;
-    let actualSlideType = slideTypeKey;
-    
-    if (slideTypeKey === 'street_view') {
-      const newCount = slideTypeCounts.street_view + 1;
-      slideTitle = `Street View ${newCount}`;
-      actualSlideType = `street_view_${newCount}`;
-      
-      // Update the counter
-      setSlideTypeCounts(prev => ({
-        ...prev,
-        street_view: newCount
-      }));
-    }
-
-    const newSlide = {
-      id: nextSlideId,
-      type: actualSlideType,
-      title: slideTitle,
-      // Track which location this slide is for
-      locationIndex: multipleLocationsMode ? selectedLocationIndex : 0
-    };
-    
-    // Initialize data for new slide - use location-specific data if in multiple locations mode
-    let initialFormData;
-    
-    if (multipleLocationsMode && selectedLocationIndex !== undefined) {
-      // Ensure location data service is properly initialized
-      if (locationDataService.getLocationCount() === 0) {
-        locationDataService.initializeFromProject({
-          formData: globalLocationData
-        }, multipleLocationsMode);
-      }
-      
-      // Get data for the selected location
-      initialFormData = locationDataService.getLocationData(selectedLocationIndex);
-      
-      // If no specific data exists for this location, use global data as fallback
-      if (!initialFormData || Object.keys(initialFormData).length === 0) {
-        initialFormData = {
-          ...globalLocationData,
-          // Parse the specific location from premise location if available
-          premiseLocation: getLocationFromPremiseText(globalLocationData.premiseLocation, selectedLocationIndex)
-        };
-        
-        // Update location data service with this data
-        Object.entries(initialFormData).forEach(([field, value]) => {
-          locationDataService.updateLocationData(selectedLocationIndex, field, value);
-        });
-      }
-    } else {
-      // Single location mode or fallback
-      initialFormData = {
-        insuredName: globalLocationData.insuredName || "",
-        website: globalLocationData.website || "",
-        description: globalLocationData.description || "",
-        lineBusiness: globalLocationData.lineBusiness || "",
-        websiteInfo: globalLocationData.websiteInfo || "",
-        premiseLocation: globalLocationData.premiseLocation || "",
-      };
-    }
-
-    console.log(`🆕 Creating new slide for Location ${selectedLocationIndex + 1}:`, initialFormData);
-
-    // Set default field positions for Comments slides
-    let defaultFieldPositions = {};
-    if (actualSlideType === 'comments') {
-      defaultFieldPositions = {
-        websiteInfo: { top: 630, right: 1.2 }, // Original bottom-right positioning
-        premiseLocation: { top: 670, right: 1.2 }  // Original bottom-right positioning
-      };
-    }
-
-    setSlideData(prev => ({
-      ...prev,
-      [newSlide.id]: {
-        formData: initialFormData,
-        imageData: null,
-        imagePosition: { top: 300, left: 400 },
-        drawings: [],
-        fieldPositions: defaultFieldPositions,
-        // Store the location index this slide belongs to
-        locationIndex: newSlide.locationIndex
-      }
-    }));
-    
-    setSlides([...slides, newSlide]);
-    setCurrentSlide(newSlide.id);
-    setNextSlideId(nextSlideId + 1);
-    setShowPopupDropdown(false);
-  };
-
-  // Helper function to get specific location from premise location text
-  const getLocationFromPremiseText = (premiseLocationText, locationIndex) => {
-    if (!premiseLocationText || !multipleLocationsMode) return premiseLocationText;
-    
-    const lines = premiseLocationText.split('\n').filter(line => line.trim());
-    return lines[locationIndex] || lines[0] || premiseLocationText;
-  };
-
-  // Helper function to get current location (eliminates duplicated parsing logic)
-  const getCurrentLocation = () => {
-    const premiseLocation = globalLocationData?.premiseLocation || getSlideData(1)?.formData?.premiseLocation || '';
-    
-    if (!premiseLocation.trim()) return '';
-    
-    if (multipleLocationsMode) {
-      const locations = parseMultipleLocations(premiseLocation);
-      if (locations.length > selectedLocationIndex) {
-        return locations[selectedLocationIndex];
-      }
-      return locations[0] || '';
-    } else {
-      // Single location mode - use the first line only
-      const firstLine = premiseLocation.split('\n')[0]?.trim() || '';
-      return firstLine.replace(/^Location\s+\d+:\s*/, '').trim();
-    }
-  };
-
-  const deleteSlide = (slideId) => {
-    if (slides.length > 1) {
-      const slideToDelete = slides.find(slide => slide.id === slideId);
-      const updatedSlides = slides.filter(slide => slide.id !== slideId);
-      
-      // Update counters if needed
-      if (slideToDelete && slideToDelete.type.startsWith('street_view')) {
-        setSlideTypeCounts(prev => ({
-          ...prev,
-          street_view: Math.max(0, prev.street_view - 1)
-        }));
-      }
-      
-      setSlides(updatedSlides);
-      
-      // Remove slide data
-      setSlideData(prev => {
-        const newData = { ...prev };
-        delete newData[slideId];
-        return newData;
-      });
-      
-      if (currentSlide === slideId) {
-        setCurrentSlide(updatedSlides[0].id);
-      }
     }
   };
 
@@ -2295,16 +1236,13 @@ export default function Editor({ sessionUser }) {
           file_size: null, // File size not available from browser export
           file_path: filename
         });
-        console.log('Exported item saved:', exportedItem);
       } catch (error) {
-        console.error('Failed to save exported item metadata:', error);
       }
 
       // Show success message
       alert(`PDF exported successfully as: ${filename}`);
 
     } catch (error) {
-      console.error('Failed to export PDF:', error);
       alert('Failed to export PDF. Please try again.');
     } finally {
       // Restore button state
@@ -2361,7 +1299,7 @@ export default function Editor({ sessionUser }) {
 
     // Debug logging for Comments slide
     if (slideData.type === 'comments') {
-      console.log('💬 Comments slideProps:', {
+      console.log('Comments slide debug:', {
         hasFormData: !!formDataToUse,
         formData: formDataToUse,
         hasFieldPositions: !!(slideSpecificData.fieldPositions),
@@ -2378,89 +1316,15 @@ export default function Editor({ sessionUser }) {
       />;
     }
 
-    switch (slideData.type) {
-      case 'cover':
-        return <SlideOne 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'aerial_view_-_google':
-        return <SlideTwo 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'aerial_view_-_bing':
-        return <SlideThree 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'interior':
-        return <Interior 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'online_presence':
-        return <OnlinePresence
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'license':
-        return <License
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'comments':
-        return <Comments 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'fire_hazard':
-        return <FireHazard 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'crime_rate':
-        return <CrimeRate 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'nearest_fire_station':
-        return <NearestFireStation 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'website':
-        // Pass website data from slide 1 (first slide) using getSlideData function
-        const slide1FormData = getSlideData(1)?.formData || {};
-        const websiteData = slide1FormData.website || '';
-        return <Website 
-          {...slideProps}
-          websiteUrl={websiteData}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      case 'ratings':
-        return <Ratings 
-          {...slideProps}
-          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-        />;
-      default:
-        // If it's slide 1, always render as SlideOne (property information)
-        if (slideId === 1) {
-          return <SlideOne 
-            {...slideProps}
-            ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-          />;
-        }
-        
-        return (
-          <div className="d-flex justify-content-center align-items-center h-100" style={{ width: '1280px', height: '720px' }}>
-            <div className="text-center text-muted">
-              <h3>{slideData.title}</h3>
-              <p>This slide will be implemented soon</p>
-            </div>
-          </div>
-        );
-    }
+    return (
+      <SlideRenderer
+        slideData={slideData}
+        slideProps={slideProps}
+        slideComponentRefs={slideComponentRefs}
+        getSlideData={getSlideData}
+        slideId={slideId}
+      />
+    );
   };
 
   const renderCurrentSlide = () => {
@@ -2477,8 +1341,97 @@ export default function Editor({ sessionUser }) {
     );
   }
 
+  // Prepare EditorContext value
+  const editorContextValue = {
+    // Core state
+    currentSlide,
+    slides,
+    slideData,
+    currentProjectId,
+    
+    // Location data
+    globalLocationData,
+    multipleLocationsMode,
+    selectedLocationIndex,
+    setSelectedLocationIndex,
+    setMultipleLocationsMode,
+    parseMultipleLocations,
+    
+    // Services
+    apiService,
+    editorApiService,
+    locationDataService,
+    
+    // Font sizes
+    selectedField,
+    fontSizes,
+    setFontSizes,
+    handleFontSizeChange,
+    
+    // Website
+    showWebsite,
+    setShowWebsite,
+    
+    // Ratings/Business
+    showRatings,
+    businessesAtLocation,
+    setBusinessesAtLocation,
+    searchBusinessRatings,
+    
+    // Comments (for slide-specific comment options)
+    customCommentText,
+    setCustomCommentText,
+    showCustomCommentInput,
+    setShowCustomCommentInput,
+    
+    // Fire data - TODO: Add these states to Editor
+    fireHazardData: { enabled: false },
+    setFireHazardData: () => {},
+    fireStationData: { enabled: false },
+    setFireStationData: () => {},
+    
+    // Drawing controls
+    isDrawingMode,
+    setIsDrawingMode,
+    isSquareEditMode,
+    setIsSquareEditMode,
+    selectedDrawingIndex,
+    setSelectedDrawingIndex,
+    setSlideData,
+    
+    // Text alignment
+    textAlignments,
+    setTextAlignments,
+    
+    // Toolbar visibility
+    showToolbar,
+    setShowToolbar,
+    
+    // Helper functions
+    getCurrentLocation: () => {
+      const premiseLocation = globalLocationData?.premiseLocation || getSlideData(1)?.formData?.premiseLocation || '';
+      if (!premiseLocation.trim()) return '';
+      
+      if (multipleLocationsMode) {
+        const locations = parseMultipleLocations(premiseLocation);
+        if (locations.length > selectedLocationIndex) {
+          return locations[selectedLocationIndex];
+        }
+        return locations[0] || '';
+      } else {
+        const firstLine = premiseLocation.split('\n')[0]?.trim() || '';
+        return firstLine.replace(/^Location\s+\d+:\s*/, '').trim();
+      }
+    },
+    
+    // Slide operations
+    getSlideData,
+    updateSlideFormData
+  };
+
   return (
-    <div className={`editor-page position-relative ${device.isMobile ? 'mobile-layout' : ''} ${device.isTablet ? 'tablet-layout' : ''}`} style={{ height: "100vh", overflow: "hidden" }}>
+    <EditorProvider value={editorContextValue}>
+      <div className={`editor-page position-relative ${device.isMobile ? 'mobile-layout' : ''} ${device.isTablet ? 'tablet-layout' : ''}`} style={{ height: "100vh", overflow: "hidden" }}>
       
       {/* Mobile Sidebar Toggle Button */}
       {device.isMobile && (
@@ -2798,7 +1751,10 @@ export default function Editor({ sessionUser }) {
           <button 
             className="btn btn-outline-secondary btn-sm d-flex align-items-center" 
             onClick={async () => {
-              await saveProject(); // Manual save (isAutoSave = false by default)
+              console.log('💾 Save button clicked - currentProjectId:', currentProjectId, 'sessionUser:', sessionUser);
+              console.log('💾 Save button - typeof currentProjectId:', typeof currentProjectId);
+              console.log('💾 Save button - currentProjectId === sessionUser:', currentProjectId === sessionUser);
+              await saveProject("manual", currentProjectId); // Manual save with current project ID
             }}
             title="Save project manually"
             style={{ 
@@ -2830,7 +1786,6 @@ export default function Editor({ sessionUser }) {
           : 'Single Location'
         }
         onLocationChange={(newIndex) => {
-          console.log(`🔄 Switching to location ${newIndex + 1}`);
           setSelectedLocationIndex(newIndex);
           
           // Initialize location data service for all locations if not already done
@@ -2877,53 +1832,7 @@ export default function Editor({ sessionUser }) {
               scrollbarColor: "#c1c1c1 #f1f1f1",
             }}
           >
-            <Sidebar 
-              getCurrentLocation={getCurrentLocation}
-              showRatings={showRatings}
-              businessesAtLocation={businessesAtLocation}
-              searchBusinessRatings={searchBusinessRatings}
-              multipleLocationsMode={multipleLocationsMode}
-              selectedLocationIndex={selectedLocationIndex}
-              globalLocationData={globalLocationData}
-              parseMultipleLocations={parseMultipleLocations}
-              slides={slides}
-              currentSlide={currentSlide}
-              slideData={slideData}
-              getSlideData={getSlideData}
-              updateSlideData={updateSlideData}
-              setSelectedLocationIndex={setSelectedLocationIndex}
-              setMultipleLocationsMode={setMultipleLocationsMode}
-              locationDataService={locationDataService}
-              currentProjectId={currentProjectId}
-              apiService={apiService}
-              setBusinessesAtLocation={setBusinessesAtLocation}
-              selectedField={selectedField}
-              fontSizes={fontSizes}
-              handleFontSizeChange={handleFontSizeChange}
-              showWebsite={showWebsite}
-              setShowWebsite={setShowWebsite}
-              updateSlideFormData={updateSlideFormData}
-              showCustomCommentInput={showCustomCommentInput}
-              setShowCustomCommentInput={setShowCustomCommentInput}
-              customCommentText={customCommentText}
-              setCustomCommentText={setCustomCommentText}
-              isInteriorBuilderVisible={isInteriorBuilderVisible}
-              setIsInteriorBuilderVisible={setIsInteriorBuilderVisible}
-              textAlignments={textAlignments}
-              setTextAlignments={setTextAlignments}
-              isDrawingMode={isDrawingMode}
-              setIsDrawingMode={setIsDrawingMode}
-              isSquareEditMode={isSquareEditMode}
-              setIsSquareEditMode={setIsSquareEditMode}
-              selectedDrawingIndex={selectedDrawingIndex}
-              setSelectedDrawingIndex={setSelectedDrawingIndex}
-              setSlideData={setSlideData}
-              showToolbar={showToolbar}
-              setShowToolbar={setShowToolbar}
-              BUTTON_STYLES={BUTTON_STYLES}
-              setFontSizes={setFontSizes}
-              editorApiService={editorApiService}
-            />
+            <Sidebar />
           </div>
         )}
 
@@ -2945,49 +1854,7 @@ export default function Editor({ sessionUser }) {
               scrollbarColor: "#c1c1c1 #f1f1f1",
             }}
           >
-            <Sidebar 
-              getCurrentLocation={getCurrentLocation}
-              showRatings={showRatings}
-              businessesAtLocation={businessesAtLocation}
-              searchBusinessRatings={searchBusinessRatings}
-              multipleLocationsMode={multipleLocationsMode}
-              selectedLocationIndex={selectedLocationIndex}
-              globalLocationData={globalLocationData}
-              parseMultipleLocations={parseMultipleLocations}
-              slides={slides}
-              currentSlide={currentSlide}
-              slideData={slideData}
-              getSlideData={getSlideData}
-              updateSlideData={updateSlideData}
-              setSelectedLocationIndex={setSelectedLocationIndex}
-              setMultipleLocationsMode={setMultipleLocationsMode}
-              locationDataService={locationDataService}
-              currentProjectId={currentProjectId}
-              apiService={apiService}
-              setBusinessesAtLocation={setBusinessesAtLocation}
-              selectedField={selectedField}
-              fontSizes={fontSizes}
-              handleFontSizeChange={handleFontSizeChange}
-              showWebsite={showWebsite}
-              setShowWebsite={setShowWebsite}
-              updateSlideFormData={updateSlideFormData}
-              showCustomCommentInput={showCustomCommentInput}
-              setShowCustomCommentInput={setShowCustomCommentInput}
-              customCommentText={customCommentText}
-              setCustomCommentText={setCustomCommentText}
-              isInteriorBuilderVisible={isInteriorBuilderVisible}
-              setIsInteriorBuilderVisible={setIsInteriorBuilderVisible}
-              textAlignments={textAlignments}
-              setTextAlignments={setTextAlignments}
-              isDrawingMode={isDrawingMode}
-              setIsDrawingMode={setIsDrawingMode}
-              isSquareEditMode={isSquareEditMode}
-              setIsSquareEditMode={setIsSquareEditMode}
-              selectedDrawingIndex={selectedDrawingIndex}
-              setSelectedDrawingIndex={setSelectedDrawingIndex}
-              setSlideData={setSlideData}
-              showToolbar={isMobileSidebarOpen}
-              setShowToolbar={setIsMobileSidebarOpen}
+            <Sidebar
               BUTTON_STYLES={BUTTON_STYLES}
               setFontSizes={setFontSizes}
               editorApiService={editorApiService}
@@ -3218,8 +2085,11 @@ export default function Editor({ sessionUser }) {
             maxWidth: "100%"
           }}
         >
-          {slides.map((slide, index) => {
+          {console.log('🔍 Rendering slides:', slides) || slides
+            .filter(slide => slide.id !== null && slide.id !== undefined && !isNaN(slide.id))
+            .map((slide, index) => {
             const currentSlideData = getSlideData(slide.id);
+            console.log('🔍 Rendering slide:', slide.id, 'data:', currentSlideData);
             return (
               <SlidePreview
                 key={slide.id}
@@ -3231,6 +2101,12 @@ export default function Editor({ sessionUser }) {
                 canDelete={slides.length > 1}
                 multipleLocationsMode={multipleLocationsMode}
                 slideLocationIndex={currentSlideData.locationIndex}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                isDragging={draggedSlideIndex === index}
+                isDragOver={dragOverIndex === index}
               />
             );
           })}
@@ -3422,7 +2298,7 @@ export default function Editor({ sessionUser }) {
           );
         })}
       </div>
-
     </div>
+    </EditorProvider>
   );
 }

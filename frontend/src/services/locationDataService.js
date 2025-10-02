@@ -124,6 +124,15 @@ class LocationDataService {
   }
 
   /**
+   * Clear all location data
+   */
+  clearLocationData() {
+    console.log('🧹 Clearing location data service...', this.locationData.size, 'locations');
+    this.locationData.clear();
+    console.log('✅ Location data service cleared');
+  }
+
+  /**
    * Add a new location
    */
   addLocation(baseData = {}) {
@@ -168,4 +177,8 @@ class LocationDataService {
 
 // Create singleton instance
 const locationDataService = new LocationDataService();
+
+// Ensure methods are properly bound
+locationDataService.clearLocationData = locationDataService.clearLocationData.bind(locationDataService);
+
 export default locationDataService;

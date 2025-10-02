@@ -106,7 +106,7 @@ USAGE INSTRUCTIONS:
      );
 
 That's it! Your slide now has full image functionality:
-- Paste images with Ctrl+V
+- Add images through screenshots or uploads
 - Drag images around
 - Resize images
 - Delete images

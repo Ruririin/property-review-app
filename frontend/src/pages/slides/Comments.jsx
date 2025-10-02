@@ -823,7 +823,7 @@ const Comments = forwardRef(({
         renderBulletTextField(key, formData[key], 300)
       ))}
       
-      {/* Image Component for paste functionality */}
+      {/* Image Component for additional screenshots */}
       <MultiImageComponent
         images={slideData?.images || []}
         onUpdateImages={async (updatedImages) => {

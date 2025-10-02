@@ -364,8 +364,8 @@ const MultiImageComponent = ({
         height: '100%', 
         position: 'relative',
         touchAction: 'none', // Prevent scrolling during drag
-        pointerEvents: 'auto', // Ensure pointer events work
-        zIndex: 50, // Lower z-index to stay below text fields
+        pointerEvents: 'none', // Allow clicks to pass through when no images
+        zIndex: 10, // Lower z-index to stay below UI elements
         outline: 'none' // Hide focus outline
       }}
     >
@@ -387,7 +387,7 @@ const MultiImageComponent = ({
             position: "absolute",
             top: position.top,
             left: position.left,
-            zIndex: selectedImageId === image.id ? 70 : 60, // Lower z-index to stay below text fields
+            zIndex: selectedImageId === image.id ? 25 : 20, // Lower z-index to stay below UI elements
             pointerEvents: 'auto', // Ensure this div can receive mouse events
           }}
         >

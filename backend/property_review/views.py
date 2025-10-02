@@ -23,6 +23,7 @@ import io
 from .models import Project, PropertySlide, Template, ProjectLocation
 from .serializers import ProjectSerializer, LightProjectSerializer, PropertySlideSerializer, TemplateSerializer, ProjectLocationSerializer
 from .pdf_service import pdf_exporter
+from .best_places_service import best_places_service
 
 # PPTX Template extraction (equivalent to Express route)
 @api_view(['GET'])
@@ -100,8 +101,34 @@ class ProjectViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # For now, create projects without an owner (since we're allowing AllowAny)
-        serializer.save()
-    
+        from django.db import transaction
+
+        try:
+            with transaction.atomic():
+                project = serializer.save()
+                # Force commit to ensure data is actually written to database
+                transaction.on_commit(lambda: print(f"✅ Project {project.id} committed to database"))
+                print(f"🔄 Project {project.id} created and saved")
+                return project
+        except Exception as e:
+            print(f"❌ Failed to create project: {e}")
+            raise
+
+    def perform_update(self, serializer):
+        # Add transaction management for project updates
+        from django.db import transaction
+
+        try:
+            with transaction.atomic():
+                project = serializer.save()
+                # Force commit to ensure data is actually written to database
+                transaction.on_commit(lambda: print(f"✅ Project {project.id} updated and committed to database"))
+                print(f"🔄 Project {project.id} updated and saved")
+                return project
+        except Exception as e:
+            print(f"❌ Failed to update project: {e}")
+            raise
+
     @action(detail=True, methods=['post'])
     def toggle_multiple_locations(self, request, pk=None):
         """Toggle multiple locations mode for a project"""
@@ -862,7 +889,46 @@ def get_slide_content_view(request, project_id, slide_id):
             'field_positions': slide_content.get('fieldPositions', {}),
             'slide_data': slide_content
         }, status=status.HTTP_200_OK)
-        
+
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Best Places Crime Data API
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def get_best_places_crime_data_view(request):
+    """
+    Get Best Places crime data and generate chart images for a location
+    """
+    try:
+        zip_code = request.data.get('zip_code')
+        location = request.data.get('location', '')
+
+        if not zip_code:
+            return Response({
+                'error': 'zip_code is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Extract ZIP code from location if not provided directly
+        import re
+        if not zip_code and location:
+            zip_match = re.search(r'\b(\d{5})\b', location)
+            if zip_match:
+                zip_code = zip_match.group(1)
+            else:
+                zip_code = '90041'  # Default to LA ZIP
+
+        # Get crime data with generated charts
+        crime_data = best_places_service.get_crime_data(zip_code, location)
+
+        return Response({
+            'success': True,
+            'data': crime_data
+        }, status=status.HTTP_200_OK)
+
     except Exception as e:
         return Response({
             'error': str(e)

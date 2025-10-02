@@ -180,16 +180,14 @@ class ProjectSaveService {
         this.projects.set(dbProject.id, updatedProject);
         this.setCurrentProject(dbProject.id);
 
+        // Save slides and images to database
+        await this.saveProjectSlidesToDatabase(projectId, saveData);
+
         return dbProject;
       } catch (error) {
         console.error('❌ Primary save strategy failed:', error);
         throw error;
       }
-
-      // Save slides and images to database
-      await this.saveProjectSlidesToDatabase(projectId, saveData);
-
-      return dbProject;
     } catch (error) {
       console.error('❌ Database save error:', error);
       throw error;
@@ -200,12 +198,31 @@ class ProjectSaveService {
    * Save slides and images to database
    */
   async saveProjectSlidesToDatabase(projectId, saveData) {
-    if (!saveData.slides || !saveData.slideData) return;
+    console.log('🔄 saveProjectSlidesToDatabase called:', {
+      projectId,
+      hasSlides: !!saveData.slides,
+      slidesLength: saveData.slides?.length,
+      hasSlideData: !!saveData.slideData,
+      slideDataKeys: Object.keys(saveData.slideData || {})
+    });
+
+    if (!saveData.slides || !saveData.slideData) {
+      console.log('⚠️ No slides or slideData, skipping slides save');
+      return;
+    }
 
     for (const slide of saveData.slides) {
       const slideNumber = slide.id || slide.slideNumber;
       const slideContent = saveData.slideData[slideNumber] || {};
-      
+
+      console.log('📝 Processing slide:', {
+        slideNumber,
+        slideTitle: slide.title,
+        slideType: slide.type,
+        hasSlideContent: !!slideContent,
+        slideContentKeys: Object.keys(slideContent)
+      });
+
       const slideData = {
         slideNumber: slideNumber,
         title: slide.title || '',
@@ -223,16 +240,25 @@ class ProjectSaveService {
         // Try to update existing slide, create if doesn't exist
         let dbSlide;
         try {
+          console.log('🔍 Fetching existing slides for project:', projectId);
           const existingSlides = await apiService.getProjectSlides(projectId);
+          console.log('📋 Existing slides:', existingSlides?.length || 0);
+
           dbSlide = existingSlides.find(s => s.slide_number === slideNumber);
-          
+
           if (dbSlide) {
+            console.log('🔄 Updating existing slide:', slideNumber, 'with ID:', dbSlide.id);
             await apiService.updateSlide(dbSlide.id, slideData);
+            console.log('✅ Slide updated successfully');
           } else {
+            console.log('🆕 Creating new slide:', slideNumber);
             dbSlide = await apiService.createSlide(projectId, slideData);
+            console.log('✅ Slide created successfully:', dbSlide?.id);
           }
         } catch (slideError) {
+          console.log('⚠️ Error during slide save, trying create:', slideError.message);
           dbSlide = await apiService.createSlide(projectId, slideData);
+          console.log('✅ Slide created via fallback:', dbSlide?.id);
         }
 
         // Handle image uploads for MultiImageComponent format

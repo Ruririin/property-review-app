@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Best Places Automation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #2d5d2d;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        .test-button:hover {
+            background: #1e4a1e;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result-area {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .chart-display {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .chart-container {
+            flex: 1;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: white;
+            min-height: 300px;
+        }
+        .chart-container img {
+            width: 100%;
+            height: auto;
+            max-height: 400px;
+            object-fit: contain;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.loading {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .log-area {
+            background: #000;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Best Places Automation Test</h1>
+        <p>Test the new Puppeteer-based Best Places chart downloading system.</p>
+        
+        <div>
+            <button id="testBtn" class="test-button">
+                📊 Test Best Places Automation (ZIP: 90041)
+            </button>
+            <button id="testBtn2" class="test-button">
+                🏖️ Test Beverly Hills (ZIP: 90210)
+            </button>
+            <button id="testBtn3" class="test-button">
+                🌴 Test San Diego (ZIP: 92101)
+            </button>
+            <button id="clearBtn" class="test-button" style="background: #dc3545;">
+                🗑️ Clear Results
+            </button>
+        </div>
+
+        <div id="status"></div>
+        <div id="results" class="result-area" style="display: none;">
+            <h3>Results</h3>
+            <div id="data-info"></div>
+            <div id="charts" class="chart-display"></div>
+        </div>
+        <div id="logs" class="log-area" style="display: none;"></div>
+    </div>
+
+    <script type="module">
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        const logs = [];
+        
+        function addLog(type, ...args) {
+            const timestamp = new Date().toLocaleTimeString();
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            logs.push(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+            updateLogDisplay();
+            
+            // Call original function
+            if (type === 'log') originalLog(...args);
+            else if (type === 'error') originalError(...args);
+            else if (type === 'warn') originalWarn(...args);
+        }
+        
+        console.log = (...args) => addLog('log', ...args);
+        console.error = (...args) => addLog('error', ...args);
+        console.warn = (...args) => addLog('warn', ...args);
+        
+        function updateLogDisplay() {
+            const logArea = document.getElementById('logs');
+            logArea.style.display = 'block';
+            logArea.textContent = logs.join('\n');
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+        
+        function setStatus(message, type = 'loading') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function clearResults() {
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('logs').style.display = 'none';
+            document.getElementById('status').innerHTML = '';
+            logs.length = 0;
+        }
+        
+        async function testBestPlaces(zipCode, locationName) {
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = '⏳ Testing...';
+            
+            try {
+                setStatus(`🚀 Initializing Best Places automation for ${locationName} (${zipCode})...`);
+                
+                // Import the service
+                const { default: bestPlacesService } = await import('./src/services/bestPlacesService.js');
+                
+                setStatus(`🔍 Fetching crime data for ZIP code ${zipCode}...`);
+                
+                // Test the service
+                const result = await bestPlacesService.fetchCrimeData(zipCode);
+                
+                console.log('📊 Test result:', result);
+                
+                if (result) {
+                    setStatus(`✅ Successfully fetched Best Places data for ${locationName}!`, 'success');
+                    displayResults(result, zipCode, locationName);
+                } else {
+                    setStatus(`❌ Failed to fetch data for ${locationName}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('❌ Test failed:', error);
+                setStatus(`❌ Test failed: ${error.message}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = button.textContent.replace('⏳ Testing...', '📊 Test Best Places Automation');
+            }
+        }
+        
+        function displayResults(data, zipCode, locationName) {
+            const resultsDiv = document.getElementById('results');
+            const dataInfo = document.getElementById('data-info');
+            const chartsDiv = document.getElementById('charts');
+            
+            resultsDiv.style.display = 'block';
+            
+            // Display data info
+            dataInfo.innerHTML = `
+                <h4>📍 ${data.location || locationName} (ZIP: ${zipCode})</h4>
+                <p><strong>Violent Crime Index:</strong> ${data.violent_crime} (US Average: ${data.violent_crime_us_avg})</p>
+                <p><strong>Property Crime Index:</strong> ${data.property_crime} (US Average: ${data.property_crime_us_avg})</p>
+                <p><strong>Data Source:</strong> ${data.source}</p>
+                <p><strong>Fetched At:</strong> ${data.fetched_at}</p>
+                ${data.images_downloaded !== undefined ? 
+                    `<p><strong>Images Downloaded:</strong> ${data.images_downloaded ? '✅ Yes' : '❌ No'}</p>` : ''
+                }
+                ${data.note ? `<p><strong>Note:</strong> ${data.note}</p>` : ''}
+            `;
+            
+            // Display charts if available
+            chartsDiv.innerHTML = '';
+            
+            if (data.chart_images) {
+                if (data.chart_images.violentCrimeChart) {
+                    const violentDiv = document.createElement('div');
+                    violentDiv.className = 'chart-container';
+                    violentDiv.innerHTML = `
+                        <h5>Violent Crime Chart</h5>
+                        <img src="${data.chart_images.violentCrimeChart.dataUrl}" alt="Violent Crime Chart" />
+                        <p><small>Method: ${data.chart_images.violentCrimeChart.method || 'Unknown'}</small></p>
+                    `;
+                    chartsDiv.appendChild(violentDiv);
+                }
+                
+                if (data.chart_images.propertyCrimeChart) {
+                    const propertyDiv = document.createElement('div');
+                    propertyDiv.className = 'chart-container';
+                    propertyDiv.innerHTML = `
+                        <h5>Property Crime Chart</h5>
+                        <img src="${data.chart_images.propertyCrimeChart.dataUrl}" alt="Property Crime Chart" />
+                        <p><small>Method: ${data.chart_images.propertyCrimeChart.method || 'Unknown'}</small></p>
+                    `;
+                    chartsDiv.appendChild(propertyDiv);
+                }
+            } else {
+                chartsDiv.innerHTML = '<p>No chart images available. Check console for details.</p>';
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('testBtn').addEventListener('click', () => testBestPlaces('90041', 'Los Angeles'));
+        document.getElementById('testBtn2').addEventListener('click', () => testBestPlaces('90210', 'Beverly Hills'));
+        document.getElementById('testBtn3').addEventListener('click', () => testBestPlaces('92101', 'San Diego'));
+        document.getElementById('clearBtn').addEventListener('click', clearResults);
+    </script>
+</body>
+</html>

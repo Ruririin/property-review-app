@@ -39,4 +39,7 @@ urlpatterns = [
     # Sidebar button API endpoints
     path('location-url/', views.get_location_url_view, name='get_location_url'),
     path('search-business/', views.search_business_view, name='search_business'),
+
+    # Best Places crime data endpoint
+    path('best-places/crime-data/', views.get_best_places_crime_data_view, name='get_best_places_crime_data'),
 ]

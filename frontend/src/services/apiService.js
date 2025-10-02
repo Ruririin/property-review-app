@@ -5,7 +5,7 @@
 
 class ApiService {
   constructor() {
-    this.baseURL = 'https://pr-neitclem.gratusinc.org/api';
+    this.baseURL = 'http://localhost:8000/api';
     this.headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
