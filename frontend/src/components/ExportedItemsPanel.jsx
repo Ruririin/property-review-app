@@ -43,45 +43,81 @@ export default function ExportedItemsPanel({ sessionUser }) {
         const mockItems = [
           {
             id: 1,
-            filename: 'Property Review.pdf',
-            project_name: 'Untitled Project',
-            file_size: 1150000, // 1.15MB estimate
-            export_date: '2025-09-18T12:00:00Z',
-            file_path: 'Property Review.pdf',
-            isDemoItem: true // Mark as demo item
+            filename: 'Property Review D.pdf',
+            project_name: 'Property Review D',
+            file_size: 2209321, // Actual file size
+            export_date: '2025-10-03T16:45:00Z',
+            file_path: 'Property Review D.pdf',
+            isDemoItem: true
           },
           {
             id: 2,
-            filename: 'Property Review Christopher Tuppan Revocable Trust UDT 3-6-1998, Chris Tuppan Trustee.pdf',
-            project_name: 'Christopher Tuppan Revocable Trust',
-            file_size: 1024000, // 1MB estimate
-            export_date: '2025-09-10T10:30:00Z',
-            file_path: 'Property Review Christopher Tuppan Revocable Trust UDT 3-6-1998, Chris Tuppan Trustee.pdf',
-            isDemoItem: true // Mark as demo item
+            filename: 'Property Review C.pdf',
+            project_name: 'Property Review C',
+            file_size: 2132737, // Actual file size
+            export_date: '2025-10-03T15:30:00Z',
+            file_path: 'Property Review C.pdf',
+            isDemoItem: true
           },
           {
             id: 3,
+            filename: 'Property_Review A.pdf',
+            project_name: 'Property Review A',
+            file_size: 1883304, // Actual file size
+            export_date: '2025-10-03T11:45:00Z',
+            file_path: 'Property_Review A.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 4,
+            filename: 'Property Review B.pdf',
+            project_name: 'Property Review B',
+            file_size: 2983811, // Actual file size
+            export_date: '2025-09-22T10:26:00Z',
+            file_path: 'Property Review B.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 5,
+            filename: 'Property Review The Insurance Center.pdf',
+            project_name: 'The Insurance Center',
+            file_size: 2494508, // Actual file size
+            export_date: '2025-09-18T12:00:00Z',
+            file_path: 'Property Review The Insurance Center.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 6,
+            filename: 'Property Review Christopher Tuppan Revocable Trust UDT 3-6-1998, Chris Tuppan Trustee.pdf',
+            project_name: 'Christopher Tuppan Revocable Trust',
+            file_size: 2328050, // Actual file size
+            export_date: '2025-09-10T10:30:00Z',
+            file_path: 'Property Review Christopher Tuppan Revocable Trust UDT 3-6-1998, Chris Tuppan Trustee.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 7,
             filename: 'Property Review Firdosy Family Trust.pdf',
             project_name: 'Firdosy Family Trust',
-            file_size: 856000, // 856KB estimate
+            file_size: 1953343, // Actual file size
             export_date: '2025-09-11T14:20:00Z',
             file_path: 'Property Review Firdosy Family Trust.pdf',
             isDemoItem: true
           },
           {
-            id: 4,
+            id: 8,
             filename: 'Property Review NeitClem Wholesale Insurance Brokerage.pdf',
             project_name: 'NeitClem Wholesale Insurance Brokerage',
-            file_size: 1200000, // 1.2MB estimate
+            file_size: 1551492, // Actual file size
             export_date: '2025-09-11T16:45:00Z',
             file_path: 'Property Review NeitClem Wholesale Insurance Brokerage.pdf',
             isDemoItem: true
           },
           {
-            id: 5,
+            id: 9,
             filename: 'Web Review YW Builders Inc.pdf',
             project_name: 'YW Builders Inc',
-            file_size: 920000, // 920KB estimate
+            file_size: 2863257, // Actual file size
             export_date: '2025-09-12T09:15:00Z',
             file_path: 'Web Review YW Builders Inc.pdf',
             isDemoItem: true

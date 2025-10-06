@@ -25,8 +25,10 @@ urlpatterns = [
     
     path('extract-template/', views.extract_template_view, name='extract_template'),
     path('export-pdf/', views.export_pdf_view, name='export_pdf'),
+    path('preview-pdf/', views.preview_pdf_view, name='preview_pdf'),
     path('export-frontend-slides/', views.export_frontend_slides_view, name='export_frontend_slides'),
     path('projects/<uuid:project_id>/export-pdf/', views.export_project_pdf_view, name='export_project_pdf'),
+    path('projects/<uuid:project_id>/preview-pdf/', views.preview_project_pdf_view, name='preview_project_pdf'),
     path('textbox-dimensions/save/', views.save_textbox_dimensions_view, name='save_textbox_dimensions'),
     path('textbox-dimensions/<str:slide_id>/', views.get_textbox_dimensions_view, name='get_textbox_dimensions'),
     

@@ -50,8 +50,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'authentication.middleware.CSRFExemptMiddleware',  # Custom CSRF exemption
-    'django.middleware.csrf.CsrfViewMiddleware',  # Re-enabled with exemptions
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -158,23 +156,28 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
     "http://127.0.0.1:5175",
+    "https://pr-neitclem.gratusinc.org",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True  # Temporarily allow all origins for testing
 
-# CSRF Protection disabled for API-only backend
+# CSRF Protection completely disabled
 CSRF_COOKIE_SECURE = False
 USE_X_FORWARDED_HOST = True
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_NAME = None
+CSRF_HEADER_NAME = None
 
 # CSRF trusted origins for session logout
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
-    "http://localhost:5174", 
+    "http://localhost:5174",
     "http://localhost:5175",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
     "http://127.0.0.1:5175",
+    "https://pr-neitclem.gratusinc.org",
 ]
 
 # Additional CORS settings
@@ -199,10 +202,17 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# Custom SessionAuthentication that doesn't enforce CSRF
+from rest_framework.authentication import SessionAuthentication
+
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # Disable CSRF enforcement
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
+        'property_review_backend.settings.CsrfExemptSessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',  # Allow unauthenticated access for testing
@@ -225,8 +235,7 @@ SESSION_COOKIE_NAME = 'sessionid'
 SESSION_COOKIE_AGE = 86400  # 24 hours
 SESSION_SAVE_EVERY_REQUEST = True
 
-# Security settings (for production)
-ALLOWED_HOSTS = ['localhost', '127.0.0.1'] if DEBUG else []
+# Remove duplicate ALLOWED_HOSTS - using config() version above
 
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'

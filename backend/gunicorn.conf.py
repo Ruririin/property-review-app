@@ -10,3 +10,4 @@ keepalive = 2
 preload_app = True
 reload = False
 daemon = False
+wsgi_module = "property_review_backend.wsgi:application"

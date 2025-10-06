@@ -305,6 +305,61 @@ def export_project_pdf_view(request, project_id):
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['POST'])
+def preview_pdf_view(request):
+    """
+    Preview slides as PDF (inline viewing) - Django backend version
+    Accepts slide data and returns generated PDF for inline viewing
+    """
+    try:
+        slides_data = request.data.get('slides', [])
+        filename = request.data.get('filename', 'Property Review Preview.pdf')
+        export_method = request.data.get('method', 'weasyprint')  # 'weasyprint' or 'reportlab'
+
+        if not slides_data:
+            return Response({'error': 'No slides provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate PDF
+        pdf_buffer = pdf_exporter.export_with_weasyprint(slides_data, filename) \
+                    if export_method == 'weasyprint' \
+                    else pdf_exporter.export_with_reportlab(slides_data, filename)
+
+        # Create HTTP response with PDF for inline viewing
+        response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+
+        return response
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def preview_project_pdf_view(request, project_id):
+    """
+    Preview a specific project's slides as PDF (inline viewing)
+    """
+    try:
+        export_method = request.GET.get('method', 'weasyprint')
+
+        # Check if user has access to this project
+        project = Project.objects.filter(id=project_id, owner=request.user).first()
+        if not project:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate PDF
+        pdf_buffer = pdf_exporter.export_from_project(project_id, export_method)
+
+        filename = f"{project.name.replace(' ', '_')}_Preview.pdf"
+        response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+
+        return response
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # Textbox Dimension Persistence Views
 @api_view(['POST'])
 @permission_classes([AllowAny])

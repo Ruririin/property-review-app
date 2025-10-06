@@ -28,6 +28,8 @@ import editorApiService from "../services/editorApiService";
 import FieldEditorTag from "../components/FieldEditorTag";
 import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
+import PDFPreviewModal from "../components/PDFPreviewModal";
+import { generatePDFPreview, cleanupPDFPreview } from "../services/pdfPreviewService";
 
 const NAVBAR_HEIGHT = 72;
 const SIDEBAR_WIDTH = 350; // Increased to accommodate wider comment options
@@ -229,6 +231,11 @@ export default function Editor({ sessionUser }) {
   const [currentProjectId, setCurrentProjectId] = useState(null);
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Loading project...");
+
+  // PDF preview state
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
   
   // Drawing tool state
   const [isDrawingMode, setIsDrawingMode] = useState(false);
@@ -2316,6 +2323,67 @@ export default function Editor({ sessionUser }) {
     }
   };
 
+  const handlePreviewPDF = async () => {
+    try {
+      setIsPreviewing(true);
+
+      // Cleanup previous preview URL
+      if (previewPdfUrl) {
+        cleanupPDFPreview(previewPdfUrl);
+        setPreviewPdfUrl(null);
+      }
+
+      // Get slide elements in order
+      const slideElements = slides
+        .map(slide => slideRefs.current[slide.id])
+        .filter(Boolean);
+
+      if (slideElements.length === 0) {
+        alert('No slides found to preview. Please make sure slides are loaded.');
+        return;
+      }
+
+      // Sync current positions to DOM before PDF preview
+      slides.forEach(slide => {
+        const slideComponentRef = slideComponentRefs.current[slide.id];
+        if (slideComponentRef && slideComponentRef.syncPositionsToDom) {
+          slideComponentRef.syncPositionsToDom();
+        }
+      });
+
+      // Small delay to ensure DOM updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Prepare slides data for backend
+      const slidesData = slides.map((slide, index) => {
+        const data = getSlideData(slide.id);
+        return {
+          slideNumber: index + 1,
+          formData: data.formData || {},
+          content: data.content || {}
+        };
+      });
+
+      // Generate preview URL
+      const pdfUrl = await generatePDFPreview(slidesData, 'Property Review Preview.pdf');
+      setPreviewPdfUrl(pdfUrl);
+      setShowPreviewModal(true);
+
+    } catch (error) {
+      console.error('Error generating PDF preview:', error);
+      alert('Failed to generate PDF preview. Please try again.');
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  const cleanupPreview = () => {
+    if (previewPdfUrl) {
+      cleanupPDFPreview(previewPdfUrl);
+      setPreviewPdfUrl(null);
+    }
+  };
+
 
   const renderSlide = (slideId) => {
     const slideData = slides.find(s => s.id === slideId);
@@ -2685,12 +2753,34 @@ export default function Editor({ sessionUser }) {
           
           {/* Divider */}
           <div className="vr" style={{ height: "28px", opacity: "0.3" }}></div>
-          
+
+          {/* Preview Button */}
+          <button
+            className="btn btn-sm d-flex align-items-center preview-pdf-btn"
+            onClick={handlePreviewPDF}
+            disabled={isPreviewing}
+            style={{
+              backgroundColor: '#6c757d',
+              borderColor: '#6c757d',
+              color: 'white',
+              height: "36px",
+              fontSize: "13px",
+              fontWeight: "500",
+              borderRadius: "6px",
+              padding: "0 12px"
+            }}
+          >
+            <i className={`bi ${isPreviewing ? 'bi-hourglass-split' : 'bi-eye'} me-1`} style={{ fontSize: "12px", color: "white" }}></i>
+            <span className="d-none d-md-inline">{isPreviewing ? 'Previewing...' : 'Preview PDF'}</span>
+            <span className="d-md-none">{isPreviewing ? '...' : 'Preview'}</span>
+          </button>
+
           {/* Export Button */}
-          <button 
-            className="btn btn-sm d-flex align-items-center export-pdf-btn" 
+          <button
+            className="btn btn-sm d-flex align-items-center export-pdf-btn"
             onClick={handleExportToPDF}
-            style={{ 
+            disabled={isPreviewing}
+            style={{
               backgroundColor: '#2d5016',
               borderColor: '#2d5016',
               color: 'white',
@@ -3422,6 +3512,19 @@ export default function Editor({ sessionUser }) {
           );
         })}
       </div>
+
+      {/* PDF Preview Modal */}
+      <PDFPreviewModal
+        isOpen={showPreviewModal}
+        onClose={() => {
+          setShowPreviewModal(false);
+          cleanupPreview();
+        }}
+        pdfUrl={previewPdfUrl}
+        filename="Property Review Preview.pdf"
+        isGenerating={isPreviewing}
+        onExport={handleExportToPDF}
+      />
 
     </div>
   );

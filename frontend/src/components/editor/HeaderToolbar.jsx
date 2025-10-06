@@ -13,17 +13,19 @@ const HeaderToolbar = ({
   isLoadingLroForms = false,
   onLroFormSelect = () => {},
   onLoadLroForms = () => {},
-  
+
   // Actions
   onExportPdf = () => {},
+  onPreviewPdf = () => {},
   onSaveProject = () => {},
   onUpdateProjectStatus = () => {},
-  
+
   // Current project info
   projectTitle = "Property Review Maker",
-  
+
   // State
   isExporting = false,
+  isPreviewing = false,
   isSaving = false
 }) => {
   return (
@@ -56,12 +58,33 @@ const HeaderToolbar = ({
         {/* Divider */}
         <div className="vr" style={{ height: "28px", opacity: "0.3" }}></div>
         
+        {/* Preview Button */}
+        <button
+          className="btn btn-sm d-flex align-items-center preview-pdf-btn"
+          onClick={onPreviewPdf}
+          disabled={isPreviewing || isExporting}
+          style={{
+            backgroundColor: '#6c757d',
+            borderColor: '#6c757d',
+            color: 'white',
+            height: "36px",
+            fontSize: "13px",
+            fontWeight: "500",
+            borderRadius: "6px",
+            padding: "0 12px"
+          }}
+        >
+          <i className={`bi ${isPreviewing ? 'bi-hourglass-split' : 'bi-eye'} me-1`}
+             style={{ fontSize: "12px", color: "white" }}></i>
+          {isPreviewing ? 'Previewing...' : 'Preview PDF'}
+        </button>
+
         {/* Export Button */}
-        <button 
-          className="btn btn-sm d-flex align-items-center export-pdf-btn" 
+        <button
+          className="btn btn-sm d-flex align-items-center export-pdf-btn"
           onClick={onExportPdf}
-          disabled={isExporting}
-          style={{ 
+          disabled={isExporting || isPreviewing}
+          style={{
             backgroundColor: '#2d5016',
             borderColor: '#2d5016',
             color: 'white',
@@ -72,7 +95,7 @@ const HeaderToolbar = ({
             padding: "0 12px"
           }}
         >
-          <i className={`bi ${isExporting ? 'bi-hourglass-split' : 'bi-file-earmark-pdf'} me-1`} 
+          <i className={`bi ${isExporting ? 'bi-hourglass-split' : 'bi-file-earmark-pdf'} me-1`}
              style={{ fontSize: "12px", color: "white" }}></i>
           {isExporting ? 'Exporting...' : 'Export PDF'}
         </button>

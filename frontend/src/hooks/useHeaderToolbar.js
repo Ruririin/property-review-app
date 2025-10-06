@@ -8,12 +8,15 @@ import lroDataService from '../services/lroDataService';
 import { exportToPDF } from '../utils/pdfExport';
 import { projectSaveService } from '../services/serviceFactory';
 import apiService from '../services/apiService';
+import { generatePDFPreview, cleanupPDFPreview } from '../services/pdfPreviewService';
 
 export const useHeaderToolbar = (sessionUser, currentProjectId) => {
   const [lroForms, setLroForms] = useState([]);
   const [isLoadingLroForms, setIsLoadingLroForms] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
 
   // Load LRO forms
   const loadLroForms = useCallback(async () => {
@@ -124,6 +127,57 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     }
   }, [currentProjectId]);
 
+  // Handle PDF preview
+  const handlePreviewPdf = useCallback(async (slides, slideData, globalLocationData, callbacks = {}) => {
+    const { syncPositionsToDom = () => {} } = callbacks;
+
+    try {
+      setIsPreviewing(true);
+
+      // Cleanup previous preview URL
+      if (previewPdfUrl) {
+        cleanupPDFPreview(previewPdfUrl);
+        setPreviewPdfUrl(null);
+      }
+
+      // Sync all positions before preview
+      syncPositionsToDom();
+
+      // Small delay to ensure DOM updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Prepare slides data (similar to export)
+      const slidesData = slides.map((slide, index) => {
+        const data = slideData[index + 1] || {};
+        return {
+          slideNumber: index + 1,
+          formData: data.formData || {},
+          content: data.content || {}
+        };
+      });
+
+      // Generate preview URL
+      const pdfUrl = await generatePDFPreview(slidesData, 'Property Review Preview.pdf');
+      setPreviewPdfUrl(pdfUrl);
+
+      return pdfUrl;
+
+    } catch (error) {
+      console.error('Error generating PDF preview:', error);
+      throw error;
+    } finally {
+      setIsPreviewing(false);
+    }
+  }, [previewPdfUrl]);
+
+  // Cleanup preview URL
+  const cleanupPreview = useCallback(() => {
+    if (previewPdfUrl) {
+      cleanupPDFPreview(previewPdfUrl);
+      setPreviewPdfUrl(null);
+    }
+  }, [previewPdfUrl]);
+
   // Handle project save
   const handleSaveProject = useCallback(async (saveFunction) => {
     try {
@@ -172,12 +226,16 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     lroForms,
     isLoadingLroForms,
     isExporting,
+    isPreviewing,
     isSaving,
-    
+    previewPdfUrl,
+
     // Actions
     loadLroForms,
     handleLroFormSelect,
     handleExportPdf,
+    handlePreviewPdf,
+    cleanupPreview,
     handleSaveProject,
     handleUpdateProjectStatus
   };

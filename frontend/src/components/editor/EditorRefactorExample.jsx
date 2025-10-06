@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 // Import the new modular components
 import { HeaderToolbar, SidebarToolbar, SlidesBar } from './index';
 import LocationIndicator from '../LocationIndicator';
+import PDFPreviewModal from '../PDFPreviewModal';
 
 // Import the custom hooks
 import { useHeaderToolbar } from '../../hooks/useHeaderToolbar';
@@ -38,6 +39,7 @@ const EditorRefactorExample = ({ sessionUser }) => {
   const [multipleLocationsMode, setMultipleLocationsMode] = useState(false);
   const [selectedLocationIndex, setSelectedLocationIndex] = useState(0);
   const [currentFormId, setCurrentFormId] = useState(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Initialize custom hooks
   const headerToolbar = useHeaderToolbar(sessionUser, currentProjectId);
@@ -108,10 +110,20 @@ const EditorRefactorExample = ({ sessionUser }) => {
         onLroFormSelect={(formId) => headerToolbar.handleLroFormSelect(formId, headerCallbacks)}
         onLoadLroForms={headerToolbar.loadLroForms}
         onExportPdf={() => headerToolbar.handleExportPdf(slides, slideData, globalLocationData, { syncPositionsToDom })}
+        onPreviewPdf={async () => {
+          try {
+            await headerToolbar.handlePreviewPdf(slides, slideData, globalLocationData, { syncPositionsToDom });
+            setShowPreviewModal(true);
+          } catch (error) {
+            console.error('Preview failed:', error);
+            alert('Failed to generate PDF preview. Please try again.');
+          }
+        }}
         onSaveProject={() => headerToolbar.handleSaveProject(saveProject)}
         onUpdateProjectStatus={headerToolbar.handleUpdateProjectStatus}
         projectTitle="Property Review Maker"
         isExporting={headerToolbar.isExporting}
+        isPreviewing={headerToolbar.isPreviewing}
         isSaving={headerToolbar.isSaving}
       />
 
@@ -198,6 +210,19 @@ const EditorRefactorExample = ({ sessionUser }) => {
         }}
         isVisible={slidesBar.showSlidesBar}
         onToggleVisibility={() => slidesBar.setShowSlidesBar(!slidesBar.showSlidesBar)}
+      />
+
+      {/* PDF Preview Modal */}
+      <PDFPreviewModal
+        isOpen={showPreviewModal}
+        onClose={() => {
+          setShowPreviewModal(false);
+          headerToolbar.cleanupPreview();
+        }}
+        pdfUrl={headerToolbar.previewPdfUrl}
+        filename="Property Review Preview.pdf"
+        isGenerating={headerToolbar.isPreviewing}
+        onExport={() => headerToolbar.handleExportPdf(slides, slideData, globalLocationData, { syncPositionsToDom })}
       />
     </div>
   );
