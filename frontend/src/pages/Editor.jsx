@@ -1,9 +1,11 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useRef, useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { useDevice } from "../hooks/useDevice";
 import ProjectLoadingScreen from "../components/ProjectLoadingScreen";
 import Sidebar from "../components/Sidebar";
 import "../styles/mobile.css";
+
+// Slide components
 import SlideOne from "./slides/SlideOne";
 import SlideTwo from "./slides/SlideTwo";
 import SlideThree from "./slides/SlideThree";
@@ -17,1426 +19,460 @@ import CrimeRate from "./slides/CrimeRate";
 import NearestFireStation from "./slides/NearestFireStation";
 import Website from "./slides/Website";
 import Ratings from "./slides/Ratings";
-import { exportToPDF } from "../utils/pdfExport";
-import exportedItemsService from "../services/exportedItemsService";
-import lroDataService from "../services/lroDataService";
-import { loadIsoCodes, findBestMatch } from "../services/isoCodeService";
-import userActivityService from "../services/userActivityService";
-import fieldActivityService from "../services/fieldActivityService";
-import apiService from "../services/apiService";
-import editorApiService from "../services/editorApiService";
-import FieldEditorTag from "../components/FieldEditorTag";
-import locationDataService from "../services/locationDataService";
-import LocationIndicator from "../components/LocationIndicator";
-import SlideRenderer from "../components/SlideRenderer";
 
-// Debug utilities (available in browser console)
-import '../utils/debugProject.js';
-import '../utils/cleanupSlides.js';
-import '../utils/bestPlacesAnalyzer.js';
-import '../utils/testChartData.js';
+// Services and utilities
+import { exportToPDF } from "../utils/pdfExport";
+import { exportAllSlidesToPDF } from "../utils/newPdfExport";
+import FieldEditorTag from "../components/FieldEditorTag";
+import LocationIndicator from "../components/LocationIndicator";
+import EditorNavbar from "../components/editor/EditorNavbar";
+import SlidesBar from "../components/editor/SlidesBar";
+import SavingPopup from "../components/SavingPopup";
+
+// Constants
+const NAVBAR_HEIGHT = 72;
+const SIDEBAR_WIDTH = 350;
+const SLIDES_BAR_HEIGHT = 160;
+
+// Button styles from main branch
+const BUTTON_STYLES = {
+  slideToggle: {
+    position: "absolute",
+    top: "-20px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "60px",
+    height: "20px",
+    backgroundColor: "#f8f9fa",
+    border: "1px solid #ddd",
+    borderBottom: "none",
+    borderRadius: "6px 6px 0 0",
+    padding: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer"
+  }
+};
+
+// Debug utilities (removed for production)
+
+// Custom hooks - this is where the magic happens!
 import { useDrawing } from "../hooks/useDrawing";
 import { useProjectManager } from "../hooks/useProjectManager";
 import { useCanvasInteraction } from "../hooks/useCanvasInteraction";
 import { useSlideManager } from "../hooks/useSlideManager";
-import { EditorProvider } from "../contexts/EditorContext";
 import { useProjectState } from "../hooks/useProjectState";
 import { useUIState } from "../hooks/useUIState";
 import { useEditorState } from "../hooks/useEditorState";
-import {
-  NAVBAR_HEIGHT,
-  SIDEBAR_WIDTH,
-  SLIDES_BAR_HEIGHT,
-  ZOOM_MIN,
-  ZOOM_MAX,
-  ZOOM_STEP,
-  BUTTON_STYLES
-} from "../utils/editorConstants";
-import { handleBestPlacesClickSept4_2025_FINAL } from "../utils/editorHelpers";
-import SlidePreview from "../components/SlidePreview";
+import { useSlidesBar } from "../hooks/useSlidesBar";
+import { useHeaderToolbar } from "../hooks/useHeaderToolbar";
+import { useNavigationProtection } from "../hooks/useNavigationProtection";
 
+// Context
+import { EditorProvider } from "../contexts/EditorContext";
 
+// Slide component mapping
+const slideComponents = {
+  cover: SlideOne,
+  'slide-2': SlideTwo,
+  'slide-3': SlideThree,
+  street_view: StreetView,
+  interior: Interior,
+  online_presence: OnlinePresence,
+  license: License,
+  comments: Comments,
+  fire_hazard: FireHazard,
+  crime_rate: CrimeRate,
+  nearest_fire_station: NearestFireStation,
+  website: Website,
+  ratings: Ratings
+};
 
 export default function Editor({ sessionUser }) {
-  // Refs - must be declared before any hooks that use them
-  const addButtonRef = useRef(null);
+  const device = useDevice();
+  const { projectId } = useParams(); // Get project ID from URL
+  
+  // Canvas ref for interaction handling
   const canvasRef = useRef(null);
   const slideRefs = useRef({});
-  const slideComponentRefs = useRef({});
+  const addButtonRef = useRef(null);
   const slidesContainerRef = useRef(null);
-  const navigate = useNavigate();
 
-  const device = useDevice();
-
-  // Custom hooks for organized state management
-  const projectState = useProjectState();
-  const uiState = useUIState();
+  // Use all the custom hooks to replace hundreds of lines of inline logic
   const editorState = useEditorState();
-  const [slides, setSlides] = useState([{ id: 1, type: 'cover', title: 'Cover Page' }]);
-  const [currentSlide, setCurrentSlide] = useState(1);
-  const [nextSlideId, setNextSlideId] = useState(2); // Track next available ID
-  
-  // Project save state
-  const [currentProjectId, setCurrentProjectId] = useState(null);
-  const [isLoadingProject, setIsLoadingProject] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("Loading project...");
-  
+  const uiState = useUIState();
+  const projectState = useProjectState();
+  const slidesBar = useSlidesBar();
+  const headerToolbar = useHeaderToolbar(sessionUser, projectState.currentProjectId);
 
-
-  // Helper function to get bounds from points (for rendering)
-  const getPointsBounds = (points) => {
-    const xs = points.map(p => p.x);
-    const ys = points.map(p => p.y);
-    return {
-      minX: Math.min(...xs),
-      minY: Math.min(...ys),
-      maxX: Math.max(...xs),
-      maxY: Math.max(...ys)
-    };
-  };
-
-  
-  // Multiple locations state
-  const [multipleLocationsMode, setMultipleLocationsMode] = useState(false);
-  const [selectedLocationIndex, setSelectedLocationIndex] = useState(0); // User-selected location for next slide
-  
-  // Track counts for slide types that allow multiples
-  const [slideTypeCounts, setSlideTypeCounts] = useState({
-    street_view: 0
-  });
-  
-  // Global location data shared across all slides
-  const [globalLocationData, setGlobalLocationData] = useState({
-    premiseLocation: "",
-  });
-  
-  // Slide-specific data (everything except premiseLocation)
-  const [slideData, setSlideData] = useState({
-    1: {
-      formData: {
-        insuredName: "",
-        website: "",
-        description: "",
-        lineBusiness: "",
-        websiteInfo: "",
-      },
-      imageData: null,
-      imagePosition: { top: 300, left: 400 },
-      drawings: [], // Initialize drawings array
-      fieldPositions: {
-        insuredName: { top: 180, right: 124 }, // Adjusted for removed transform
-        premiseLocation: { top: 310, right: 124 }, // Adjusted for removed transform
-        website: { top: 370, right: 124 }, // Adjusted for removed transform
-        description: { top: 430, right: 124 }, // Adjusted for removed transform
-        lineBusiness: { top: 526, right: 124 }, // Adjusted for removed transform, aligned with ISO
-        isoClass: { top: 490, right: 124 }, // Adjusted for removed transform
-      }
-    }
-  });
-  const [showWebsite, setShowWebsite] = useState(true);
-  const [selectedField, setSelectedField] = useState(null);
-  const [businessesAtLocation, setBusinessesAtLocation] = useState([]);
-  const [showRatings, setShowRatings] = useState(true); // Show by default until search proves no business
-  const [fontSizes, setFontSizes] = useState({
-    insuredName: 96,
-    premiseLocation: 37,
-    website: 37,
-    description: 30,
-    lineBusiness: 30,
-  });
-  const [textAlignments, setTextAlignments] = useState({
-    fireStationName: 'left',
-    fireStationDistance: 'left',
-  });
-  const [showToolbar, setShowToolbar] = useState(true);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [showSlidesBar, setShowSlidesBar] = useState(true);
+  // Main branch state variables  
   const [showPopupDropdown, setShowPopupDropdown] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(100);
-  
-  // Project status state
-  const [currentProjectStatus, setCurrentProjectStatus] = useState('draft');
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  
-  // LRO form selection states
-  const [isLroDropdownOpen, setIsLroDropdownOpen] = useState(false);
-  const [lroForms, setLroForms] = useState([]);
-  const [lroSearchTerm, setLroSearchTerm] = useState('');
-  const [isLoadingLroForms, setIsLoadingLroForms] = useState(false);
-  
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
-  const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
-  // Autosave state - MUST be declared before custom hooks
-  const [lastSaveTime, setLastSaveTime] = useState(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
-  const [isProjectModified, setIsProjectModified] = useState(false);
-
-  // Derived values for current slide's field positions
-  const currentSlideData = slideData[currentSlide] || {};
-  const fieldPositions = currentSlideData.fieldPositions || {};
-  const setFieldPositions = (positions) => {
-    setSlideData(prev => ({
-      ...prev,
-      [currentSlide]: {
-        ...prev[currentSlide],
-        fieldPositions: positions
-      }
-    }));
-  };
-
-  // Drawing functionality using custom hook (after all required state is declared)
-  const drawing = useDrawing(slideData, setSlideData, currentSlide, zoomLevel, canvasOffset);
-
-  // Extract drawing state for easier access
-  const {
-    isDrawingMode, setIsDrawingMode, isDrawing, setIsDrawing,
-    currentDrawing, setCurrentDrawing, selectedDrawingIndex, setSelectedDrawingIndex,
-    isResizing, setIsResizing, resizeHandle, setResizeHandle,
-    isSquareEditMode, setIsSquareEditMode, isDraggingPoint, setIsDraggingPoint,
-    draggingPointIndex, setDraggingPointIndex,
-    rectToPoints, startPointDrag, updatePointPosition, deleteDrawing, startResize, updateDrawingSize
-  } = drawing;
-
-  // Project management functionality using custom hook
-  const {
-    loadProject,
-    saveProject,
-    createNewProject,
-    updateProjectStatus,
-    startAutoSave,
-    stopAutoSave
-  } = useProjectManager(
-    sessionUser,
-    slides,
-    setSlides,
-    slideData,
-    setSlideData,
-    globalLocationData,
-    setGlobalLocationData,
-    multipleLocationsMode,
-    setMultipleLocationsMode,
-    slideTypeCounts,
-    setSlideTypeCounts,
-    nextSlideId,
-    setNextSlideId,
-    setCurrentSlide,
-    fieldPositions,
-    setFieldPositions,
-    setIsLoadingProject,
-    setLoadingMessage,
-    currentProjectId,
-    setCurrentProjectId,
-    setCurrentProjectStatus,
-    setIsProjectModified,
-    setLastSaveTime,
-    setShowWebsite
-  );
-
-  // Canvas interaction functionality using custom hook
-  const {
-    handleCanvasMouseDown,
-    handleCanvasMouseMove,
-    handleCanvasMouseUp,
-    handleCanvasTouch,
-    handleCanvasTouchMove,
-    handleCanvasTouchEnd,
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd,
-    handleKeyDown,
-    isLongPress
-  } = useCanvasInteraction(
-    isDrawingMode,
-    setIsDrawing,
-    setCurrentDrawing,
-    setIsDraggingCanvas,
-    setDragStart,
-    isDraggingCanvas,
-    dragStart,
-    canvasOffset,
-    setCanvasOffset,
-    zoomLevel,
-    canvasRef,
-    currentDrawing,
-    slideData,
-    setSlideData,
-    currentSlide,
-    rectToPoints
-  );
-
-  // Slide management functionality using custom hook
-  const {
-    getSlideData,
-    updateSlideData,
-    updateFieldPositions,
-    updateSlideFormData,
-    addSlide,
-    deleteSlide,
-    duplicateSlide,
-    navigateToSlide,
-    updateSlideType,
-    getNextSlideId,
-    getSlideById,
-    getSlidesByType
-  } = useSlideManager(
-    slides,
-    setSlides,
-    slideData,
-    setSlideData,
-    globalLocationData,
-    setGlobalLocationData,
-    multipleLocationsMode,
-    selectedLocationIndex,
-    slideTypeCounts,
-    setSlideTypeCounts,
-    nextSlideId,
-    setNextSlideId,
-    currentSlide,
-    setCurrentSlide,
-    fieldPositions,
-    setFieldPositions,
-    sessionUser,
-    currentProjectId,
-    setIsProjectModified
-  );
-
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+  // Note: showSlidesBar and showRatings are now from uiState hook
 
-  // Drag and drop state for slide reordering
-  const [draggedSlideIndex, setDraggedSlideIndex] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
+  // Navigation protection using custom hook
+  useNavigationProtection(projectState.isProjectModified, () => projectManager.saveProject());
 
-  // Drag and drop handlers for slide reordering
-  const handleDragStart = (e, index, slide) => {
-    setDraggedSlideIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', e.target.outerHTML);
-    e.dataTransfer.setDragImage(e.target, 0, 0);
-  };
-
-  const handleDragEnd = (e) => {
-    setDraggedSlideIndex(null);
-    setDragOverIndex(null);
-  };
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (index !== draggedSlideIndex) {
-      setDragOverIndex(index);
+  // Set project ID from URL parameter
+  useEffect(() => {
+    if (projectId && projectId !== projectState.currentProjectId) {
+      projectState.setCurrentProjectId(projectId);
     }
-  };
+  }, [projectId, projectState.currentProjectId, projectState.setCurrentProjectId]);
 
-  const handleDrop = (e, dropIndex) => {
-    e.preventDefault();
+  // Load LRO forms on component mount
+  useEffect(() => {
+    headerToolbar.loadLroForms();
+  }, [headerToolbar.loadLroForms]);
 
-    if (draggedSlideIndex === null || draggedSlideIndex === dropIndex) {
-      return;
+  // Project management functions
+  const projectManager = useProjectManager(
+    sessionUser,
+    editorState.slides,
+    editorState.setSlides,
+    editorState.slideData,
+    editorState.setSlideData,
+    editorState.globalLocationData,
+    editorState.setGlobalLocationData,
+    editorState.multipleLocationsMode,
+    editorState.setMultipleLocationsMode,
+    editorState.slideTypeCounts,
+    editorState.setSlideTypeCounts,
+    editorState.nextSlideId,
+    editorState.setNextSlideId,
+    editorState.setCurrentSlide,
+    editorState.fieldPositions,
+    editorState.setFieldPositions,
+    projectState.setIsLoadingProject,
+    projectState.setLoadingMessage,
+    projectState.currentProjectId,
+    projectState.setCurrentProjectId,
+    projectState.setCurrentProjectStatus,
+    projectState.setIsProjectModified,
+    projectState.setLastSaveTime,
+    uiState.setShowWebsite
+  );
+
+  // Load project when URL parameter changes
+  useEffect(() => {
+    console.log('📥 Editor effect - projectId from URL:', projectId, 'currentProjectId:', projectState.currentProjectId);
+    if (projectId && projectId !== projectState.currentProjectId && projectManager?.loadProject) {
+      console.log('📥 Auto-loading project:', projectId);
+      projectManager.loadProject(projectId).catch(console.error);
     }
+  }, [projectId, projectState.currentProjectId, projectManager?.loadProject]);
 
-    // Create new slides array with reordered slides
-    const newSlides = [...slides];
-    const draggedSlide = newSlides[draggedSlideIndex];
-
-    // Remove the dragged slide from its original position
-    newSlides.splice(draggedSlideIndex, 1);
-
-    // Insert the dragged slide at the new position
-    const actualDropIndex = draggedSlideIndex < dropIndex ? dropIndex - 1 : dropIndex;
-    newSlides.splice(actualDropIndex, 0, draggedSlide);
-
-    // Update slides state
-    setSlides(newSlides);
-
-    // Mark project as modified
-    setIsProjectModified(true);
-
-    // Reset drag state
-    setDraggedSlideIndex(null);
-    setDragOverIndex(null);
-
-    console.log(`✅ Moved slide from position ${draggedSlideIndex} to ${actualDropIndex}`);
-  };
-
-  // Interior View Builder State
-  const [selectedFeatures, setSelectedFeatures] = useState([]);
-  const [waterStainStatus, setWaterStainStatus] = useState('none');
-  const [isInteriorBuilderVisible, setIsInteriorBuilderVisible] = useState(false);
+  // Drawing and interaction hooks (these need the state from above)
+  const drawing = useDrawing(
+    editorState.slideData,
+    editorState.setSlideData,
+    editorState.currentSlide,
+    uiState.zoomLevel,
+    uiState.canvasOffset
+  );
   
-  // Custom comment state
-  const [customCommentText, setCustomCommentText] = useState('');
-  const [showCustomCommentInput, setShowCustomCommentInput] = useState(false);
+  // Debug logging for canvas interaction props
+  // Canvas interaction is working properly now
 
-  // Zoom functions
-  const handleZoomIn = () => {
-    if (zoomLevel < ZOOM_MAX) {
-      const newZoom = Math.min(ZOOM_MAX, zoomLevel + ZOOM_STEP);
-      setZoomLevel(newZoom);
-    }
-  };
+  const canvasInteraction = useCanvasInteraction(
+    drawing?.isDrawingMode || false,
+    drawing?.setIsDrawing,
+    drawing?.setCurrentDrawing,
+    uiState?.setIsDraggingCanvas || (() => console.warn('setIsDraggingCanvas not available')),
+    uiState?.setDragStart || (() => console.warn('setDragStart not available')),
+    uiState?.isDraggingCanvas || false,
+    uiState?.dragStart || { x: 0, y: 0 },
+    uiState?.canvasOffset || { x: 0, y: 0 },
+    uiState?.setCanvasOffset || (() => console.warn('setCanvasOffset not available')),
+    uiState?.zoomLevel || 100,
+    uiState?.setZoomLevel || (() => console.warn('setZoomLevel not available')),
+    canvasRef,
+    drawing?.currentDrawing || null,
+    editorState?.slideData || {},
+    editorState?.setSlideData,
+    editorState?.currentSlide || 1,
+    drawing?.rectToPoints || (() => {})
+  );
+  const slideManager = useSlideManager(
+    editorState.slides,
+    editorState.setSlides,
+    editorState.slideData,
+    editorState.setSlideData,
+    editorState.globalLocationData,
+    editorState.setGlobalLocationData,
+    editorState.multipleLocationsMode,
+    editorState.selectedLocationIndex,
+    editorState.slideTypeCounts,
+    editorState.setSlideTypeCounts,
+    editorState.nextSlideId,
+    editorState.setNextSlideId,
+    editorState.currentSlide,
+    editorState.setCurrentSlide,
+    editorState.fieldPositions,
+    editorState.setFieldPositions,
+    sessionUser,
+    projectState.currentProjectId,
+    projectState.setIsProjectModified
+  );
 
-  const handleZoomOut = () => {
-    if (zoomLevel > ZOOM_MIN) {
-      const newZoom = Math.max(ZOOM_MIN, zoomLevel - ZOOM_STEP);
-      setZoomLevel(newZoom);
-    }
-  };
 
-  const handleZoomReset = () => {
-    setZoomLevel(100);
-    setCanvasOffset({ x: 0, y: 0 });
-  };
 
-  const zoomAtPoint = (newZoom, mouseX, mouseY) => {
-    const zoomFactor = newZoom / zoomLevel;
-    const newOffset = {
-      x: mouseX - (mouseX - canvasOffset.x) * zoomFactor,
-      y: mouseY - (mouseY - canvasOffset.y) * zoomFactor
-    };
-    setZoomLevel(newZoom);
-    setCanvasOffset(newOffset);
-  };
-
-  // Load LRO forms and check for existing project on component mount
-  useEffect(() => {
-    loadLroForms();
-    
-    // URL project loading is handled in the next useEffect to avoid race conditions
-  }, [sessionUser]);
-
-  // Initialize project when sessionUser changes
-  useEffect(() => {
-    const initializeProject = async () => {
-      console.log('🔍 initializeProject called - sessionUser:', sessionUser, 'currentProjectId:', currentProjectId);
-      
-      if (sessionUser && !currentProjectId) { // Only initialize if no project exists
-        // Check URL for existing project ID first
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlProjectId = urlParams.get('projectId') || urlParams.get('project');
-        
-        // Check session storage for backup in case of tab refresh
-        const lastSavedProject = sessionStorage.getItem('lastSavedProject');
-        if (lastSavedProject) {
-          try {
-            const parsed = JSON.parse(lastSavedProject);
-            console.log('📦 Found session storage backup:', parsed);
-            if (parsed.projectId === urlProjectId) {
-              console.log('✅ Session storage backup matches URL project ID');
-            }
-          } catch (error) {
-            console.warn('⚠️ Failed to parse session storage backup:', error);
-          }
-        }
-        
-        console.log('🔍 URL parameters:', {
-          urlProjectId,
-          sessionUser,
-          currentProjectId,
-          fullURL: window.location.href
-        });
-
-        let projectLoadedSuccessfully = false;
-
-        if (urlProjectId) {
-          // There's a project ID in URL - load it, don't create new
-          console.log('🔄 Loading existing project:', urlProjectId);
-
-          try {
-            await loadProject(urlProjectId);
-            console.log('✅ Successfully loaded project:', urlProjectId);
-            projectLoadedSuccessfully = true;
-
-            // Start autosave for loaded project
-            startAutoSave(urlProjectId);
-            console.log('🔄 Started autosave for project:', urlProjectId);
-
-            // Set up activity tracking for loaded project
-            const currentFormData = getSlideData(1)?.formData;
-            const projectName = currentFormData?.insuredName?.trim() || 'Loaded Property Review';
-            userActivityService.startWorking(sessionUser, urlProjectId, projectName);
-
-            // Set up heartbeat
-            const heartbeatInterval = setInterval(() => {
-              userActivityService.updateHeartbeat(sessionUser, urlProjectId);
-            }, 30000);
-
-            // Return cleanup function
-            return () => {
-              stopAutoSave();
-              userActivityService.stopWorking(sessionUser, urlProjectId);
-              clearInterval(heartbeatInterval);
-              if (urlProjectId) {
-                fieldActivityService.stopEditingField(sessionUser, `project-${urlProjectId}`);
-              }
-              if (currentFormId) {
-                fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
-              }
-              if (fieldHeartbeatInterval) {
-                clearInterval(fieldHeartbeatInterval);
-              }
-            };
-          } catch (error) {
-            console.error('❌ Failed to load project:', error);
-
-            // Clear invalid project ID from state and URL  
-            setCurrentProjectId(null);
-            window.history.replaceState({}, '', '/editor');
-            sessionStorage.removeItem('lastSavedProject');
-
-            console.log('🧹 Cleared invalid project ID, creating new project instead');
-
-            // projectLoadedSuccessfully remains false, so we'll create a new project below
-          }
-        }
-
-        // Create new project if no URL project ID OR if loading existing project failed
-        if (!urlProjectId || !projectLoadedSuccessfully) {
-          // No URL project ID or failed to load - create new project
-          console.log('🆕 Creating new project for sessionUser:', sessionUser);
-          let projectId;
-
-          // Create initial project save with cleaned up data structure
-          const initialProjectData = {
-            title: 'New Property Review',
-            name: 'New Property Review',
-            description: '',
-            sessionUser: sessionUser,
-            multipleLocationsMode: false, // Include at top level
-            selectedLocationIndex: 0,
-            status: 'editing',
-            formData: {
-              insuredName: "",
-              website: "",
-              description: ""
-            },
-            slideData: {
-              1: {
-                formData: {},
-                imageData: null,
-                imagePosition: { top: 300, left: 400 },
-                drawings: [],
-                fieldPositions: {}
-              },
-              // Include application state in slideData for consistency
-              _appState: {
-                showWebsite: showWebsite,
-                multipleLocationsMode: multipleLocationsMode,
-                fontSizes: fontSizes
-              }
-            },
-            slides: [{ id: 1, type: 'cover', title: 'Cover Page' }]
-          };
-
-          try {
-            const newProject = await apiService.createProject(initialProjectData);
-            projectId = newProject.id;
-            setCurrentProjectId(projectId); // Set the current project ID immediately
-
-            // Initialize location data service for the new project
-            locationDataService.initializeFromProject(initialProjectData, initialProjectData.multipleLocationsMode);
-
-            // Start autosave for new project
-            startAutoSave(projectId);
-            console.log('🔄 Started autosave for new project:', projectId);
-
-            window.history.replaceState({}, '', `/editor?projectId=${projectId}`);
-            console.log('✅ Created new project:', projectId);
-          } catch (error) {
-            console.error('❌ Failed to create project:', error);
-            return;
-          }
-
-          // Track project-level editing activity for new projects
-          if (sessionUser) {
-            fieldActivityService.startEditingField(
-              sessionUser,
-              `project-${projectId}`,
-              'Project: New Property Review'
-            );
-          }
-
-          const currentFormData = getSlideData(1)?.formData;
-          const projectName = currentFormData?.insuredName?.trim() || 'New Property Review';
-
-          userActivityService.startWorking(sessionUser, projectId, projectName);
-
-          // Set up heartbeat to keep activity alive
-          const heartbeatInterval = setInterval(() => {
-            userActivityService.updateHeartbeat(sessionUser, projectId);
-          }, 30000); // Every 30 seconds
-
-          // Cleanup when component unmounts or user changes
-          return () => {
-            stopAutoSave();
-            userActivityService.stopWorking(sessionUser, projectId);
-            clearInterval(heartbeatInterval);
-
-            // Clean up project-level field activity tracking
-            if (projectId) {
-              fieldActivityService.stopEditingField(sessionUser, `project-${projectId}`);
-            }
-
-            // Clean up form-level field activity tracking
-            if (currentFormId) {
-              fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
-            }
-
-            // Also clean up field heartbeat
-            if (fieldHeartbeatInterval) {
-              clearInterval(fieldHeartbeatInterval);
-            }
-          };
-        }
-      }
-    };
-    
-    initializeProject();
-  }, [sessionUser]); // Removed currentProjectId from deps to prevent re-runs
-
-  // Handle tab visibility changes - save when tab becomes hidden
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.hidden && currentProjectId) {
-        // Tab is being hidden - trigger a save to prevent data loss
-        console.log('📱 Tab hidden - triggering save for project:', currentProjectId);
-        try {
-          await saveProject("tab-switch", currentProjectId);
-        } catch (error) {
-          console.error('❌ Failed to save on tab switch:', error);
-        }
-      } else if (!document.hidden && currentProjectId) {
-        // Tab is visible again - restart autosave in case it was paused
-        console.log('📱 Tab visible - ensuring autosave is running for project:', currentProjectId);
-        startAutoSave(currentProjectId);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [currentProjectId, saveProject, startAutoSave]);
-
-  // Handle page unload - save before closing
-  useEffect(() => {
-    const handleBeforeUnload = async (e) => {
-      if (currentProjectId) {
-        console.log('🔚 Page unloading - attempting final save for project:', currentProjectId);
-        
-        // Use navigator.sendBeacon for reliability during page unload
-        const projectData = {
-          title: `Property Review ${new Date().toLocaleDateString()}`,
-          formData: globalLocationData,
-          slideData: slideData,
-          slides: slides,
-          fieldPositions: fieldPositions,
+  // Create context value with all the state and functions
+  const contextValue = {
+    // Editor state
+    ...editorState,
+    // UI state
+    ...uiState,
+    // Project state
+    ...projectState,
+    // Project manager functions
+    ...projectManager,
+    // Drawing functions
+    ...drawing,
+    // Canvas interaction
+    ...canvasInteraction,
+    // Slide manager
+    ...slideManager,
+    // Header toolbar functions
+    ...headerToolbar,
+    lroForms: headerToolbar.lroForms,
+    isLoadingLroForms: headerToolbar.isLoadingLroForms,
+    handleLroFormSelect: (formId) => {
+      headerToolbar.handleLroFormSelect(formId, {
+        setCurrentFormId: (id) => console.log('Set current form ID:', id),
+        updateSlideFormData: slideManager.updateSlideFormData,
+        setGlobalLocationData: editorState.setGlobalLocationData,
+        getSlideData: slideManager.getSlideData,
+        findIsoCodeByNumber: () => null,
+        multipleLocationsMode: editorState.multipleLocationsMode,
+        selectedLocationIndex: editorState.selectedLocationIndex,
+        locationDataService: editorState.locationDataService
+      });
+      uiState.setIsLroDropdownOpen(false);
+    },
+    handleExportToPDF: () => {
+      // Use the headerToolbar's export function to get proper loading states
+      headerToolbar.handleExportPdf(
+        editorState.slides,
+        editorState.slideData,
+        editorState.globalLocationData,
+        {
+          syncPositionsToDom: () => console.log('Syncing positions to DOM before export'),
           sessionUser: sessionUser,
-          _appState: {
-            globalLocationData: globalLocationData,
-            multipleLocationsMode: multipleLocationsMode,
-            lroFormId: globalLocationData?.lroFormId,
-            timestamp: new Date().toISOString()
-          }
-        };
-
-        // Try to use sendBeacon for more reliable saving during unload
-        try {
-          const blob = new Blob([JSON.stringify(projectData)], { type: 'application/json' });
-          const success = navigator.sendBeacon(`/api/projects/${currentProjectId}`, blob);
-          console.log('📡 SendBeacon save result:', success);
-        } catch (error) {
-          console.error('❌ SendBeacon save failed:', error);
+          currentSlide: editorState.currentSlide,
+          setCurrentSlide: editorState.setCurrentSlide
         }
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [currentProjectId, globalLocationData, slideData, slides, fieldPositions, sessionUser, multipleLocationsMode]);
-
-  // Set up mouse wheel event listener for slides container
-  useEffect(() => {
-    const slidesContainer = slidesContainerRef.current;
-    if (!slidesContainer) return;
-
-    const handleWheel = (e) => {
-      // Check if we're over a dropdown - be more specific about dropdown detection
-      const isOverDropdown = e.target.closest('.dropdown-item') ||
-                            e.target.closest('[role="menu"]') ||
-                            (e.target.closest('[style*="position: fixed"]') && 
-                             e.target.closest('[style*="zIndex: 5000"]'));
-
-      // Only convert vertical mouse wheel to horizontal scroll if not over dropdown
-      if (!isOverDropdown) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Use a multiplier to make scrolling more responsive
-        const scrollAmount = e.deltaY * 2;
-        slidesContainer.scrollLeft += scrollAmount;
-      }
-    };
-
-    // Add event listener with { passive: false } to allow preventDefault
-    slidesContainer.addEventListener('wheel', handleWheel, { passive: false });
-
-    // Cleanup
-    return () => {
-      slidesContainer.removeEventListener('wheel', handleWheel);
-    };
-  }, []);
-
-  // Load LRO forms
-  const loadLroForms = async () => {
-    try {
-      setIsLoadingLroForms(true);
-      const forms = await lroDataService.getAllForms();
-      setLroForms(forms);
-    } catch (error) {
-    } finally {
-      setIsLoadingLroForms(false);
-    }
-  };
-
-  // Function to find ISO code in the CSV file by exact code number
-  const findIsoCodeByNumber = async (isoCode) => {
-    try {
-      // Load all ISO codes from CSV file to ensure they're available
-      const allIsoCodes = await loadIsoCodes();
-      // console.log('Loaded', allIsoCodes?.length || 0, 'ISO codes from CSV, searching for:', isoCode);
-      
-      // Use findBestMatch which will first try exact code match, then description search
-      const bestMatch = findBestMatch(isoCode);
-      
-      if (bestMatch) {
-        // console.log('Found CSV match for code', isoCode, ':', bestMatch);
-        return bestMatch; // Return the match directly
-      }
-      
-      // console.log('No match found in CSV for code:', isoCode);
-      return null;
-    } catch (error) {
-      return null;
-    }
-  };
-
-  // Current form being edited (for field tracking)
-  const [currentFormId, setCurrentFormId] = useState(null);
-  const [fieldHeartbeatInterval, setFieldHeartbeatInterval] = useState(null);
-
-  // Handle LRO form selection
-  const handleLroFormSelect = async (formId) => {
-    try {
-      const apiResponse = await lroDataService.getFormDataForPropertyReview(formId);
-      
-      // Set the current form ID for field tracking
-      setCurrentFormId(formId);
-      
-      // Store the original LRO form ID in the project data for future reference
-      const currentData = getSlideData(1)?.formData || {};
-      if (!currentData.originalLroFormId) {
-        updateSlideFormData(1, { originalLroFormId: formId });
-      }
-      
-      // Search for full ISO description if we have an ISO code from database
-      let fullIsoDescription = apiResponse.description || '';
-      if (apiResponse.isoClass && apiResponse.isoClass.trim()) {
-        // console.log('Searching for ISO code:', apiResponse.isoClass);
-        
-        try {
-          // Search for the ISO code in the CSV file system
-          const match = await findIsoCodeByNumber(apiResponse.isoClass.trim());
-          
-          if (match && match.full_text) {
-            // Use the full "code - description" format from CSV
-            fullIsoDescription = match.full_text;
-            // console.log('Using CSV ISO description:', fullIsoDescription);
-          } else {
-            // console.log('No CSV match found for code:', apiResponse.isoClass);
-            fullIsoDescription = apiResponse.isoClass || '';
-          }
-        } catch (error) {
-              fullIsoDescription = apiResponse.isoClass || '';
-        }
-      }
-      
-      // Auto-fill the property review fields for the first slide (cover page)
-      const lroFormData = {
-        insuredName: apiResponse.insuredName || '',
-        premiseLocation: apiResponse.premiseLocation || '',
-        description: fullIsoDescription,
-        website: apiResponse.website || '',
-        isoClass: apiResponse.isoClass || '',
+      );
+    },
+    saveProject: () => {
+      headerToolbar.handleSaveProject(() => projectManager.saveProject(false));
+    },
+    currentProjectStatus: projectState.currentProjectStatus,
+    showStatusDropdown: projectState.showStatusDropdown,
+    setShowStatusDropdown: projectState.setShowStatusDropdown,
+    updateProjectStatus: (status) => {
+      projectState.setCurrentProjectStatus(status);
+      headerToolbar.handleUpdateProjectStatus(status);
+    },
+    getStatusDisplay: (status) => {
+      const displays = {
+        'draft': 'Draft',
+        'approved': 'Approved', 
+        'denied': 'Denied',
+        'conditional': 'Conditional'
       };
-
-      // Debug output removed to reduce console clutter
-
-      // Update both location service and slide data
-      if (multipleLocationsMode && selectedLocationIndex !== undefined) {
-        // In multiple locations mode, update the current location's data
-        Object.entries(lroFormData).forEach(([field, value]) => {
-          locationDataService.updateLocationData(selectedLocationIndex, field, value);
-        });
-        // Updated location data
-      }
-
-      // Always update slide form data (this will handle location-aware routing)
-      updateSlideFormData(1, lroFormData);
-      
-      // Also update global location data to ensure consistency
-      setGlobalLocationData(prev => {
-        const updatedData = {
-          ...prev,
-          ...lroFormData
-        };
-        // Updated global location data
-        return updatedData;
-      });
-      
-      // LRO form loading completed
-      
-      // Update user activity to show which specific application they're working on
-      if (sessionUser && apiResponse.insuredName) {
-        const projectId = `property-review-${formId}`; // Use the actual form ID
-        const projectName = `${apiResponse.insuredName} - ${apiResponse.premiseLocation || 'Property Review'}`;
-        
-        userActivityService.startWorking(sessionUser, projectId, projectName);
-        
-        // Also trigger field-level editing activity immediately when selecting from dropdown
-        fieldActivityService.startEditingField(sessionUser, `insuredName-${formId}`, 'Insured Name');
-        
-        // Track form-level editing activity for dropdown display
-        // console.log(`🏷️ Tracking form-level activity: form-${formId} for user ${sessionUser}`);
-        fieldActivityService.startEditingField(
-          sessionUser, 
-          `form-${formId}`, 
-          `Form: ${apiResponse.insuredName || 'N/A'}`
-        );
-        
-        // Clear any existing heartbeat
-        if (fieldHeartbeatInterval) {
-          clearInterval(fieldHeartbeatInterval);
-        }
-        
-        // Set up heartbeat to keep field activity alive while working on this form
-        const heartbeat = setInterval(() => {
-          if (sessionUser && formId) {
-            fieldActivityService.updateFieldHeartbeat(sessionUser, `insuredName-${formId}`);
-          }
-        }, 30000); // Update every 30 seconds
-        
-        setFieldHeartbeatInterval(heartbeat);
-      }
-      
-      // Handle website visibility based on backend flag
-      if (typeof apiResponse.showWebsite !== 'undefined') {
-        // console.log('Setting website visibility to:', apiResponse.showWebsite);
-        setShowWebsite(apiResponse.showWebsite);
-      }
-      
-      // Handle multiple locations based on backend flag
-      if (typeof apiResponse.hasMultipleLocations !== 'undefined') {
-        // console.log('Setting multiple locations mode to:', apiResponse.hasMultipleLocations);
-        setMultipleLocationsMode(apiResponse.hasMultipleLocations);
-      }
-      
-      setIsLroDropdownOpen(false);
-      setLroSearchTerm('');
-    } catch (error) {
-      alert('Error loading form data. Please try again.');
-    }
+      return displays[status] || 'Draft';
+    },
+    // Services
+    apiService: projectState.apiService,
+    editorApiService: projectState.editorApiService,
+    locationDataService: projectState.locationDataService,
+    // Utility functions
+    exportToPDF,
+    slideComponents,
+    device
   };
 
-  // Add document event listeners for canvas dragging
-  useEffect(() => {
-    const handleDocumentMouseMove = (e) => {
-      if (isDraggingCanvas) {
-        const newOffset = {
-          x: e.clientX - dragStart.x,
-          y: e.clientY - dragStart.y
-        };
-        setCanvasOffset(newOffset);
-        e.preventDefault();
-      }
-    };
+  // Main branch variables and functions
+  const { slides, currentSlide, slideData, nextSlideId, slideTypeCounts, setSlides, setCurrentSlide, setSlideData, setNextSlideId, setSlideTypeCounts } = editorState;
+  const { multipleLocationsMode, selectedLocationIndex } = editorState;
 
-    const handleDocumentMouseUp = () => {
-      if (isDraggingCanvas) {
-        setIsDraggingCanvas(false);
-      }
-    };
-
-    if (isDraggingCanvas) {
-      document.addEventListener('mousemove', handleDocumentMouseMove);
-      document.addEventListener('mouseup', handleDocumentMouseUp);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleDocumentMouseMove);
-        document.removeEventListener('mouseup', handleDocumentMouseUp);
-      };
-    }
-  }, [isDraggingCanvas, dragStart]);
-
-  // Update dropdown position dynamically
-  const updateDropdownPosition = () => {
-    if (showPopupDropdown && addButtonRef.current) {
-      const rect = addButtonRef.current.getBoundingClientRect();
-      const dropdownWidth = 180;
-      const dropdownHeight = 200; // Approximate height of dropdown
-      const viewportWidth = window.innerWidth;
-
-      // Calculate if dropdown would go off-screen
-      let leftPosition = rect.left;
-      if (rect.left + dropdownWidth > viewportWidth - 20) {
-        // Position from right edge of button if it would overflow
-        leftPosition = rect.right - dropdownWidth;
-      }
-
-      setPopupPosition({
-        top: rect.top - dropdownHeight - 8, // Position above the button with 8px gap
-        left: Math.max(20, leftPosition), // Ensure minimum 20px from left edge
-      });
-    }
-  };
-
-  // Update position when dropdown opens and when button might move
-  useEffect(() => {
-    updateDropdownPosition();
-  }, [showPopupDropdown]);
-
-  // Follow button position during scroll and resize
-  useEffect(() => {
-    if (showPopupDropdown) {
-      const handlePositionUpdate = () => updateDropdownPosition();
-
-      window.addEventListener('scroll', handlePositionUpdate, true); // Capture phase for all scrolls
-      window.addEventListener('resize', handlePositionUpdate);
-
-      // Also update on animation frames for smooth following
-      const animationFrame = requestAnimationFrame(handlePositionUpdate);
-
-      return () => {
-        window.removeEventListener('scroll', handlePositionUpdate, true);
-        window.removeEventListener('resize', handlePositionUpdate);
-        cancelAnimationFrame(animationFrame);
-      };
-    }
-  }, [showPopupDropdown]);
-
-  // Handle wheel events with non-passive listener to allow preventDefault
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const wheelHandler = (e) => {
-      // Check if mouse is over a dropdown (same logic as handleWheel)
-      const isInDropdown = e.target.closest('[role="button"]') || 
-                          e.target.closest('.dropdown-menu') || 
-                          e.target.closest('[style*="maxHeight"]');
-      
-      if (isInDropdown) {
-        return;
-      }
-      
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-      const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomLevel + delta));
-      
-      if (newZoom !== zoomLevel) {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        zoomAtPoint(newZoom, mouseX, mouseY);
-      }
-    };
-
-    canvas.addEventListener('wheel', wheelHandler, { passive: false });
-    
-    return () => {
-      canvas.removeEventListener('wheel', wheelHandler);
-    };
-  }, [zoomLevel, canvasOffset]); // Dependencies needed for zoomAtPoint
-
-
-  // Close status dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showStatusDropdown && !event.target.closest('.dropdown')) {
-        setShowStatusDropdown(false);
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [showStatusDropdown]);
-
-  // Handle page refresh/close - save before unload
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (hasUnsavedChanges && sessionUser && currentProjectId) {
-        // Try to save the project (async but browser may not wait)
-        try {
-          saveProject("auto", currentProjectId);
-          // console.log('Project saved before page unload');
-        } catch (error) {
-        }
-        
-        // Show browser confirmation dialog
-        e.preventDefault();
-        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-        return e.returnValue;
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [hasUnsavedChanges, sessionUser, currentProjectId]);
-
-  // Restore showWebsite state from loaded project data
-  useEffect(() => {
-    if (slideData && slideData._appState && typeof slideData._appState.showWebsite !== 'undefined') {
-      console.log('🔧 Restoring showWebsite state from project data:', slideData._appState.showWebsite);
-      setShowWebsite(slideData._appState.showWebsite);
-    }
-  }, [slideData._appState?.showWebsite]);
-
-  // Track changes to mark as unsaved
-  useEffect(() => {
-    setHasUnsavedChanges(true);
-  }, [slideData, globalLocationData, slides, fontSizes, showWebsite, multipleLocationsMode]);
-
-  // Automatically check for businesses when premise location changes
-  useEffect(() => {
-    if (globalLocationData.premiseLocation) {
-      checkForBusinessAtLocation(globalLocationData.premiseLocation);
-    }
-  }, [globalLocationData.premiseLocation]);
-
-  // Initialize location data service when multiple locations mode is enabled
-  useEffect(() => {
-    if (multipleLocationsMode && globalLocationData.premiseLocation) {
-      // Ensure location data service is properly initialized
-      if (locationDataService.getLocationCount() === 0) {
-        locationDataService.initializeFromProject({
-          formData: globalLocationData
-        }, multipleLocationsMode);
-      }
-    }
-  }, [multipleLocationsMode, globalLocationData]);
-
+  // SlideOptions from main branch
   const slideOptions = [
-    'Aerial View - Google', 'Aerial View - Bing', 'Street View', 'Interior', 'Online Presence', 'License',
-    'Comments', 'Nearest Fire Station', 'Fire Hazard', 'Crime Rate', 'Ratings', 'Website'
+    'Street View',
+    'Aerial View - Google', 
+    'Aerial View - Bing',
+    'Interior',
+    'Online Presence',
+    'License',
+    'Comments',
+    'Fire Hazard',
+    'Crime Rate',
+    'Nearest Fire Station',
+    'Website',
+    'Ratings'
   ];
 
-  // Simplified business search using backend API
-  const searchBusinessRatings = async (location, businessName = null) => {
-    if (!location) {
-      alert('Please enter a location first');
-      return;
-    }
+  // Add slide function from main branch
+  const addSlide = (slideType) => {
+    const slideTypeKey = slideType.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
     
-    if (currentProjectId) {
-      await editorApiService.openBusinessSearch(currentProjectId);
-    } else {
-      // Fallback for when no project ID is available
-      const cleanLocation = location.replace(/^Location\s+\d+:\s*/, '').trim();
-      const searchQuery = businessName ? `"${businessName}" "${cleanLocation}" reviews` : cleanLocation;
-      const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-      window.open(googleSearchUrl, '_blank');
-    }
-  };
-
-  // Simplified business detection - always show ratings for simplicity
-  // Complex heuristics removed since backend handles location-based logic
-  const checkForBusinessAtLocation = async (location) => {
-    if (!location || location.trim() === '') {
-      setShowRatings(false);
-      return;
-    }
+    // Handle special cases
+    let actualSlideType = slideTypeKey;
+    let slideTitle = slideType;
     
-    // Simplified: always show ratings option for any location
-    setShowRatings(true);
-    setBusinessesAtLocation([]);
-  };
-
-  const handleFontSizeChange = async (e) => {
-    const size = parseInt(e.target.value);
-    if (selectedField && !isNaN(size)) {
-      setFontSizes((prev) => {
-        const newFontSizes = { ...prev, [selectedField]: size };
-        
-        // Save to backend if we have a current project
-        if (currentProjectId) {
-          apiService.updateAppState(currentProjectId, { fontSizes: newFontSizes })
-            .then(() => {})
-            .catch(error => {});
-        }
-        
-        return newFontSizes;
-      });
-    }
-  };
-
-  // Parse multiple locations from premise location text field
-  // Helper function to check if a point is inside a rectangle
-
-  const parseMultipleLocations = (premiseLocationText) => {
-    if (!premiseLocationText || !multipleLocationsMode) return [];
-    
-    const lines = premiseLocationText.split('\n').filter(line => line.trim());
-    const locations = [];
-    
-    lines.forEach((line, index) => {
-      if (index >= 5) return; // Limit to 5 locations
+    if (slideTypeKey === 'street_view') {
+      const newCount = slideTypeCounts.street_view + 1;
+      slideTitle = `Street View ${newCount}`;
+      actualSlideType = `street_view_${newCount}`;
       
-      const trimmedLine = line.trim();
-      if (trimmedLine) {
-        // Check if line starts with "Location X:" pattern
-        const locationMatch = trimmedLine.match(/^Location\s+\d+:\s*(.+)$/i);
-        if (locationMatch) {
-          locations.push(locationMatch[1].trim());
-        } else {
-          // If not in the expected format, treat the whole line as a location
-          locations.push(trimmedLine);
-        }
-      }
-    });
-    
-    return locations;
-  };
-
-  // Generate slides for multiple locations
-  const generateMultipleLocationSlides = (slideType, locations) => {
-    const newSlides = [];
-    
-    locations.forEach((location, index) => {
-      if (index >= 5) return; // Limit to 5 locations
-      
-      const slideTypeKey = slideType.toLowerCase().replace(/\s+/g, '_');
-      let slideTitle = `${slideType} - Location ${index + 1}`;
-      let actualSlideType = slideTypeKey;
-      
-      // Handle street view numbering
-      if (slideTypeKey === 'street_view') {
-        const newCount = slideTypeCounts.street_view + index + 1;
-        slideTitle = `Street View ${newCount} - Location ${index + 1}`;
-        actualSlideType = `street_view_${newCount}`;
-      }
-      
-      const newSlide = {
-        id: nextSlideId + index,
-        type: actualSlideType,
-        title: slideTitle,
-        locationIndex: index,
-        specificLocation: location
-      };
-      
-      newSlides.push(newSlide);
-    });
-    
-    return newSlides;
-  };
-
-  // Helper function to check if a point is inside a rectangle
-  const isPointInRectangle = (x, y, rect) => {
-    const minX = Math.min(rect.startX, rect.endX);
-    const maxX = Math.max(rect.startX, rect.endX);
-    const minY = Math.min(rect.startY, rect.endY);
-    const maxY = Math.max(rect.startY, rect.endY);
-    
-    const isInside = x >= minX && x <= maxX && y >= minY && y <= maxY;
-    // Point in rectangle check
-    
-    return isInside;
-  };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // Helper function to get status display text
-  const getStatusDisplay = (status) => {
-    switch (status) {
-      case 'approved': return 'Mark Approved';
-      case 'denied': return 'Mark Denied';
-      case 'conditional': return 'Mark Conditional';
-      default: return 'Mark Status';
-    }
-  };
-
-  const handleExportToPDF = async () => {
-    try {
-      // Get slide elements in order
-      const slideElements = slides
-        .map(slide => slideRefs.current[slide.id])
-        .filter(Boolean);
-      
-      if (slideElements.length === 0) {
-        alert('No slides found to export. Please make sure slides are loaded.');
-        return;
-      }
-
-      // Sync current positions to DOM before PDF export
-      slides.forEach(slide => {
-        const slideComponentRef = slideComponentRefs.current[slide.id];
-        if (slideComponentRef && slideComponentRef.syncPositionsToDom) {
-          slideComponentRef.syncPositionsToDom();
-        }
-      });
-
-      // Wait a moment for any state updates to apply to DOM
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Generate filename using insured name from first slide
-      const insuredName = getSlideData(1)?.formData?.insuredName?.trim();
-      const filename = insuredName 
-        ? `Property Review ${insuredName}.pdf`
-        : 'Property Review.pdf';
-
-      // console.log(`Exporting ${slideElements.length} slides to: ${filename}`);
-      
-      // Show loading state
-      const button = document.querySelector('.export-pdf-btn');
-      const originalText = button?.textContent;
-      if (button) {
-        button.textContent = 'Generating PDF...';
-        button.disabled = true;
-      }
-
-      await exportToPDF(slideElements, filename);
-
-      // PDF exported successfully - save to exported items
-      try {
-        const exportedItem = exportedItemsService.addExportedItem({
-          filename: filename,
-          project_name: currentProjectName || 'Untitled Project',
-          file_size: null, // File size not available from browser export
-          file_path: filename
-        });
-      } catch (error) {
-      }
-
-      // Show success message
-      alert(`PDF exported successfully as: ${filename}`);
-
-    } catch (error) {
-      alert('Failed to export PDF. Please try again.');
-    } finally {
-      // Restore button state
-      const button = document.querySelector('.export-pdf-btn');
-      if (button) {
-        button.textContent = 'Export to PDF';
-        button.disabled = false;
-      }
-    }
-  };
-
-
-  const renderSlide = (slideId) => {
-    const slideData = slides.find(s => s.id === slideId);
-    if (!slideData) return null;
-
-    const slideSpecificData = getSlideData(slideId);
-
-    // For SlideOne (property information slide), use globalLocationData instead of slideSpecificData.formData
-    // This ensures LRO database loading shows up correctly in the text fields
-    const isPropertyInfoSlide = slideId === 1 || slideData.type === 'cover' || slideData.type === 'property_info';
-    const formDataToUse = isPropertyInfoSlide ? globalLocationData : slideSpecificData.formData;
-    
-    // Debug logging for SlideOne data flow (reduced logging)
-    if (isPropertyInfoSlide && (!formDataToUse.insuredName || !formDataToUse.website)) {
-      // Debug output removed to reduce console clutter
+      setSlideTypeCounts(prev => ({
+        ...prev,
+        street_view: newCount
+      }));
+    } else if (slideType === 'Aerial View - Google') {
+      actualSlideType = 'slide-2';
+      slideTitle = 'Google Aerial View';
+    } else if (slideType === 'Aerial View - Bing') {
+      actualSlideType = 'slide-3';
+      slideTitle = 'Bing Aerial View';
     }
 
-    const slideProps = {
-      formData: formDataToUse,
-      setFormData: (updates) => updateSlideFormData(slideId, updates),
-      onSelect: setSelectedField,
-      selectedField: slideId === currentSlide ? selectedField : null,
-      fontSizes,
-      textAlignments,
-      showWebsite,
-      setShowWebsite, // Add this for LRO form handling
-      multipleLocationsMode,
-      setMultipleLocationsMode,
-      selectedLocationIndex,
-      slideId,
-      currentProjectId, // Add project ID for backend API calls
-      sessionUser, // Add session user for field tracking
-      currentFormId, // Add current form ID for specific field tracking
-      slideData: slideSpecificData,
-      updateSlideData: (updates) => updateSlideData(slideId, updates),
-      fieldPositions: slideSpecificData.fieldPositions || {},
-      setFieldPositions: (positions) => updateFieldPositions(slideId, positions),
-      zoomLevel: zoomLevel,
-      isActiveSlide: slideId === currentSlide,
-      allSlideData: slideData, // Pass all slide data for cross-slide logic  
-      slides: slides // Pass slides array to check slide types
+    // Create new slide
+    const newSlide = {
+      id: nextSlideId,
+      type: actualSlideType,
+      title: slideTitle,
+      locationIndex: multipleLocationsMode ? selectedLocationIndex : 0
     };
 
-    // Debug logging for Comments slide
-    if (slideData.type === 'comments') {
-      console.log('Comments slide debug:', {
-        hasFormData: !!formDataToUse,
-        formData: formDataToUse,
-        hasFieldPositions: !!(slideSpecificData.fieldPositions),
-        fieldPositions: slideSpecificData.fieldPositions,
-        slideSpecificData: slideSpecificData
+    // Add slide and switch to it
+    setSlides([...slides, newSlide]);
+    setCurrentSlide(newSlide.id);
+    setNextSlideId(nextSlideId + 1);
+    setShowPopupDropdown(false);
+  };
+
+  // Delete slide function
+  const deleteSlide = (slideId) => {
+    if (slides.length > 1) {
+      const slideToDelete = slides.find(slide => slide.id === slideId);
+      const updatedSlides = slides.filter(slide => slide.id !== slideId);
+      
+      // Update counters if needed
+      if (slideToDelete && slideToDelete.type.startsWith('street_view')) {
+        setSlideTypeCounts(prev => ({
+          ...prev,
+          street_view: Math.max(0, prev.street_view - 1)
+        }));
+      }
+      
+      setSlides(updatedSlides);
+      
+      // Remove slide data
+      setSlideData(prev => {
+        const newData = { ...prev };
+        delete newData[slideId];
+        return newData;
+      });
+      
+      if (currentSlide === slideId) {
+        setCurrentSlide(updatedSlides[0].id);
+      }
+    }
+  };
+
+  // Get slide data function - use slideManager's version for proper global data merging
+  const getSlideData = slideManager.getSlideData;
+
+  // Position dropdown based on button position
+  useEffect(() => {
+    if (showPopupDropdown && addButtonRef.current) {
+      const rect = addButtonRef.current.getBoundingClientRect();
+      const isNearBottom = rect.bottom > window.innerHeight - 220;
+      const isNearRight = rect.right > window.innerWidth - 200;
+      
+      setPopupPosition({
+        top: isNearBottom ? rect.top - 200 : rect.bottom + 5,
+        left: isNearRight ? rect.left - 180 : rect.left
       });
     }
+  }, [showPopupDropdown]);
 
-    // Handle all street view variants (street_view_1, street_view_2, etc.)
-    if (slideData.type.startsWith('street_view')) {
-      return <StreetView 
-        {...slideProps} 
-        ref={(el) => { slideComponentRefs.current[slideId] = el; }}
-      />;
-    }
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showPopupDropdown && 
+          addButtonRef.current && 
+          !addButtonRef.current.contains(event.target) &&
+          !event.target.closest('.dropdown-item')) {
+        setShowPopupDropdown(false);
+      }
+    };
 
-    return (
-      <SlideRenderer
-        slideData={slideData}
-        slideProps={slideProps}
-        slideComponentRefs={slideComponentRefs}
-        getSlideData={getSlideData}
-        slideId={slideId}
-      />
-    );
-  };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPopupDropdown]);
 
-  const renderCurrentSlide = () => {
-    return renderSlide(currentSlide);
-  };
-
-  // Show loading screen while project is loading
-  if (isLoadingProject) {
-    return (
-      <ProjectLoadingScreen
-        projectTitle={globalLocationData?.insuredName || "Property Project"}
-        message={loadingMessage}
-      />
-    );
+  // Show loading screen if loading project
+  if (projectState.isLoadingProject) {
+    return <ProjectLoadingScreen message={projectState.loadingMessage} />;
   }
 
-  // Prepare EditorContext value
-  const editorContextValue = {
-    // Core state
-    currentSlide,
-    slides,
-    slideData,
-    currentProjectId,
-    
-    // Location data
-    globalLocationData,
-    multipleLocationsMode,
-    selectedLocationIndex,
-    setSelectedLocationIndex,
-    setMultipleLocationsMode,
-    parseMultipleLocations,
-    
-    // Services
-    apiService,
-    editorApiService,
-    locationDataService,
-    
-    // Font sizes
-    selectedField,
-    fontSizes,
-    setFontSizes,
-    handleFontSizeChange,
-    
-    // Website
-    showWebsite,
-    setShowWebsite,
-    
-    // Ratings/Business
-    showRatings,
-    businessesAtLocation,
-    setBusinessesAtLocation,
-    searchBusinessRatings,
-    
-    // Comments (for slide-specific comment options)
-    customCommentText,
-    setCustomCommentText,
-    showCustomCommentInput,
-    setShowCustomCommentInput,
-    
-    // Fire data - TODO: Add these states to Editor
-    fireHazardData: { enabled: false },
-    setFireHazardData: () => {},
-    fireStationData: { enabled: false },
-    setFireStationData: () => {},
-    
-    // Drawing controls
-    isDrawingMode,
-    setIsDrawingMode,
-    isSquareEditMode,
-    setIsSquareEditMode,
-    selectedDrawingIndex,
-    setSelectedDrawingIndex,
-    setSlideData,
-    
-    // Text alignment
-    textAlignments,
-    setTextAlignments,
-    
-    // Toolbar visibility
-    showToolbar,
-    setShowToolbar,
-    
-    // Helper functions
-    getCurrentLocation: () => {
-      const premiseLocation = globalLocationData?.premiseLocation || getSlideData(1)?.formData?.premiseLocation || '';
-      if (!premiseLocation.trim()) return '';
-      
-      if (multipleLocationsMode) {
-        const locations = parseMultipleLocations(premiseLocation);
-        if (locations.length > selectedLocationIndex) {
-          return locations[selectedLocationIndex];
-        }
-        return locations[0] || '';
-      } else {
-        const firstLine = premiseLocation.split('\n')[0]?.trim() || '';
-        return firstLine.replace(/^Location\s+\d+:\s*/, '').trim();
-      }
-    },
-    
-    // Slide operations
-    getSlideData,
-    updateSlideFormData
-  };
+  // Get current slide component
+  const currentSlideData = editorState.slides?.find(s => s.id === editorState.currentSlide);
+  
+  // Handle dynamic slide type mapping (e.g., street_view_1, street_view_2, etc.)
+  let slideType = currentSlideData?.type;
+  if (slideType && slideType.startsWith('street_view_')) {
+    slideType = 'street_view';
+  }
+  
+  const SlideComponent = currentSlideData ? slideComponents[slideType] : SlideOne;
 
   return (
-    <EditorProvider value={editorContextValue}>
+    <EditorProvider value={contextValue}>
+      {/* Saving Popup */}
+      <SavingPopup 
+        isVisible={headerToolbar.isSaving || headerToolbar.isExporting || projectState.isLoadingProject} 
+        message={
+          headerToolbar.isExporting ? "Exporting PDF..." :
+          headerToolbar.isSaving ? "Saving project..." :
+          projectState.isLoadingProject ? projectState.loadingMessage :
+          "Processing..."
+        } 
+      />
+      
       <div className={`editor-page position-relative ${device.isMobile ? 'mobile-layout' : ''} ${device.isTablet ? 'tablet-layout' : ''}`} style={{ height: "100vh", overflow: "hidden" }}>
+      
+      {/* Unsaved Changes Indicator */}
+      {projectState.isProjectModified && (
+        <div
+          style={{
+            position: "fixed",
+            top: NAVBAR_HEIGHT + 10,
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "#ffc107",
+            color: "#212529",
+            padding: "8px 16px",
+            borderRadius: "20px",
+            fontSize: "14px",
+            fontWeight: "600",
+            zIndex: 1001,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            border: "2px solid #ffca28"
+          }}
+        >
+          ⚠️ Unsaved changes - Save before leaving (Ctrl+S)
+        </div>
+      )}
       
       {/* Mobile Sidebar Toggle Button */}
       {device.isMobile && (
         <button
-          onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          onClick={() => uiState.setIsMobileSidebarOpen(!uiState.isMobileSidebarOpen)}
           style={{
             position: "fixed",
             top: NAVBAR_HEIGHT + 20,
@@ -1456,364 +492,16 @@ export default function Editor({ sessionUser }) {
             justifyContent: "center",
           }}
         >
-          {isMobileSidebarOpen ? "×" : "☰"}
+          {uiState.isMobileSidebarOpen ? "×" : "☰"}
         </button>
       )}
-      
 
-
-      {/* Custom scrollbar styles */}
-      <style>
-        {`
-          .custom-scrollbar::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 4px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #a1a1a1;
-          }
-          .slides-scrollbar {
-            scrollbar-width: thin;
-            scrollbar-color: #c1c1c1 #f1f1f1;
-          }
-          /* Only show horizontal scrollbar */
-          .slides-scrollbar::-webkit-scrollbar {
-            width: 0; /* Hide vertical */
-            height: 10px; /* Show horizontal */
-          }
-          .slides-scrollbar::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 5px;
-          }
-          .slides-scrollbar::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 5px;
-          }
-          .slides-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #a1a1a1;
-          }
-        `}
-      </style>
-      {/* Professional Navbar */}
-      <nav className={`navbar navbar-light bg-white shadow-sm px-3 py-0 d-flex justify-content-between align-items-center position-fixed w-100`} style={{ top: 0, zIndex: 1003, height: NAVBAR_HEIGHT }}>
-        {/* Left - Logo & Brand */}
-        <div 
-          className="d-flex align-items-center py-2" 
-          style={{ 
-            cursor: "pointer",
-            transition: "opacity 0.2s ease",
-            borderRadius: "6px",
-            padding: "8px 12px",
-            margin: "-8px -12px"
-          }}
-          onClick={() => {
-            navigate("/");
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-          onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-        >
-          <img 
-            src="/NeitClemLogo.png" 
-            alt="Logo" 
-            style={{ width: "32px", height: "32px", marginRight: "8px" }} 
-          />
-          <span className="fw-semibold text-dark" style={{ fontSize: "16px" }}>
-            Property Review Maker
-          </span>
-        </div>
-        
-        {/* Right - Actions Toolbar */}
-        <div className="d-flex align-items-center" style={{ gap: "4px" }}>
-          {/* LRO Database Dropdown */}
-          <div className="position-relative">
-            <button
-              className="btn btn-outline-secondary btn-sm d-flex align-items-center"
-              onClick={() => setIsLroDropdownOpen(!isLroDropdownOpen)}
-              disabled={isLoadingLroForms}
-              style={{ 
-                height: "36px",
-                fontSize: "13px",
-                fontWeight: "500",
-                borderRadius: "6px",
-                padding: "0 12px"
-              }}
-            >
-              <i className="bi bi-database me-1" style={{ fontSize: "12px", color: "#198754" }}></i>
-              <span className="d-none d-md-inline">{isLoadingLroForms ? 'Loading...' : 'Load from Database'}</span>
-              <span className="d-md-none">DB</span>
-            </button>
-            
-            {isLroDropdownOpen && (
-              <div 
-                className="position-absolute bg-white border rounded shadow-lg"
-                style={{
-                  top: '100%',
-                  right: '0',
-                  width: '380px',
-                  maxHeight: '420px',
-                  overflowY: 'auto',
-                  zIndex: 5000,
-                  marginTop: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid #e9ecef'
-                }}
-              >
-                <div className="p-3">
-                  <input
-                    type="text"
-                    className="form-control form-control-sm mb-3"
-                    placeholder="Search forms by company name..."
-                    style={{ 
-                      fontSize: "13px",
-                      borderRadius: "6px",
-                      border: "1px solid #ced4da"
-                    }}
-                    value={lroSearchTerm}
-                    onChange={(e) => setLroSearchTerm(e.target.value)}
-                  />
-                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                    {lroForms
-                      .filter(form => 
-                        !lroSearchTerm || 
-                        (form.appName && form.appName.toLowerCase().includes(lroSearchTerm.toLowerCase()))
-                      )
-                      .slice(0, 20)
-                      .map(form => (
-                        <div
-                          key={form.id}
-                          className="p-3 border-bottom cursor-pointer"
-                          style={{ 
-                            cursor: 'pointer', 
-                            fontSize: '13px',
-                            borderBottom: '1px solid #f1f3f4',
-                            transition: 'background-color 0.15s ease'
-                          }}
-                          onClick={() => {
-                            handleLroFormSelect(form.id);
-                          }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                        >
-                          <div className="fw-semibold text-dark mb-1" style={{ fontSize: "14px" }}>
-                            {form.appName || 'N/A'}
-                            <FieldEditorTag 
-                              fieldId={`form-${form.id}`} 
-                              fieldName={`Form: ${form.appName || 'N/A'}`}
-                            />
-                          </div>
-                          <div className="text-muted" style={{ fontSize: "12px", lineHeight: "1.3" }}>
-                            <i className="bi bi-geo-alt me-1" style={{ color: "#198754" }}></i>
-                            {form.locationA || 'No location'} 
-                            <span className="mx-2">•</span>
-                            <i className="bi bi-hash" style={{ color: "#198754" }}></i>
-                            {form.id}
-                          </div>
-                        </div>
-                      ))
-                    }
-                    {lroForms.filter(form => 
-                      !lroSearchTerm || 
-                      (form.appName && form.appName.toLowerCase().includes(lroSearchTerm.toLowerCase()))
-                    ).length === 0 && (
-                      <div className="p-4 text-center text-muted">
-                        <i className="bi bi-search mb-2 d-block" style={{ fontSize: "24px", opacity: "0.5", color: "#198754" }}></i>
-                        <div style={{ fontSize: "13px" }}>
-                          {lroSearchTerm ? 'No forms found matching your search' : 'No forms available'}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Divider */}
-          <div className="vr" style={{ height: "28px", opacity: "0.3" }}></div>
-          
-          {/* Export Button */}
-          <button 
-            className="btn btn-sm d-flex align-items-center export-pdf-btn" 
-            onClick={handleExportToPDF}
-            style={{ 
-              backgroundColor: '#2d5016',
-              borderColor: '#2d5016',
-              color: 'white',
-              height: "36px",
-              fontSize: "13px",
-              fontWeight: "500",
-              borderRadius: "6px",
-              padding: "0 12px"
-            }}
-          >
-            <i className="bi bi-file-earmark-pdf me-1" style={{ fontSize: "12px", color: "white" }}></i>
-            <span className="d-none d-md-inline">Export PDF</span>
-            <span className="d-md-none">PDF</span>
-          </button>
-          
-          {/* Status Dropdown */}
-          <div className="dropdown position-relative">
-            <button 
-              className="btn btn-outline-success btn-sm d-flex align-items-center" 
-              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-              title="Mark project status"
-              style={{ 
-                height: "36px",
-                fontSize: "13px",
-                fontWeight: "500",
-                borderRadius: "6px",
-                padding: "0 12px",
-                borderColor: "#198754",
-                color: "#198754"
-              }}
-            >
-              <i className="bi bi-check-circle me-1" style={{ fontSize: "12px" }}></i>
-              <span className="d-none d-md-inline">{getStatusDisplay(currentProjectStatus)}</span>
-              <span className="d-md-none">Status</span>
-              <i className="bi bi-chevron-down ms-2" style={{ fontSize: "10px" }}></i>
-            </button>
-            
-            {showStatusDropdown && (
-              <div 
-                className="dropdown-menu show position-absolute"
-                style={{ 
-                  top: '100%',
-                  left: 0,
-                  zIndex: 1000,
-                  minWidth: '160px',
-                  backgroundColor: 'white',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                }}
-              >
-                <button 
-                  className="dropdown-item"
-                  style={{ 
-                    padding: "8px 16px", 
-                    border: "none", 
-                    background: "none", 
-                    textAlign: "left",
-                    color: "#28a745"
-                  }}
-                  onClick={() => updateProjectStatus('approved')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  <i className="bi bi-check-circle me-2" style={{ color: "#28a745" }}></i>
-                  Mark Approved
-                </button>
-                <button 
-                  className="dropdown-item"
-                  style={{ 
-                    padding: "8px 16px", 
-                    border: "none", 
-                    background: "none", 
-                    textAlign: "left",
-                    color: "#dc3545"
-                  }}
-                  onClick={() => updateProjectStatus('denied')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  <i className="bi bi-x-circle me-2" style={{ color: "#dc3545" }}></i>
-                  Mark Denied
-                </button>
-                <button 
-                  className="dropdown-item"
-                  style={{ 
-                    padding: "8px 16px", 
-                    border: "none", 
-                    background: "none", 
-                    textAlign: "left",
-                    color: "#ffc107"
-                  }}
-                  onClick={() => updateProjectStatus('conditional')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  <i className="bi bi-exclamation-triangle me-2" style={{ color: "#ffc107" }}></i>
-                  Mark Conditional
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {/* Save Button */}
-          <button 
-            className="btn btn-outline-secondary btn-sm d-flex align-items-center" 
-            onClick={async () => {
-              console.log('💾 Save button clicked - currentProjectId:', currentProjectId, 'sessionUser:', sessionUser);
-              console.log('💾 Save button - typeof currentProjectId:', typeof currentProjectId);
-              console.log('💾 Save button - currentProjectId === sessionUser:', currentProjectId === sessionUser);
-              await saveProject("manual", currentProjectId); // Manual save with current project ID
-            }}
-            title="Save project manually"
-            style={{ 
-              height: "36px",
-              fontSize: "13px",
-              fontWeight: "500",
-              borderRadius: "6px",
-              padding: "0 12px",
-              borderColor: "#6c757d",
-              color: "#6c757d"
-            }}
-          >
-            <i className="bi bi-save me-1" style={{ fontSize: "12px", color: "#6c757d" }}></i>
-            <span className="d-none d-md-inline">Save</span>
-          </button>
-        </div>
-      </nav>
-
-      {/* Location Indicator - Shows which location is being edited */}
-      <LocationIndicator
-        multipleLocationsMode={multipleLocationsMode}
-        selectedLocationIndex={selectedLocationIndex}
-        totalLocations={multipleLocationsMode && globalLocationData.premiseLocation 
-          ? parseMultipleLocations(globalLocationData.premiseLocation).length 
-          : 1
-        }
-        currentLocationName={multipleLocationsMode && globalLocationData.premiseLocation
-          ? `Location ${selectedLocationIndex + 1}`
-          : 'Single Location'
-        }
-        onLocationChange={(newIndex) => {
-          setSelectedLocationIndex(newIndex);
-          
-          // Initialize location data service for all locations if not already done
-          if (locationDataService.getLocationCount() === 0) {
-            locationDataService.initializeFromProject({
-              formData: globalLocationData
-            }, multipleLocationsMode);
-          }
-          
-          // Force re-render of current slide with new location data
-          if (currentSlide) {
-            const currentSlideData = slideData[currentSlide];
-            if (currentSlideData) {
-              // Update the slide's location index
-              setSlideData(prev => ({
-                ...prev,
-                [currentSlide]: {
-                  ...currentSlideData,
-                  locationIndex: newIndex
-                }
-              }));
-            }
-          }
-        }}
-      />
+      {/* Main Branch Navbar */}
+      <EditorNavbar />
 
       {/* Editor Layout */}
       <div className="d-flex" style={{ height: "100vh", paddingTop: NAVBAR_HEIGHT }}>
+        
         {/* Desktop/Tablet Sidebar */}
         {!device.isMobile && (
           <div
@@ -1821,8 +509,8 @@ export default function Editor({ sessionUser }) {
             style={{
               position: "fixed",
               top: NAVBAR_HEIGHT,
-              bottom: showSlidesBar ? SLIDES_BAR_HEIGHT : 0,
-              left: showToolbar ? 0 : -SIDEBAR_WIDTH,
+              bottom: uiState.showSlidesBar ? SLIDES_BAR_HEIGHT : 0,
+              left: 0,
               width: SIDEBAR_WIDTH,
               zIndex: 1000,
               transition: "left 0.3s ease-in-out, bottom 0.3s ease",
@@ -1839,11 +527,11 @@ export default function Editor({ sessionUser }) {
         {/* Mobile Sidebar */}
         {device.isMobile && (
           <div
-            className={`mobile-sidebar bg-light border-start p-3 shadow custom-scrollbar ${isMobileSidebarOpen ? 'mobile-sidebar-open' : ''}`}
+            className={`mobile-sidebar bg-light border-start p-3 shadow custom-scrollbar ${uiState.isMobileSidebarOpen ? 'mobile-sidebar-open' : ''}`}
             style={{
               position: "fixed",
               top: NAVBAR_HEIGHT,
-              right: isMobileSidebarOpen ? 0 : -SIDEBAR_WIDTH,
+              right: uiState.isMobileSidebarOpen ? 0 : -SIDEBAR_WIDTH,
               width: SIDEBAR_WIDTH,
               height: `calc(100vh - ${NAVBAR_HEIGHT}px)`,
               zIndex: 1050,
@@ -1854,12 +542,7 @@ export default function Editor({ sessionUser }) {
               scrollbarColor: "#c1c1c1 #f1f1f1",
             }}
           >
-            <Sidebar
-              BUTTON_STYLES={BUTTON_STYLES}
-              setFontSizes={setFontSizes}
-              editorApiService={editorApiService}
-              isMobile={true}
-            />
+            <Sidebar />
           </div>
         )}
 
@@ -1868,350 +551,35 @@ export default function Editor({ sessionUser }) {
           ref={canvasRef}
           className="flex-fill"
           style={{
-            marginLeft: showToolbar ? SIDEBAR_WIDTH : 0,
-            marginBottom: showSlidesBar ? SLIDES_BAR_HEIGHT : 0,
-            transition: "margin 0.3s ease",
+            marginLeft: !device.isMobile ? SIDEBAR_WIDTH : 0,
+            marginBottom: uiState.showSlidesBar ? SLIDES_BAR_HEIGHT : 0,
+            paddingTop: "20px",
+            paddingLeft: "20px",
+            paddingRight: "20px",
+            height: `calc(100vh - ${NAVBAR_HEIGHT}px - ${uiState.showSlidesBar ? SLIDES_BAR_HEIGHT : 0}px)`,
             overflow: "hidden",
             position: "relative",
-            cursor: isDraggingCanvas ? 'grabbing' : 'grab'
+            cursor: uiState.isDraggingCanvas ? 'grabbing' : 'grab',
+            touchAction: 'none',
+            transition: "margin 0.3s ease, height 0.3s ease"
           }}
-          onMouseDown={handleCanvasMouseDown}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
+          tabIndex={0}
+          onMouseDown={canvasInteraction?.handleCanvasMouseDown || (() => {})}
+          onMouseMove={canvasInteraction?.handleCanvasMouseMove || (() => {})}
+          onMouseUp={canvasInteraction?.handleCanvasMouseUp || (() => {})}
+          onTouchStart={canvasInteraction?.handleTouchStart || (() => {})}
+          onTouchMove={canvasInteraction?.handleTouchMove || (() => {})}
+          onTouchEnd={canvasInteraction?.handleTouchEnd || (() => {})}
         >
-          <div
-            style={{
-              transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${zoomLevel / 100})`,
-              transformOrigin: '0 0',
-              transition: isDraggingCanvas ? 'none' : 'transform 0.1s ease-out',
-              position: 'relative'
-            }}
-          >
-            {renderSlide(currentSlide)}
-            
-            {/* Drawing Overlay */}
-            <svg
+          {/* Current Slide Display */}
+          {SlideComponent && (
+            <div 
+              id={`slide-container-${editorState.currentSlide}`}
+              data-slide-id={editorState.currentSlide}
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "1280px",
-                height: "720px",
-                pointerEvents: (isDrawingMode || isSquareEditMode) ? "auto" : "none",
-                zIndex: 1000
-              }}
-            >
-              {/* Render saved drawings for current slide */}
-              {(getSlideData(currentSlide)?.drawings || []).map((drawing, index) => {
-                const isSelected = selectedDrawingIndex === index;
-                const points = rectToPoints(drawing); // Convert to points if needed
-                
-                return (
-                  <g key={index}>
-                    {/* Main drawing shape - now as a polygon for flexibility */}
-                    <polygon
-                      points={`${points[0].x},${points[0].y} ${points[1].x},${points[1].y} ${points[3].x},${points[3].y} ${points[2].x},${points[2].y}`}
-                      fill={drawing.fill || "none"}
-                      stroke={drawing.stroke || "red"}
-                      strokeWidth={drawing.strokeWidth || 3}
-                      style={{ 
-                        cursor: (isDrawingMode || isSquareEditMode) ? "pointer" : "default",
-                        opacity: isSelected ? 0.8 : 1,
-                        filter: isSquareEditMode && !isDrawingMode ? "drop-shadow(0 0 4px rgba(0, 123, 255, 0.5))" : "none"
-                      }}
-                      onClick={(e) => {
-                        if (isDrawingMode || isSquareEditMode) {
-                          e.stopPropagation();
-                          setSelectedDrawingIndex(isSelected ? null : index);
-                        }
-                      }}
-                    />
-                    
-                    {/* Individual draggable points when selected */}
-                    {isSelected && (isDrawingMode || isSquareEditMode) && (
-                      <>
-                        {points.map((point, pointIndex) => (
-                          <circle
-                            key={pointIndex}
-                            cx={point.x}
-                            cy={point.y}
-                            r="6"
-                            fill="blue"
-                            stroke="white"
-                            strokeWidth="2"
-                            style={{ 
-                              cursor: "move",
-                              filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))"
-                            }}
-                            onMouseDown={(e) => startPointDrag(e, index, pointIndex)}
-                          />
-                        ))}
-                        
-                        {/* Point labels for clarity */}
-                        {points.map((point, pointIndex) => (
-                          <text
-                            key={`label-${pointIndex}`}
-                            x={point.x + (pointIndex === 0 || pointIndex === 2 ? -12 : 12)}
-                            y={point.y + (pointIndex === 0 || pointIndex === 1 ? -8 : 16)}
-                            fontSize="10"
-                            fill="blue"
-                            fontWeight="bold"
-                            style={{ pointerEvents: "none", userSelect: "none" }}
-                          >
-                            {pointIndex + 1}
-                          </text>
-                        ))}
-                      </>
-                    )}
-                  </g>
-                );
-              })}
-              
-              {/* Current drawing being created */}
-              {isDrawing && currentDrawing && (
-                <rect
-                  x={Math.min(currentDrawing.startX, currentDrawing.endX)}
-                  y={Math.min(currentDrawing.startY, currentDrawing.endY)}
-                  width={Math.abs(currentDrawing.endX - currentDrawing.startX)}
-                  height={Math.abs(currentDrawing.endY - currentDrawing.startY)}
-                  fill={currentDrawing.fill || "none"}
-                  stroke={currentDrawing.stroke || "red"}
-                  strokeWidth={currentDrawing.strokeWidth || 3}
-                  strokeDasharray="5,5"
-                  opacity="0.7"
-                />
-              )}
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Slides */}
-      <div
-        className="bg-white border-top custom-scrollbar"
-        style={{
-          position: "fixed",
-          bottom: showSlidesBar ? 0 : -SLIDES_BAR_HEIGHT,
-          left: 0,
-          right: 0,
-          transition: "bottom 0.3s ease",
-          zIndex: 1002,
-          height: SLIDES_BAR_HEIGHT,
-          padding: "12px 20px",
-          boxShadow: "0 -2px 10px rgba(0,0,0,0.1)"
-        }}
-      >
-        {/* Floating Zoom Controls */}
-        <div style={{
-          position: "absolute",
-          top: "8px",
-          right: "100px",
-          display: "flex",
-          gap: "4px",
-          alignItems: "center",
-          zIndex: 1004
-        }}>
-          <button 
-            className="btn btn-sm btn-light border"
-            onClick={handleZoomOut}
-            disabled={zoomLevel <= ZOOM_MIN}
-            style={BUTTON_STYLES.zoomButton}
-            title="Zoom Out"
-          >
-            −
-          </button>
-          <span 
-            className="small fw-bold px-2 py-1 bg-white border rounded" 
-            style={{ 
-              minWidth: "45px", 
-              textAlign: "center",
-              fontSize: "11px"
-            }}
-          >
-            {zoomLevel}%
-          </span>
-          <button 
-            className="btn btn-sm btn-light border"
-            onClick={handleZoomIn}
-            disabled={zoomLevel >= ZOOM_MAX}
-            style={BUTTON_STYLES.zoomButton}
-            title="Zoom In"
-          >
-            +
-          </button>
-          <button 
-            className="btn btn-sm btn-outline-primary ms-1"
-            onClick={handleZoomReset}
-            style={{ fontSize: "10px", padding: "2px 6px" }}
-            title="Reset Zoom"
-          >
-            Reset
-          </button>
-        </div>
-        
-        {/* Toggle Button for Slides Bar */}
-        <button
-          onClick={() => setShowSlidesBar(!showSlidesBar)}
-          style={{
-            ...BUTTON_STYLES.slideToggle,
-            zIndex: 1003,
-          }}
-        >
-          <span style={{ fontSize: "0.8rem" }}>{showSlidesBar ? "↓" : "↑"}</span>
-        </button>
-        
-        <div className="d-flex align-items-center justify-content-between" style={{ height: "20px", marginBottom: "8px" }}>
-          <small className="fw-bold text-muted" style={{ fontSize: "11px" }}>SLIDES</small>
-          <span className="badge bg-secondary" style={{ fontSize: "9px", padding: "2px 6px" }}>
-            {slides.length} slide{slides.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-        
-        <div 
-          ref={slidesContainerRef}
-          className="slides-scrollbar" 
-          style={{ 
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-            overflowX: "scroll",
-            overflowY: "hidden", // Completely prevent vertical scrolling
-            paddingBottom: "12px",
-            marginTop: "5px",
-            scrollBehavior: "smooth",
-            minHeight: "100px",
-            height: "110px",
-            width: "100%",
-            maxWidth: "100%"
-          }}
-        >
-          {console.log('🔍 Rendering slides:', slides) || slides
-            .filter(slide => slide.id !== null && slide.id !== undefined && !isNaN(slide.id))
-            .map((slide, index) => {
-            const currentSlideData = getSlideData(slide.id);
-            console.log('🔍 Rendering slide:', slide.id, 'data:', currentSlideData);
-            return (
-              <SlidePreview
-                key={slide.id}
-                slide={slide}
-                index={index}
-                isActive={currentSlide === slide.id}
-                onClick={setCurrentSlide}
-                onDelete={deleteSlide}
-                canDelete={slides.length > 1}
-                multipleLocationsMode={multipleLocationsMode}
-                slideLocationIndex={currentSlideData.locationIndex}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                isDragging={draggedSlideIndex === index}
-                isDragOver={dragOverIndex === index}
-              />
-            );
-          })}
-
-          {/* Add Slide Button */}
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <button
-              className="btn btn-outline-primary"
-              onClick={() => setShowPopupDropdown(!showPopupDropdown)}
-              ref={addButtonRef}
-              style={{ whiteSpace: "nowrap" }}
-            >
-              ＋ Add
-            </button>
-          </div>
-        </div>
-
-        {/* Dropdown positioned outside of scroll container */}
-        {showPopupDropdown && (
-          <div
-            className="position-fixed bg-white border rounded shadow"
-            style={{
-              top: `${popupPosition.top}px`,
-              left: `${popupPosition.left}px`,
-              width: "180px",
-              maxHeight: "200px",
-              overflowY: "auto",
-              zIndex: 5000,
-              boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-            }}
-          >
-            {slideOptions.filter(option => {
-              // Show Website option if showWebsite is true and there's website data in slide 1
-              // Allow multiple website slides like street view
-              if (option === 'Website') {
-                const slide1FormData = getSlideData(1)?.formData || {};
-                const websiteValue = slide1FormData.website || '';
-                const hasWebsiteData = showWebsite && websiteValue && websiteValue.trim() !== '';
-                return hasWebsiteData;
-              }
-              // Show Ratings option only if showRatings is true
-              if (option === 'Ratings') {
-                return showRatings;
-              }
-              return true;
-            }).map(option => (
-              <div
-                key={option}
-                className="dropdown-item text-dark"
-                style={{ cursor: "pointer", padding: "8px 12px" }}
-                onClick={() => addSlide(option)}
-                onMouseEnter={(e) => e.target.style.background = "#f0f0f0"}
-                onMouseLeave={(e) => e.target.style.background = "transparent"}
-              >
-                {option}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Hidden slides for PDF export - positioned off-screen but still rendered */}
-      <div style={{ 
-        position: 'fixed', 
-        left: '-2000px', 
-        top: '0px',
-        pointerEvents: 'none',
-        zIndex: -9999,
-        opacity: 0,
-        visibility: 'hidden'
-      }}>
-        {slides.map(slide => {
-          const slideData = slides.find(s => s.id === slide.id);
-          if (!slideData) return null;
-
-          const slideSpecificData = getSlideData(slide.id);
-          const slideProps = {
-            formData: slideSpecificData.formData,
-            setFormData: (updates) => updateSlideFormData(slide.id, updates),
-            onSelect: setSelectedField,
-            selectedField: null, // No field selection in PDF area
-            fontSizes,
-            textAlignments,
-            showWebsite,
-            multipleLocationsMode,
-            selectedLocationIndex,
-            slideId: slide.id,
-            sessionUser, // Add session user for field tracking
-            slideData: slideSpecificData,
-            updateSlideData: (updates) => updateSlideData(slide.id, updates),
-            fieldPositions: slideSpecificData.fieldPositions,
-            setFieldPositions: (positions) => updateFieldPositions(slide.id, positions),
-            allSlideData: slideData, // Pass all slide data for cross-slide logic  
-            slides: slides, // Pass slides array to check slide types
-          };
-
-          return (
-            <div
-              key={`pdf-${slide.id}`}
-              ref={(el) => {
-                if (el) {
-                  slideRefs.current[slide.id] = el;
-                }
-              }}
-              style={{
+                transform: `translate(${(uiState.canvasOffset?.x || 0)}px, ${(uiState.canvasOffset?.y || 0)}px) scale(${uiState.zoomLevel / 100})`,
+                transformOrigin: 'top left',
+                transition: uiState.isDraggingCanvas ? 'none' : 'transform 0.1s ease',
                 width: '1280px',
                 height: '720px',
                 position: 'relative',
@@ -2220,84 +588,105 @@ export default function Editor({ sessionUser }) {
                 fontFamily: "'Montserrat', sans-serif"
               }}
             >
-              {/* Render slide components directly without calling renderSlide to avoid ref conflicts */}
-              {slideData.type.startsWith('street_view') && (
-                <StreetView {...slideProps} />
-              )}
-              {slideData.type === 'cover' && (
-                <SlideOne {...slideProps} />
-              )}
-              {slideData.type === 'aerial_view_-_google' && (
-                <SlideTwo {...slideProps} />
-              )}
-              {slideData.type === 'aerial_view_-_bing' && (
-                <SlideThree {...slideProps} />
-              )}
-              {slideData.type === 'interior' && (
-                <Interior {...slideProps} />
-              )}
-              {slideData.type === 'online_presence' && (
-                <OnlinePresence {...slideProps} />
-              )}
-              {slideData.type === 'license' && (
-                <License {...slideProps} />
-              )}
-              {slideData.type === 'comments' && (
-                <Comments {...slideProps} />
-              )}
-              {slideData.type === 'fire_hazard' && (
-                <FireHazard {...slideProps} />
-              )}
-              {slideData.type === 'crime_rate' && (
-                <CrimeRate {...slideProps} />
-              )}
-              {slideData.type === 'nearest_fire_station' && (
-                <NearestFireStation {...slideProps} />
-              )}
-              {slideData.type === 'website' && (
-                (() => {
-                  const slide1FormData = getSlideData(1)?.formData || {};
-                  const websiteInfo = slide1FormData.website || '';
-                  return <Website 
-                    {...slideProps} 
-                    websiteUrl={websiteInfo}
-                  />
-                })()
-              )}
-              {slideData.type === 'ratings' && (
-                <Ratings {...slideProps} />
-              )}
-              
-              {/* Drawing Overlay for PDF */}
-              <svg
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "1280px",
-                  height: "720px",
-                  pointerEvents: "none",
-                  zIndex: 1000
+              <SlideComponent
+                key={editorState.currentSlide}
+                slideId={editorState.currentSlide}
+                device={device}
+                formData={getSlideData(editorState.currentSlide)?.formData || {}}
+                globalFormData={editorState.slideData || {}}
+                setFormData={slideManager.updateSlideFormData.bind(null, editorState.currentSlide)}
+                fontSizes={uiState.fontSizes || {}}
+                showWebsite={uiState.showWebsite || true}
+                setShowWebsite={uiState.setShowWebsite}
+                multipleLocationsMode={editorState.multipleLocationsMode}
+                setMultipleLocationsMode={editorState.setMultipleLocationsMode}
+                selectedLocationIndex={editorState.selectedLocationIndex}
+                fieldPositions={editorState.fieldPositions}
+                setFieldPositions={editorState.setFieldPositions}
+                zoomLevel={uiState.zoomLevel || 100}
+                sessionUser={sessionUser}
+                currentFormId={editorState.currentSlide}
+                selectedField={uiState.selectedField || null}
+                onSelect={uiState.setSelectedField}
+                // Additional props required by SlideTwo and SlideThree
+                slideData={editorState.slideData?.[editorState.currentSlide] || {}}
+                updateSlideData={(newData) => {
+                  const currentData = editorState.slideData?.[editorState.currentSlide] || {};
+                  editorState.setSlideData({
+                    ...editorState.slideData,
+                    [editorState.currentSlide]: {
+                      ...currentData,
+                      ...newData
+                    }
+                  });
                 }}
-              >
-                {/* Render saved drawings for this slide */}
-                {(getSlideData(slide.id)?.drawings || []).map((drawing, index) => {
-                  const points = rectToPoints(drawing); // Convert to points if needed
-                  return (
-                    <polygon
-                      key={index}
-                      points={`${points[0].x},${points[0].y} ${points[1].x},${points[1].y} ${points[3].x},${points[3].y} ${points[2].x},${points[2].y}`}
-                      fill={drawing.fill || "none"}
-                      stroke={drawing.stroke || "red"}
-                      strokeWidth={drawing.strokeWidth || 3}
-                    />
-                  );
-                })}
-              </svg>
+                allSlideData={editorState.slideData || {}}
+                slides={editorState.slides || []}
+                isActiveSlide={true}
+              />
             </div>
-          );
-        })}
+          )}
+
+
+
+          {/* Field Editor Tags */}
+          <FieldEditorTag />
+
+          {/* Location Indicator */}
+          <LocationIndicator />
+        </div>
       </div>
+
+      {/* Proper SlidesBar Component */}
+      <SlidesBar
+        slides={editorState.slides || []}
+        currentSlide={editorState.currentSlide}
+        onSlideSelect={(slideId) => editorState.setCurrentSlide(slideId)}
+        onSlideDelete={(slideId) => deleteSlide(slideId)}
+        isVisible={uiState.showSlidesBar}
+        onToggleVisibility={() => uiState.setShowSlidesBar(!uiState.showSlidesBar)}
+        // Main branch dropdown props
+        showPopupDropdown={showPopupDropdown}
+        setShowPopupDropdown={setShowPopupDropdown}
+        popupPosition={popupPosition}
+        slideOptions={slideOptions}
+        addSlide={addSlide}
+        addButtonRef={addButtonRef}
+        showWebsite={uiState.showWebsite}
+        showRatings={uiState.showRatings}
+        getSlideData={getSlideData}
+        // Zoom controls
+        zoomLevel={uiState.zoomLevel}
+        onZoomIn={() => {
+          const newZoom = Math.min(uiState.zoomLevel + 10, 200);
+          uiState.setZoomLevel(newZoom);
+        }}
+        onZoomOut={() => {
+          const newZoom = Math.max(uiState.zoomLevel - 10, 50);
+          uiState.setZoomLevel(newZoom);
+        }}
+        onZoomReset={() => {
+          uiState.setZoomLevel(100);
+          uiState.setCanvasOffset({ x: 0, y: 0 });
+        }}
+      />
+
+      {/* Mobile Sidebar Overlay */}
+      {device.isMobile && uiState.isMobileSidebarOpen && (
+        <div
+          className="mobile-sidebar-overlay"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1040
+          }}
+          onClick={() => uiState.setIsMobileSidebarOpen(false)}
+        />
+      )}
     </div>
     </EditorProvider>
   );

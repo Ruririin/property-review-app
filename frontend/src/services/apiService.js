@@ -23,8 +23,11 @@ class ApiService {
     };
 
     try {
-      // Only log API requests in development mode
-      if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
+      // Only log API requests in development mode - OR for project save debugging
+      const shouldLog = (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) ||
+                       (endpoint.includes('/projects/') && (config.method === 'POST' || config.method === 'PATCH'));
+
+      if (shouldLog) {
         console.log(`🔄 API Request: ${config.method || 'GET'} ${url}`);
         if (config.body && (config.method === 'POST' || config.method === 'PATCH')) {
           try {
@@ -57,7 +60,7 @@ class ApiService {
       }
 
       const data = await response.json();
-      if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
+      if (shouldLog) {
         console.log(`✅ API Success: ${config.method || 'GET'} ${endpoint}`, data);
       }
       return data;
@@ -145,22 +148,32 @@ class ApiService {
    */
   async createProject(projectData) {
     // Extract multipleLocationsMode from slideData._appState if available
-    const multipleLocationsMode = projectData.slideData?._appState?.multipleLocationsMode ?? 
-                                 projectData.multipleLocationsMode ?? 
+    const multipleLocationsMode = projectData.slideData?._appState?.multipleLocationsMode ??
+                                 projectData.multipleLocationsMode ??
                                  false;
+
+    // PowerPoint-like creation: Include ALL project data for complete presentation storage
+    const fullProjectData = {
+      title: projectData.title || projectData.name || projectData.insuredName || 'Untitled Project',
+      name: projectData.name || projectData.title || projectData.insuredName || 'Untitled Project',
+      description: projectData.description || `Property review for ${projectData.insuredName || 'Unknown'}`,
+      status: projectData.status || 'draft',
+      formData: projectData.formData || {},
+      slideData: projectData.slideData || {},
+      multipleLocationsMode: multipleLocationsMode,
+      selectedLocationIndex: projectData.selectedLocationIndex || 0,
+      // PowerPoint-style complete project data
+      slides: projectData.slides || [{ id: 1, type: 'cover', title: 'Cover Page' }],
+      fieldPositions: projectData.fieldPositions || {},
+      insuredName: projectData.insuredName || '',
+      premiseLocation: projectData.premiseLocation || '',
+      website: projectData.website || '',
+      _appState: projectData._appState || {}
+    };
 
     return this.request('/projects/', {
       method: 'POST',
-      body: JSON.stringify({
-        title: projectData.title || projectData.name || projectData.insuredName || 'Untitled Project',
-        name: projectData.name || projectData.title || projectData.insuredName || 'Untitled Project',
-        description: projectData.description || `Property review for ${projectData.insuredName || 'Unknown'}`,
-        status: projectData.status || 'editing',
-        formData: projectData.formData || {},
-        slideData: projectData.slideData || {},
-        multipleLocationsMode: multipleLocationsMode,
-        selectedLocationIndex: projectData.selectedLocationIndex || 0
-      }),
+      body: JSON.stringify(fullProjectData),
     });
   }
 
@@ -170,21 +183,33 @@ class ApiService {
 
   async updateProject(projectId, projectData) {
     // Extract multipleLocationsMode from slideData._appState if available
-    const multipleLocationsMode = projectData.slideData?._appState?.multipleLocationsMode ?? 
-                                 projectData.multipleLocationsMode ?? 
+    const multipleLocationsMode = projectData.slideData?._appState?.multipleLocationsMode ??
+                                 projectData.multipleLocationsMode ??
                                  false;
+
+    // PowerPoint-like save: Include ALL project data for complete presentation storage
+    const fullProjectData = {
+      title: projectData.title || projectData.name || projectData.insuredName || 'Untitled Project',
+      name: projectData.name || projectData.title || projectData.insuredName || 'Untitled Project',
+      description: projectData.description || `Property review for ${projectData.insuredName || 'Unknown'}`,
+      status: projectData.status || 'draft',
+      formData: projectData.formData || {},
+      slideData: projectData.slideData || {},
+      multipleLocationsMode: multipleLocationsMode,
+      // PowerPoint-style complete project data
+      slides: projectData.slides || [],
+      fieldPositions: projectData.fieldPositions || {},
+      insuredName: projectData.insuredName || '',
+      premiseLocation: projectData.premiseLocation || '',
+      website: projectData.website || '',
+      _appState: projectData._appState || {}
+    };
+
+    // Debug logging removed for cleaner console output
 
     return this.request(`/projects/${projectId}/`, {
       method: 'PATCH',
-      body: JSON.stringify({
-        title: projectData.title || projectData.name || projectData.insuredName || 'Untitled Project',
-        name: projectData.name || projectData.title || projectData.insuredName || 'Untitled Project',
-        description: projectData.description || `Property review for ${projectData.insuredName || 'Unknown'}`,
-        status: projectData.status || 'editing',
-        formData: projectData.formData || {},
-        slideData: projectData.slideData || {},
-        multipleLocationsMode: multipleLocationsMode
-      }),
+      body: JSON.stringify(fullProjectData),
     });
   }
 
@@ -337,7 +362,7 @@ class ApiService {
       showWebsite: localStorageProject.showWebsite || false,
       multipleLocationsMode: localStorageProject.multipleLocationsMode || false,
       selectedLocationIndex: localStorageProject.selectedLocationIndex || 0,
-      status: localStorageProject.status || 'editing',
+      status: localStorageProject.status || 'draft',
       currentSlide: localStorageProject.currentSlide || 1,
       totalSlides: localStorageProject.totalSlides || 1,
     };

@@ -1,88 +1,138 @@
 from rest_framework import serializers
-from .models import Project, PropertySlide, Template, ProjectLocation
+from .models import Project, ProjectSlide, ProjectLocation, SlideImage, ProjectSettings, Template
 
-class PropertySlideSerializer(serializers.ModelSerializer):
+class ProjectSerializer(serializers.ModelSerializer):
+    """
+    Main Project serializer - LIGHTWEIGHT
+    """
+    slide_count = serializers.SerializerMethodField()
+    last_modified = serializers.DateTimeField(source='updated_at', read_only=True)
+    
     class Meta:
-        model = PropertySlide
-        fields = ['id', 'project', 'slide_number', 'title', 'content', 
-                 'template_type', 'field_dimensions', 'formData', 'fieldPositions',
-                 'created_at', 'updated_at']
-        
-    def create(self, validated_data):
-        # Ensure formData and fieldPositions are properly initialized
-        validated_data['formData'] = validated_data.get('formData', {})
-        validated_data['fieldPositions'] = validated_data.get('fieldPositions', {})
-        return super().create(validated_data)
+        model = Project
+        fields = [
+            'id', 'title', 'description', 'status',
+            'multiple_locations_mode', 'show_website',
+            'created_at', 'updated_at', 'last_modified', 'slide_count'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_slide_count(self, obj):
+        return obj.slides.count()
 
-    def update(self, instance, validated_data):
-        # Ensure formData and fieldPositions are properly updated
-        instance.formData = validated_data.get('formData', instance.formData)
-        instance.fieldPositions = validated_data.get('fieldPositions', instance.fieldPositions)
-        instance.content = validated_data.get('content', instance.content)
-        instance.field_dimensions = validated_data.get('field_dimensions', instance.field_dimensions)
-        instance.title = validated_data.get('title', instance.title)
-        instance.template_type = validated_data.get('template_type', instance.template_type)
-        instance.save()
-        return instance
+class SlideImageSerializer(serializers.ModelSerializer):
+    """
+    Slide image serializer
+    """
+    image_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SlideImage
+        fields = [
+            'id', 'filename', 'alt_text', 'image_url',
+            'position_x', 'position_y', 'width', 'height', 'z_index'
+        ]
+    
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+        return None
+
+class ProjectSlideSerializer(serializers.ModelSerializer):
+    """
+    Individual slide serializer - COMPLETE SLIDE DATA
+    """
+    images = SlideImageSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ProjectSlide
+        fields = [
+            'id', 'slide_number', 'slide_type', 'title',
+            'content', 'field_positions', 'images',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 class ProjectLocationSerializer(serializers.ModelSerializer):
+    """
+    Project location serializer
+    """
     class Meta:
         model = ProjectLocation
-        fields = ['id', 'project', 'location_index', 'name', 'address', 'formData', 
-                 'created_at', 'updated_at']
-        read_only_fields = ('created_at', 'updated_at')
+        fields = [
+            'id', 'location_index', 'name', 'address', 'location_data',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
-# Lightweight serializer for project lists (excludes heavy slideData)
-class LightProjectSerializer(serializers.ModelSerializer):
-    title = serializers.CharField(source='name')  # Map 'name' to 'title' for frontend compatibility
-    status = serializers.CharField(required=False, default='editing')
-    # Only include lightweight formData fields for listing
-    insuredName = serializers.SerializerMethodField()
-    premiseLocation = serializers.SerializerMethodField()
-    
+class ProjectSettingsSerializer(serializers.ModelSerializer):
+    """
+    Project settings serializer
+    """
     class Meta:
-        model = Project
-        fields = ['id', 'title', 'name', 'description', 'created_at', 'updated_at', 'legacy_id',
-                 'status', 'insuredName', 'premiseLocation', 'owner']
-        read_only_fields = ('created_at', 'updated_at')
-        extra_kwargs = {
-            'name': {'write_only': True},
-            'owner': {'required': False}
-        }
-    
-    def get_insuredName(self, obj):
-        return obj.formData.get('insuredName', '') if obj.formData else ''
-    
-    def get_premiseLocation(self, obj):
-        return obj.formData.get('premiseLocation', '') if obj.formData else ''
+        model = ProjectSettings
+        fields = [
+            'export_count', 'last_export_at', 'font_sizes', 
+            'ui_preferences', 'lro_form_id', 'lro_data'
+        ]
 
-# Full serializer for individual project details (includes all data)
-class ProjectSerializer(serializers.ModelSerializer):
-    title = serializers.CharField(source='name')  # Map 'name' to 'title' for frontend compatibility
-    status = serializers.CharField(required=False, default='editing')
-    formData = serializers.JSONField(required=False, default=dict)
-    slideData = serializers.JSONField(required=False, default=dict)
-    multipleLocationsMode = serializers.BooleanField(required=False, default=False)
-    selectedLocationIndex = serializers.IntegerField(required=False, default=0)
+class ProjectDetailSerializer(serializers.ModelSerializer):
+    """
+    COMPLETE project with all related data - USE SPARINGLY
+    Only for full project loads, not for listings
+    """
+    slides = ProjectSlideSerializer(many=True, read_only=True)
     locations = ProjectLocationSerializer(many=True, read_only=True)
+    settings = ProjectSettingsSerializer(read_only=True)
     
     class Meta:
         model = Project
-        fields = ['id', 'title', 'name', 'description', 'created_at', 'updated_at', 'legacy_id',
-                 'status', 'formData', 'slideData', 'multipleLocationsMode', 
-                 'selectedLocationIndex', 'locations', 'owner']
-        read_only_fields = ('created_at', 'updated_at')
-        extra_kwargs = {
-            'name': {'write_only': True},
-            'owner': {'required': False}
-        }
+        fields = [
+            'id', 'title', 'description', 'status',
+            'multiple_locations_mode', 'show_website',
+            'created_at', 'updated_at',
+            'slides', 'locations', 'settings'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
-    def create(self, validated_data):
-        validated_data['multipleLocationsMode'] = validated_data.get('multipleLocationsMode', False)
-        return super().create(validated_data)
+# LIGHTWEIGHT serializers for listings
+class ProjectListSerializer(serializers.ModelSerializer):
+    """
+    Lightweight project serializer for project listings
+    NO slide data included - much faster
+    """
+    slide_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Project
+        fields = [
+            'id', 'title', 'description', 'status', 
+            'slide_count', 'updated_at'
+        ]
+    
+    def get_slide_count(self, obj):
+        return obj.slides.count()
+
+class SlideListSerializer(serializers.ModelSerializer):
+    """
+    Lightweight slide serializer for slide listings
+    NO content data - just metadata
+    """
+    class Meta:
+        model = ProjectSlide
+        fields = ['id', 'slide_number', 'slide_type', 'title', 'updated_at']
 
 class TemplateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Template
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
+
+# Legacy serializers for backward compatibility during transition
+class LightProjectSerializer(ProjectListSerializer):
+    """
+    Legacy compatibility - maps to new ProjectListSerializer
+    """
+    pass

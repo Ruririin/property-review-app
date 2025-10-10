@@ -1,99 +1,65 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { useState, useEffect } from "react";
 import Home from "./pages/Home";
-import SessionUserPicker from "./pages/SessionUserPicker";
-import { useLocation } from "react-router-dom";
+import AuthPage from "./pages/AuthPage";
 import Editor from "./pages/Editor.jsx";
 import PWAInstallPrompt from "./components/PWAInstallPrompt.jsx";
-import authService from "./services/authService.js";
+import PrivateRoute from "./components/PrivateRoute";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
-function App() {
-  const [sessionUser, setSessionUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const location = useLocation();
-
-  useEffect(() => {
-    // Check session status with backend
-    const checkSession = async () => {
-      try {
-        const sessionStatus = await authService.getSessionStatus();
-        if (sessionStatus.authenticated) {
-          setSessionUser(sessionStatus.user.display_name || sessionStatus.user.username);
-        } else {
-          setSessionUser(null);
-        }
-      } catch (error) {
-        console.error('Failed to check session:', error);
-        setSessionUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkSession();
-  }, [location]);
-
-  const handleUserSelected = async (userName) => {
-    try {
-      await authService.startSession(userName);
-      setSessionUser(userName);
-    } catch (error) {
-      console.error('Failed to start session:', error);
-      alert('Failed to start session. Please try again.');
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await authService.endSession();
-      setSessionUser(null);
-    } catch (error) {
-      console.error('Failed to end session:', error);
-      // Still clear local state even if backend call fails
-      setSessionUser(null);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
-        <div className="text-center">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted mt-3">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+function AppContent() {
+  const { isAuthenticated } = useAuth();
 
   return (
     <>
       <PWAInstallPrompt />
-        <Routes>
-          <Route 
-            path="/" 
-            element={sessionUser ? <Home sessionUser={sessionUser} onLogout={handleLogout} /> : <Navigate to="/session" replace />} 
-          />
-          <Route 
-            path="/home" 
-            element={sessionUser ? <Home sessionUser={sessionUser} onLogout={handleLogout} /> : <Navigate to="/session" replace />} 
-          />
-          <Route
-            path="/session"
-            element={
-              sessionUser
-                ? <Navigate to="/" replace />
-                : <SessionUserPicker onUserSelected={handleUserSelected} />
-            }
-          />
-          <Route 
-            path="/editor" 
-            element={sessionUser ? <Editor sessionUser={sessionUser} /> : <Navigate to="/session" replace />} 
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+      <Routes>
+        <Route
+          path="/auth"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <AuthPage />}
+        />
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <Home />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/home"
+          element={
+            <PrivateRoute>
+              <Home />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/editor/:projectId"
+          element={
+            <PrivateRoute>
+              <Editor />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/editor"
+          element={
+            <PrivateRoute>
+              <Editor />
+            </PrivateRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
