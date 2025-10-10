@@ -44,8 +44,8 @@ export const exportAllSlidesToPDF = async (slides, slideData, globalLocationData
     }
 
     // Get insured name for filename
-    const insuredName = globalLocationData?.insuredName || 
-                       slideData?.[1]?.formData?.insuredName || 
+    const insuredName = globalLocationData?.insuredName ||
+                       slideData?.[1]?.formData?.insuredName ||
                        'Unknown';
     const filename = `Property Review (${insuredName}).pdf`;
 

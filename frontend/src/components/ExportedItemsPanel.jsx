@@ -44,110 +44,11 @@ export default function ExportedItemsPanel({ user }) {
         const mockItems = [
           {
             id: 1,
-            filename: 'Property Review.pdf',
-            project_name: 'Untitled Project',
-            file_size: 1150000, // 1.15MB estimate
-            export_date: '2025-09-18T12:00:00Z',
-            file_path: 'Property Review.pdf',
-            isDemoItem: true // Mark as demo item
-          },
-          {
-            id: 2,
-            filename: 'Property Review Christopher Tuppan Revocable Trust UDT 3-6-1998, Chris Tuppan Trustee.pdf',
-            project_name: 'Christopher Tuppan Revocable Trust',
-            file_size: 1024000, // 1MB estimate
-            export_date: '2025-09-10T10:30:00Z',
-            file_path: 'Property Review Christopher Tuppan Revocable Trust UDT 3-6-1998, Chris Tuppan Trustee.pdf',
-            isDemoItem: true // Mark as demo item
-          },
-          {
-            id: 3,
-            filename: 'Property Review Firdosy Family Trust.pdf',
-            project_name: 'Firdosy Family Trust',
-            file_size: 856000, // 856KB estimate
-            export_date: '2025-09-11T14:20:00Z',
-            file_path: 'Property Review Firdosy Family Trust.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 4,
             filename: 'Property Review NeitClem Wholesale Insurance Brokerage.pdf',
             project_name: 'NeitClem Wholesale Insurance Brokerage',
             file_size: 1200000, // 1.2MB estimate
             export_date: '2025-09-11T16:45:00Z',
             file_path: 'Property Review NeitClem Wholesale Insurance Brokerage.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 5,
-            filename: 'Web Review YW Builders Inc.pdf',
-            project_name: 'YW Builders Inc',
-            file_size: 920000, // 920KB estimate
-            export_date: '2025-09-12T09:15:00Z',
-            file_path: 'Web Review YW Builders Inc.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 6,
-            filename: 'Property Review ABC Insurance Company.pdf',
-            project_name: 'ABC Insurance Company',
-            file_size: 1050000, // 1.05MB estimate
-            export_date: '2025-09-13T11:30:00Z',
-            file_path: 'Property Review ABC Insurance Company.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 7,
-            filename: 'Property Review Smith Family Trust.pdf',
-            project_name: 'Smith Family Trust',
-            file_size: 980000, // 980KB estimate
-            export_date: '2025-09-14T15:45:00Z',
-            file_path: 'Property Review Smith Family Trust.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 8,
-            filename: 'Property Review Johnson Real Estate LLC.pdf',
-            project_name: 'Johnson Real Estate LLC',
-            file_size: 1300000, // 1.3MB estimate
-            export_date: '2025-09-15T09:20:00Z',
-            file_path: 'Property Review Johnson Real Estate LLC.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 9,
-            filename: 'Property Review Pacific Coast Properties.pdf',
-            project_name: 'Pacific Coast Properties',
-            file_size: 1180000, // 1.18MB estimate
-            export_date: '2025-09-16T13:15:00Z',
-            file_path: 'Property Review Pacific Coast Properties.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 10,
-            filename: 'Property Review Mountain View Holdings.pdf',
-            project_name: 'Mountain View Holdings',
-            file_size: 1420000, // 1.42MB estimate
-            export_date: '2025-09-17T10:00:00Z',
-            file_path: 'Property Review Mountain View Holdings.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 11,
-            filename: 'Property Review Downtown Commercial Group.pdf',
-            project_name: 'Downtown Commercial Group',
-            file_size: 1250000, // 1.25MB estimate
-            export_date: '2025-09-19T14:30:00Z',
-            file_path: 'Property Review Downtown Commercial Group.pdf',
-            isDemoItem: true
-          },
-          {
-            id: 12,
-            filename: 'Property Review Riverside Development Corp.pdf',
-            project_name: 'Riverside Development Corp',
-            file_size: 1080000, // 1.08MB estimate
-            export_date: '2025-09-20T16:45:00Z',
-            file_path: 'Property Review Riverside Development Corp.pdf',
             isDemoItem: true
           }
         ];
