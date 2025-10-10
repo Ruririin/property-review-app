@@ -330,16 +330,129 @@ class BestPlacesDownloader {
     }
 
     getLocationFromZip(zipCode) {
-        const caZipCodes = {
-            '90041': { state: 'california', city: 'los_angeles', displayName: 'Los Angeles' },
+        // Comprehensive ZIP code mapping for major US areas
+        const zipCodeDatabase = {
+            // California ZIP codes
             '90210': { state: 'california', city: 'beverly_hills', displayName: 'Beverly Hills' },
+            '90041': { state: 'california', city: 'los_angeles', displayName: 'Los Angeles' },
+            '90401': { state: 'california', city: 'santa_monica', displayName: 'Santa Monica' },
+            '90291': { state: 'california', city: 'venice', displayName: 'Venice' },
             '91601': { state: 'california', city: 'north_hollywood', displayName: 'North Hollywood' },
+            '91801': { state: 'california', city: 'alhambra', displayName: 'Alhambra' },
             '92101': { state: 'california', city: 'san_diego', displayName: 'San Diego' },
+            '92037': { state: 'california', city: 'la_jolla', displayName: 'La Jolla' },
             '94102': { state: 'california', city: 'san_francisco', displayName: 'San Francisco' },
-            '95126': { state: 'california', city: 'san_jose', displayName: 'San Jose' }
+            '94105': { state: 'california', city: 'san_francisco', displayName: 'San Francisco' },
+            '95126': { state: 'california', city: 'san_jose', displayName: 'San Jose' },
+            '95014': { state: 'california', city: 'cupertino', displayName: 'Cupertino' },
+            
+            // New York ZIP codes
+            '10001': { state: 'new_york', city: 'new_york', displayName: 'New York City' },
+            '10021': { state: 'new_york', city: 'new_york', displayName: 'New York City' },
+            '10025': { state: 'new_york', city: 'new_york', displayName: 'New York City' },
+            '10128': { state: 'new_york', city: 'new_york', displayName: 'New York City' },
+            '11201': { state: 'new_york', city: 'brooklyn', displayName: 'Brooklyn' },
+            '11375': { state: 'new_york', city: 'forest_hills', displayName: 'Forest Hills' },
+            
+            // Texas ZIP codes
+            '75201': { state: 'texas', city: 'dallas', displayName: 'Dallas' },
+            '75254': { state: 'texas', city: 'dallas', displayName: 'Dallas' },
+            '77001': { state: 'texas', city: 'houston', displayName: 'Houston' },
+            '77056': { state: 'texas', city: 'houston', displayName: 'Houston' },
+            '78701': { state: 'texas', city: 'austin', displayName: 'Austin' },
+            '78759': { state: 'texas', city: 'austin', displayName: 'Austin' },
+            
+            // Florida ZIP codes
+            '33101': { state: 'florida', city: 'miami', displayName: 'Miami' },
+            '33139': { state: 'florida', city: 'miami_beach', displayName: 'Miami Beach' },
+            '32801': { state: 'florida', city: 'orlando', displayName: 'Orlando' },
+            '33701': { state: 'florida', city: 'st_petersburg', displayName: 'St. Petersburg' },
+            
+            // Illinois ZIP codes
+            '60601': { state: 'illinois', city: 'chicago', displayName: 'Chicago' },
+            '60614': { state: 'illinois', city: 'chicago', displayName: 'Chicago' },
+            
+            // Washington ZIP codes
+            '98101': { state: 'washington', city: 'seattle', displayName: 'Seattle' },
+            '98104': { state: 'washington', city: 'seattle', displayName: 'Seattle' },
+            
+            // Oregon ZIP codes
+            '97201': { state: 'oregon', city: 'portland', displayName: 'Portland' },
+            '97239': { state: 'oregon', city: 'portland', displayName: 'Portland' },
+            
+            // Nevada ZIP codes
+            '89101': { state: 'nevada', city: 'las_vegas', displayName: 'Las Vegas' },
+            '89109': { state: 'nevada', city: 'las_vegas', displayName: 'Las Vegas' }
         };
         
-        return caZipCodes[zipCode] || { state: 'california', city: 'los_angeles', displayName: 'Los Angeles' };
+        // If exact ZIP code found, return it
+        if (zipCodeDatabase[zipCode]) {
+            return zipCodeDatabase[zipCode];
+        }
+        
+        // Smart fallback based on ZIP code ranges
+        const zipNum = parseInt(zipCode);
+        
+        // California ZIP code ranges
+        if (zipNum >= 90001 && zipNum <= 96162) {
+            if (zipNum >= 90001 && zipNum <= 90899) {
+                return { state: 'california', city: 'los_angeles', displayName: 'Los Angeles Area' };
+            } else if (zipNum >= 91000 && zipNum <= 91999) {
+                return { state: 'california', city: 'pasadena', displayName: 'Pasadena Area' };
+            } else if (zipNum >= 92000 && zipNum <= 92999) {
+                return { state: 'california', city: 'san_diego', displayName: 'San Diego Area' };
+            } else if (zipNum >= 94000 && zipNum <= 94999) {
+                return { state: 'california', city: 'san_francisco', displayName: 'San Francisco Area' };
+            } else if (zipNum >= 95000 && zipNum <= 95999) {
+                return { state: 'california', city: 'san_jose', displayName: 'San Jose Area' };
+            }
+        }
+        
+        // New York ZIP code ranges
+        if (zipNum >= 10001 && zipNum <= 14999) {
+            if (zipNum >= 10001 && zipNum <= 10299) {
+                return { state: 'new_york', city: 'new_york', displayName: 'New York City' };
+            } else if (zipNum >= 11200 && zipNum <= 11299) {
+                return { state: 'new_york', city: 'brooklyn', displayName: 'Brooklyn' };
+            }
+            return { state: 'new_york', city: 'new_york', displayName: 'New York Area' };
+        }
+        
+        // Texas ZIP code ranges
+        if (zipNum >= 75000 && zipNum <= 79999) {
+            if (zipNum >= 75000 && zipNum <= 75399) {
+                return { state: 'texas', city: 'dallas', displayName: 'Dallas Area' };
+            } else if (zipNum >= 77000 && zipNum <= 77999) {
+                return { state: 'texas', city: 'houston', displayName: 'Houston Area' };
+            } else if (zipNum >= 78700 && zipNum <= 78799) {
+                return { state: 'texas', city: 'austin', displayName: 'Austin Area' };
+            }
+            return { state: 'texas', city: 'dallas', displayName: 'Texas Area' };
+        }
+        
+        // Florida ZIP code ranges
+        if (zipNum >= 32000 && zipNum <= 34999) {
+            if (zipNum >= 33100 && zipNum <= 33199) {
+                return { state: 'florida', city: 'miami', displayName: 'Miami Area' };
+            } else if (zipNum >= 32800 && zipNum <= 32899) {
+                return { state: 'florida', city: 'orlando', displayName: 'Orlando Area' };
+            }
+            return { state: 'florida', city: 'miami', displayName: 'Florida Area' };
+        }
+        
+        // Illinois ZIP code ranges  
+        if (zipNum >= 60000 && zipNum <= 62999) {
+            return { state: 'illinois', city: 'chicago', displayName: 'Chicago Area' };
+        }
+        
+        // Washington ZIP code ranges
+        if (zipNum >= 98000 && zipNum <= 99499) {
+            return { state: 'washington', city: 'seattle', displayName: 'Seattle Area' };
+        }
+        
+        // Default fallback - most common case
+        console.log('⚠️ Unknown ZIP code:', zipCode, '- defaulting to Los Angeles');
+        return { state: 'california', city: 'los_angeles', displayName: 'Los Angeles Area' };
     }
 
     async extractCrimeStatistics() {
@@ -352,68 +465,146 @@ class BestPlacesDownloader {
                     violent_crime: 0.0,
                     property_crime: 0.0,
                     violent_crime_us_avg: 22.7,
-                    property_crime_us_avg: 35.4
+                    property_crime_us_avg: 35.4,
+                    location: '',
+                    zip_code: '',
+                    crime_scale_text: '', // Crime scale explanation from p tag
+                    full_text: ''
                 };
                 
-                // Look for more specific patterns and avoid ZIP codes
+                // First, try to extract from specific HTML elements (h5 tags)
+                console.log('🔍 Looking for h5 tags with crime data...');
+                const h5Elements = document.querySelectorAll('h5');
+                
+                // Look for the crime ranking scale in p tags
+                const pElements = document.querySelectorAll('p');
+                let crimeScaleText = '';
+                
+                pElements.forEach(p => {
+                    const text = p.textContent || '';
+                    if (text.includes('Crime is ranked on a scale of 1')) {
+                        crimeScaleText = text.trim();
+                        console.log('✅ Found crime scale text in p tag:', crimeScaleText);
+                    }
+                });
+                
+                // Extract crime data from h5 elements
+                h5Elements.forEach((h5, index) => {
+                    const h5Text = h5.textContent || '';
+                    console.log(`📊 H5 element ${index + 1}:`, h5Text);
+                    
+                    // Pattern for: "Location (zip 12345) violent crime is 8.5. (The US average is 22.7)"
+                    const violentH5Pattern = /([^(]+)\s*\(zip\s+(\d{5})\)\s+violent crime is\s+(\d+\.?\d*)\.\s*\(The US average is\s+(\d+\.?\d*)\)/i;
+                    const violentH5Match = h5Text.match(violentH5Pattern);
+                    
+                    if (violentH5Match) {
+                        stats.location = violentH5Match[1].trim().replace(/^"|"$/g, '').replace(/\n/g, ' ').trim(); // Remove quotes and newlines
+                        stats.zip_code = violentH5Match[2];
+                        stats.violent_crime = parseFloat(violentH5Match[3]);
+                        stats.violent_crime_us_avg = parseFloat(violentH5Match[4]);
+                        console.log('✅ Extracted violent crime from H5:', {
+                            location: stats.location,
+                            zip: stats.zip_code,
+                            violent: stats.violent_crime,
+                            violent_avg: stats.violent_crime_us_avg
+                        });
+                    }
+                    
+                    // Pattern for: "Location (zip 12345) property crime is 21.5. (The US average is 35.4)"
+                    const propertyH5Pattern = /([^(]+)\s*\(zip\s+(\d{5})\)\s+property crime is\s+(\d+\.?\d*)\.\s*\(The US average is\s+(\d+\.?\d*)\)/i;
+                    const propertyH5Match = h5Text.match(propertyH5Pattern);
+                    
+                    if (propertyH5Match) {
+                        if (!stats.location) {
+                            stats.location = propertyH5Match[1].trim().replace(/^"|"$/g, '').replace(/\n/g, ' ').trim(); // Remove quotes and newlines
+                        }
+                        if (!stats.zip_code) {
+                            stats.zip_code = propertyH5Match[2];
+                        }
+                        stats.property_crime = parseFloat(propertyH5Match[3]);
+                        stats.property_crime_us_avg = parseFloat(propertyH5Match[4]);
+                        console.log('✅ Extracted property crime from H5:', {
+                            location: stats.location,
+                            zip: stats.zip_code,
+                            property: stats.property_crime,
+                            property_avg: stats.property_crime_us_avg
+                        });
+                    }
+                });
+                
+                // Store the crime scale explanation
+                stats.crime_scale_text = crimeScaleText;
+                
+                // Get all text content as fallback
                 const text = document.body.innerText || '';
                 
-                // Look for numbers that are NOT the ZIP code (avoid 5-digit numbers like 90041)
-                // Focus on crime rates which are typically under 100
-                const lines = text.split('\n');
+                // Enhanced pattern matching for the exact format:
+                // "Los Angeles (zip 90041) violent crime is 31.9. (The US average is 22.7)"
+                // "Los Angeles (zip 90041) property crime is 39.0. (The US average is 35.4)"
                 
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].toLowerCase().trim();
-                    
-                    // Look for violent crime with specific context
-                    if ((line.includes('violent') && line.includes('crime')) || 
-                        line.includes('violent crimes')) {
-                        // Find decimal numbers (crime rates) - avoid ZIP codes
-                        const numbers = line.match(/\b(\d{1,2}\.?\d*)\b/g);
-                        if (numbers) {
-                            for (const num of numbers) {
-                                const value = parseFloat(num);
-                                // Crime rates are typically 0-100, avoid ZIP codes (90041)
-                                if (value > 0 && value < 100 && stats.violent_crime === 0) {
-                                    stats.violent_crime = value;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Look for property crime with specific context
-                    if ((line.includes('property') && line.includes('crime')) || 
-                        line.includes('property crimes')) {
-                        const numbers = line.match(/\b(\d{1,2}\.?\d*)\b/g);
-                        if (numbers) {
-                            for (const num of numbers) {
-                                const value = parseFloat(num);
-                                // Crime rates are typically 0-100, avoid ZIP codes
-                                if (value > 0 && value < 100 && stats.property_crime === 0) {
-                                    stats.property_crime = value;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                // Pattern for violent crime: "(location) (zip code) violent crime is (number). (The US average is (number))"
+                const violentPattern = /([^(]+)\s*\(zip\s+(\d{5})\)\s+violent crime is\s+(\d+\.?\d*)\.\s*\(The US average is\s+(\d+\.?\d*)\)/i;
+                const violentMatch = text.match(violentPattern);
+                
+                if (violentMatch) {
+                    stats.location = violentMatch[1].trim();
+                    stats.zip_code = violentMatch[2];
+                    stats.violent_crime = parseFloat(violentMatch[3]);
+                    stats.violent_crime_us_avg = parseFloat(violentMatch[4]);
+                    console.log('✅ Extracted violent crime data:', {
+                        location: stats.location,
+                        zip: stats.zip_code,
+                        violent: stats.violent_crime,
+                        violent_avg: stats.violent_crime_us_avg
+                    });
                 }
                 
-                // Alternative: Look for text patterns like "5.1 per 1,000" or similar
-                if (stats.violent_crime === 0 || stats.property_crime === 0) {
-                    const ratePattern = /(\d{1,2}\.?\d*)\s*(?:per\s*1,?000|\/\s*1,?000)/gi;
-                    let match;
-                    let rateCount = 0;
+                // Pattern for property crime: "(location) (zip code) property crime is (number). (The US average is (number))"
+                const propertyPattern = /([^(]+)\s*\(zip\s+(\d{5})\)\s+property crime is\s+(\d+\.?\d*)\.\s*\(The US average is\s+(\d+\.?\d*)\)/i;
+                const propertyMatch = text.match(propertyPattern);
+                
+                if (propertyMatch) {
+                    // Use location from violent crime if not already set, or update if more specific
+                    if (!stats.location) {
+                        stats.location = propertyMatch[1].trim();
+                    }
+                    if (!stats.zip_code) {
+                        stats.zip_code = propertyMatch[2];
+                    }
+                    stats.property_crime = parseFloat(propertyMatch[3]);
+                    stats.property_crime_us_avg = parseFloat(propertyMatch[4]);
+                    console.log('✅ Extracted property crime data:', {
+                        location: stats.location,
+                        zip: stats.zip_code,
+                        property: stats.property_crime,
+                        property_avg: stats.property_crime_us_avg
+                    });
+                }
+                
+                // Store the raw text for debugging
+                stats.full_text = text.substring(0, 1000); // First 1000 chars for debugging
+                
+                // Fallback: Look for less specific patterns if exact patterns don't match
+                if (stats.violent_crime === 0.0 || stats.property_crime === 0.0) {
+                    console.log('⚠️ Exact patterns not found, trying fallback patterns...');
                     
-                    while ((match = ratePattern.exec(text)) !== null && rateCount < 2) {
-                        const rate = parseFloat(match[1]);
-                        if (rate > 0 && rate < 100) {
-                            if (rateCount === 0 && stats.violent_crime === 0) {
-                                stats.violent_crime = rate;
-                            } else if (rateCount === 1 && stats.property_crime === 0) {
-                                stats.property_crime = rate;
-                            }
-                            rateCount++;
+                    // Fallback pattern for violent crime
+                    if (stats.violent_crime === 0.0) {
+                        const fallbackViolent = /violent crime is\s+(\d+\.?\d*)/i;
+                        const fallbackVMatch = text.match(fallbackViolent);
+                        if (fallbackVMatch) {
+                            stats.violent_crime = parseFloat(fallbackVMatch[1]);
+                            console.log('📋 Fallback violent crime:', stats.violent_crime);
+                        }
+                    }
+                    
+                    // Fallback pattern for property crime
+                    if (stats.property_crime === 0.0) {
+                        const fallbackProperty = /property crime is\s+(\d+\.?\d*)/i;
+                        const fallbackPMatch = text.match(fallbackProperty);
+                        if (fallbackPMatch) {
+                            stats.property_crime = parseFloat(fallbackPMatch[1]);
+                            console.log('📋 Fallback property crime:', stats.property_crime);
                         }
                     }
                 }

@@ -1,1 +1,0 @@
-console.log('📊 Storage Usage Analysis:'); console.log('localStorage used:', JSON.stringify(localStorage).length, 'characters'); console.log('localStorage keys:', Object.keys(localStorage)); Object.keys(localStorage).forEach(key => console.log(key + ':', JSON.stringify(localStorage[key]).length, 'chars'));

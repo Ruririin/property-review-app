@@ -3,9 +3,18 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import ExportedItemsPanel from "../components/ExportedItemsPanel";
 import apiService from "../services/apiService";
+import cleanProjectService from "../services/cleanProjectService.js";
+import { useAuth } from "../contexts/AuthContext";
 
-export default function Home({ sessionUser, onLogout }) {
+// cleanProjectService is now working correctly
+
+export default function Home() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  // Debug: Check what we imported
+  console.log('cleanProjectService:', cleanProjectService);
+  console.log('cleanProjectService.listProjects:', cleanProjectService.listProjects);
   const [projects, setProjects] = useState([]);
   const [completedProjects, setCompletedProjects] = useState([]);
   const [activeUsers, setActiveUsers] = useState([]);
@@ -25,25 +34,54 @@ export default function Home({ sessionUser, onLogout }) {
     }
     
     // If this is the current user's project (created recently)
-    if (project.owner && sessionUser) {
-      return sessionUser;
+    if (project.owner && user) {
+      return user.username || user.email;
     }
     
     // Fallback to owner ID
     return `User ${project.owner || 'Unknown'}`;
   };
 
+  // Smart slide count function for PowerPoint-like functionality (performance optimized)
+  const getProjectSlideCount = (project) => {
+    // Performance guard: ensure project exists
+    if (!project) return 1;
+
+    // Method 1: Check slide_count from new clean database structure
+    if (project.slide_count && project.slide_count > 0) {
+      return project.slide_count;
+    }
+
+    // Method 2: Check slides array from new clean database structure  
+    if (project.slides && Array.isArray(project.slides) && project.slides.length > 0) {
+      return project.slides.length;
+    }
+
+    // Default to 1 slide (every project has at least a cover page)
+    return 1;
+  };
+
   const refreshProjects = async (showLoading = true) => {
-    if (!sessionUser) return;
+    if (!user) return;
     
     if (showLoading) setIsLoading(true);
     
     try {
-      // Get all projects from database
-      const allProjects = await apiService.listProjects({ 
-        page_size: 50,  // Reduced from 100 for faster loading
-        ordering: '-updated_at'  // Most recently updated first
-      });
+      // Get all projects from database using clean service
+      let allProjects;
+      try {
+        allProjects = await cleanProjectService.listProjects({
+          page_size: 50,  // Reduced from 100 for faster loading
+          ordering: '-updated_at'  // Most recently updated first
+        });
+      } catch (serviceError) {
+        console.log('cleanProjectService failed, using apiService fallback:', serviceError);
+        // Fallback to apiService
+        allProjects = await apiService.listProjects({
+          page_size: 50,
+          ordering: '-updated_at'
+        });
+      }
       
       // Handle paginated response
       const projectList = allProjects.results || allProjects;
@@ -53,7 +91,7 @@ export default function Home({ sessionUser, onLogout }) {
       const completedProjects = [];
       
       for (const project of projectList) {
-        const status = project.status || 'editing';
+        const status = project.status || 'draft';
         if (status === 'completed') {
           completedProjects.push(project);
         } else {
@@ -73,10 +111,10 @@ export default function Home({ sessionUser, onLogout }) {
   };
 
   useEffect(() => {
-    // Load projects when sessionUser is available  
-    if (sessionUser) {
-      refreshProjects(true); // Show loading on session user change
-      updateActiveUser(sessionUser, 'join');
+    // Load projects when user is available
+    if (user) {
+      refreshProjects(true); // Show loading on user change
+      updateActiveUser(user.username || user.email, 'join');
     } else {
       setProjects([]);
       setCompletedProjects([]);
@@ -85,18 +123,18 @@ export default function Home({ sessionUser, onLogout }) {
 
     // Cleanup when component unmounts or user changes
     return () => {
-      if (sessionUser) {
-        updateActiveUser(sessionUser, 'leave');
+      if (user) {
+        updateActiveUser(user.username || user.email, 'leave');
       }
     };
-  }, [sessionUser]);
+  }, [user]);
 
   // Refresh when tab becomes visible (but not on initial page load)
   useEffect(() => {
     let isInitialLoad = true;
     
     const handleVisibilityChange = () => {
-      if (!document.hidden && sessionUser && !isInitialLoad) {
+      if (!document.hidden && user && !isInitialLoad) {
         // Silent refresh when returning to tab (no loading spinner)
         refreshProjects(false);
       }
@@ -104,14 +142,14 @@ export default function Home({ sessionUser, onLogout }) {
     };
 
     // Handle navigation back from Editor (when component remounts)
-    if (sessionUser && !isLoading && projects.length > 0) {
+    if (user && !isLoading && projects.length > 0) {
       // Silent refresh when navigating back
       refreshProjects(false);
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [sessionUser]);
+  }, [user]);
 
 
   const updateActiveUser = (userName, action) => {
@@ -130,25 +168,37 @@ export default function Home({ sessionUser, onLogout }) {
     setActiveUsers(users);
   };
 
-  const handleCreateNew = () => {
-    navigate("/editor");
+  const handleCreateNew = async () => {
+    try {
+      // Create a new project first using clean service
+      const defaultTitle = `Property Review ${new Date().toLocaleDateString()}`;
+      const newProject = await cleanProjectService.createProject(defaultTitle, '');
+      
+      console.log('✅ Created new project:', newProject);
+      
+      // Navigate to editor with the new project ID
+      navigate(`/editor/${newProject.id}`);
+    } catch (error) {
+      console.error('Failed to create new project:', error);
+      alert('Failed to create new project. Please try again.');
+    }
   };
 
   const handleLogout = () => {
-    if (sessionUser) {
-      updateActiveUser(sessionUser, 'leave');
+    if (user) {
+      updateActiveUser(user.username || user.email, 'leave');
     }
-    onLogout();
+    logout();
   };
 
   const handleEditProject = (projectId) => {
-    navigate(`/editor?projectId=${projectId}`);
+    navigate(`/editor/${projectId}`);
   };
 
   const handleDeleteProject = async (projectId) => {
     if (window.confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       try {
-        await apiService.deleteProject(projectId);
+        await cleanProjectService.deleteProject(projectId);
         await refreshProjects();
         console.log(`✅ Project deleted and lists refreshed`);
       } catch (error) {
@@ -182,9 +232,9 @@ export default function Home({ sessionUser, onLogout }) {
                 fontSize: "14px"
               }}
             >
-              {sessionUser?.charAt(0).toUpperCase()}
+              {(user?.username || user?.email)?.charAt(0).toUpperCase()}
             </div>
-            <span className="ms-2 text-muted small">Logged in as <strong>{sessionUser}</strong></span>
+            <span className="ms-2 text-muted small">Logged in as <strong>{user?.username || user?.email}</strong></span>
           </div>
           
           <div className="d-flex gap-2">
@@ -278,7 +328,11 @@ export default function Home({ sessionUser, onLogout }) {
                           </div>
                           <div className="text-end">
                             <span className="badge bg-light text-dark">
-                              {project.slideData?._slides?.length || 1} slide{(project.slideData?._slides?.length || 1) !== 1 ? 's' : ''}
+                              <i className="bi bi-file-earmark-slides me-1" style={{ color: "#198754" }}></i>
+                              {(() => {
+                                const slideCount = getProjectSlideCount(project);
+                                return `${slideCount} slide${slideCount !== 1 ? 's' : ''}`;
+                              })()}
                             </span>
                           </div>
                         </div>
@@ -353,8 +407,8 @@ export default function Home({ sessionUser, onLogout }) {
                               Completed: {new Date(project.updated_at).toLocaleDateString()}
                             </small>
                             <small className="text-muted d-block">
-                              <i className="bi bi-file-earmark-pdf me-1" style={{ color: "#198754" }}></i>
-                              Slides: {project.slideData?._slides?.length || 1}
+                              <i className="bi bi-file-earmark-slides me-1" style={{ color: "#198754" }}></i>
+                              Slides: {getProjectSlideCount(project)}
                             </small>
                           </div>
                           
@@ -392,7 +446,7 @@ export default function Home({ sessionUser, onLogout }) {
           
           {/* Exported Items Panel */}
           <div className="col-md-4">
-            <ExportedItemsPanel sessionUser={sessionUser} />
+            <ExportedItemsPanel user={user} />
           </div>
         </div>
       </div>

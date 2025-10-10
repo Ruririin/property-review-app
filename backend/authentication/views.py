@@ -91,6 +91,17 @@ def check_auth_view(request):
         'authenticated': False
     })
 
+@api_view(['GET'])
+def profile_view(request):
+    """Get current user profile - for AuthContext compatibility"""
+    if request.user.is_authenticated:
+        response = Response(UserSerializer(request.user).data)
+        return add_cors_headers(response)
+    response = Response({
+        'error': 'Not authenticated'
+    }, status=status.HTTP_401_UNAUTHORIZED)
+    return add_cors_headers(response)
+
 # Simple Session-based Authentication (for Property Review App)
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])

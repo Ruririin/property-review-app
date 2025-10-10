@@ -61,7 +61,7 @@ class ProjectSaveService {
       showWebsite: projectData.showWebsite || false,
       multipleLocationsMode: projectData.multipleLocationsMode || false,
       selectedLocationIndex: projectData.selectedLocationIndex || 0,
-      status: projectData.status || this.projects.get(projectId)?.status || 'editing',
+      status: projectData.status || this.projects.get(projectId)?.status || 'draft',
       currentSlide: projectData.currentSlide || 1,
       totalSlides: projectData.totalSlides || (projectData.slides?.length || 1),
       exportCount: projectData.exportCount || this.projects.get(projectId)?.exportCount || 0,
@@ -116,7 +116,7 @@ class ProjectSaveService {
         description: saveData.description || `Property review for ${saveData.insuredName || 'Unknown'}`,
         formData: saveData.formData || {},
         slideData: saveData.slideData || {},
-        status: saveData.status || 'editing'
+        status: saveData.status || 'draft'
       };
 
       let dbProject;
@@ -393,7 +393,7 @@ class ProjectSaveService {
         showWebsite: false,
         multipleLocationsMode: false,
         selectedLocationIndex: 0,
-        status: dbProject.status || 'editing',
+        status: dbProject.status || 'draft',
         currentSlide: 1,
         totalSlides: 0,
         lastModified: dbProject.updated_at ? new Date(dbProject.updated_at).getTime() : Date.now(),
@@ -460,7 +460,7 @@ class ProjectSaveService {
           lastModified: dbProject.updated_at ? new Date(dbProject.updated_at).getTime() : 
                        dbProject.created_at ? new Date(dbProject.created_at).getTime() : Date.now(),
           created: dbProject.created_at ? new Date(dbProject.created_at).getTime() : Date.now(),
-          status: dbProject.status || 'editing',
+          status: dbProject.status || 'draft',
           formData: dbProject.formData || {},
           slideData: {},
           slides: [],
@@ -719,8 +719,8 @@ class ProjectSaveService {
       project.lastModified = Date.now();
       
       // Auto-update status based on export activity
-      if (project.status === 'editing' && project.exportCount >= 1) {
-        project.status = 'finalizing';
+      if (project.status === 'draft' && project.exportCount >= 1) {
+        project.status = 'approved';
       }
       
       this.saveProject(projectId, project);

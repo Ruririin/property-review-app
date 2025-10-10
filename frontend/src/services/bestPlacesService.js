@@ -16,7 +16,7 @@ class BestPlacesService {
     try {
       // Validate ZIP code first
       if (!zipCode || !/^\d{5}$/.test(zipCode)) {
-        console.warn('⚠️ Invalid ZIP code format:', zipCode);
+
         return { state: 'california', city: 'los_angeles', displayName: 'Los Angeles' };
       }
       
@@ -46,7 +46,7 @@ class BestPlacesService {
    */
   async fetchCrimeData(zipCode, location = null) {
     try {
-      console.log('🔍 Fetching crime data from backend for ZIP:', zipCode);
+
 
       // Call the backend Best Places service
       const response = await fetch('http://localhost:8000/api/best-places/crime-data/', {
@@ -62,22 +62,27 @@ class BestPlacesService {
 
       if (response.ok) {
         const result = await response.json();
-        if (result.success) {
-          console.log('✅ Successfully fetched Best Places data from backend');
-          return result.data;
+        if (result.success && result.data) {
+
+          return {
+            ...result.data,
+            source: result.data.source || 'backend_generated',
+            fetched_at: new Date().toISOString()
+          };
         } else {
-          throw new Error('Backend returned error: ' + result.error);
+          throw new Error('Backend returned error: ' + (result.error || 'Unknown error'));
         }
       } else {
-        throw new Error(`Backend request failed: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Backend request failed: ${response.status} - ${errorText}`);
       }
 
     } catch (error) {
       console.error('❌ Error fetching Best Places crime data from backend:', error);
 
-      // Fallback to the original method if backend fails
-      console.log('🔄 Falling back to original method...');
-      return this.fetchCrimeDataFallback(zipCode, location);
+      // Fallback to realistic mock data instead of trying CORS proxies
+
+      return this.generateRealisticMockData(zipCode);
     }
   }
 
@@ -86,7 +91,7 @@ class BestPlacesService {
    */
   async fetchCrimeDataFallback(zipCode, location = null) {
     try {
-      console.log('🔍 Fetching crime graph images from Best Places for ZIP:', zipCode);
+
 
       // Get location info
       if (!location) {
@@ -97,20 +102,17 @@ class BestPlacesService {
       const bestPlacesSearchUrl = `https://www.bestplaces.net/search/?q=${zipCode}`;
       const crimePageUrl = await this.getBestPlacesCrimeUrl(zipCode);
 
-      console.log('🌐 Best Places URLs:', {
-        search: bestPlacesSearchUrl,
-        crime: crimePageUrl
-      });
+
 
       // Try to fetch the actual chart images
-      console.log('📊 Attempting to download Best Places chart images...');
+
       const chartImages = await this.fetchBestPlacesChartImages(zipCode, location);
 
       // Get basic crime stats for the location
       const basicStats = await this.getBasicCrimeStats(zipCode, location);
 
       if (chartImages && (chartImages.violentCrimeChart || chartImages.propertyCrimeChart)) {
-        console.log('✅ Successfully downloaded Best Places chart images');
+
 
         return {
           ...basicStats,
@@ -123,7 +125,7 @@ class BestPlacesService {
           images_downloaded: true
         };
       } else {
-        console.log('⚠️ Could not download chart images, using structured fallback');
+
         const fallbackData = await this.generateBestPlacesStructuredData(zipCode, location);
 
         return {
@@ -149,7 +151,7 @@ class BestPlacesService {
   async generateLocationBasedCrimeData(zipCode, location) {
     // Ensure location data is valid
     if (!location || !location.displayName) {
-      console.warn('⚠️ Invalid location data, using default for ZIP:', zipCode);
+
       location = await this.getLocationFromZip(zipCode);
     }
     
@@ -180,7 +182,7 @@ class BestPlacesService {
     const violentCrime = this.getRandomInRange(crimeData.violent_crime_range[0], crimeData.violent_crime_range[1]);
     const propertyCrime = this.getRandomInRange(crimeData.property_crime_range[0], crimeData.property_crime_range[1]);
     
-    console.log(`� Classified ${locationName} as ${category} area`);
+
     
     return {
       location: location.displayName,
@@ -216,17 +218,17 @@ class BestPlacesService {
    */
   async fetchBestPlacesChartImages(zipCode, location) {
     try {
-      console.log('🤖 Using Puppeteer automation to fetch Best Places charts for:', zipCode);
+
       
       // Try automation first (most reliable)
       const automationResult = await bestPlacesAutomation.fetchCrimeCharts(zipCode);
       
       if (automationResult && automationResult.chart_images) {
-        console.log('✅ Successfully fetched charts via automation');
+
         return automationResult.chart_images;
       }
       
-      console.log('⚠️ Automation failed, falling back to static URL method...');
+
       
       // Fallback to original static URL method
       return await this.fetchBestPlacesChartImagesLegacy(zipCode, location);
@@ -235,7 +237,7 @@ class BestPlacesService {
       console.error('❌ Error in automated chart fetching:', error);
       
       // Fallback to legacy method
-      console.log('🔄 Falling back to legacy static URL method...');
+
       return await this.fetchBestPlacesChartImagesLegacy(zipCode, location);
     }
   }
@@ -246,7 +248,7 @@ class BestPlacesService {
    */
   async fetchBestPlacesChartImagesLegacy(zipCode, location) {
     try {
-      console.log('📊 Attempting to fetch Best Places chart images via static URLs for:', zipCode);
+
       
       // Best Places often uses standardized chart image URLs
       // We'll try common patterns for their crime charts

@@ -55,7 +55,7 @@ export const useBackendImageHandler = (
                   }
                 });
                 setIsImageSelected(true);
-                console.log('✅ Image uploaded to backend successfully');
+
               } else {
                 console.error('❌ Backend image upload failed:', response.error);
                 alert('Failed to upload image. Please try again.');
@@ -239,7 +239,7 @@ export const useBackendImageHandler = (
       
       if (filePath) {
         await deleteImageFromBackend(filePath);
-        console.log('✅ Image deleted from backend successfully');
+
       }
       
       // Clear frontend data

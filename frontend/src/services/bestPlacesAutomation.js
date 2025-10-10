@@ -17,7 +17,7 @@ class BestPlacesAutomation {
    */
   async fetchCrimeCharts(zipCode, location = '') {
     try {
-      console.log(`🔍 Requesting Best Places charts for ZIP: ${zipCode}`);
+
       
       const requestBody = {
         zip_code: zipCode,
@@ -39,7 +39,7 @@ class BestPlacesAutomation {
       const data = await response.json();
       
       if (data.success && data.data) {
-        console.log('✅ Successfully received Best Places charts from backend');
+
         return {
           success: true,
           chart_images: this.formatChartData(data.data),
@@ -124,7 +124,7 @@ class BestPlacesAutomation {
    */
   async cleanup() {
     // No cleanup needed for API-based service
-    console.log('✅ Best Places automation service ready');
+
   }
 
   /**

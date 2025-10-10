@@ -23,32 +23,65 @@ const Sidebar = () => {
   const slideType = currentSlideData?.type;
 
   return (
-    <>
+    <div className="sidebar">
       {/* Always visible panels */}
+      <div className="sidebar-panel">
         <FontSizePanel />
+      </div>
+      <div className="sidebar-panel">
         <WebsitePanel />
+      </div>
+      <div className="sidebar-panel">
         <MapsPanel />
+      </div>
+      <div className="sidebar-panel">
         <RatingsPanel />
+      </div>
+      <div className="sidebar-panel">
         <MultipleLocationsPanel />
-        
-        {/* Drawing Mode Controls - only when drawing is enabled */}
+      </div>
+      
+      {/* Drawing Mode Controls - only when drawing is enabled */}
+      <div className="sidebar-panel">
         <DrawingModeControlsPanel />
-        
-        {/* Text Alignment Controls - only for fire station slides */}
-        {slideType === 'nearest_fire_station' && <TextAlignmentControlsPanel />}
-        
-        {/* Interior Builder - Only for interior slides */}
-        {slideType === 'interior' && <InteriorBuilderPanel />}
-        
-        {/* Sidebar Toggle Button - at bottom */}
+      </div>
+      
+      {/* Text Alignment Controls - only for fire station slides */}
+      {slideType === 'nearest_fire_station' && (
+        <div className="sidebar-panel">
+          <TextAlignmentControlsPanel />
+        </div>
+      )}
+      
+      {/* Interior Builder - Only for interior slides */}
+      {slideType === 'interior' && (
+        <div className="sidebar-panel">
+          <InteriorBuilderPanel />
+        </div>
+      )}
+      
+      {/* Sidebar Toggle Button - at bottom */}
+      <div className="sidebar-panel">
         <SidebarToggleButton />
-        
-        {/* Slide-specific options - Only show for matching slide types */}
-        {slideType === 'comments' && <CommentsSlideOptionsPanel />}
-        {slideType === 'fire_hazard' && <FireHazardSlideOptionsPanel />}
-        {slideType === 'nearest_fire_station' && <FireStationSlideOptionsPanel />}
-        
-    </>
+      </div>
+      
+      {/* Slide-specific options - Only show for matching slide types */}
+      {slideType === 'comments' && (
+        <div className="sidebar-panel">
+          <CommentsSlideOptionsPanel />
+        </div>
+      )}
+      {slideType === 'fire_hazard' && (
+        <div className="sidebar-panel">
+          <FireHazardSlideOptionsPanel />
+        </div>
+      )}
+      {slideType === 'nearest_fire_station' && (
+        <div className="sidebar-panel">
+          <FireStationSlideOptionsPanel />
+        </div>
+      )}
+    </div>
   );
 };
 

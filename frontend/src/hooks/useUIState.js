@@ -18,6 +18,13 @@ export const useUIState = () => {
   // Zoom and view state
   const [zoomLevel, setZoomLevel] = useState(100);
 
+  // Canvas state for panning and interaction
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+
+
   // Form and field states
   const [selectedField, setSelectedField] = useState(null);
   const [lroSearchTerm, setLroSearchTerm] = useState('');
@@ -36,7 +43,7 @@ export const useUIState = () => {
     fireStationDistance: 'left',
   });
 
-  return {
+  const returnObject = {
     // UI visibility
     showToolbar,
     setShowToolbar,
@@ -59,6 +66,14 @@ export const useUIState = () => {
     zoomLevel,
     setZoomLevel,
 
+    // Canvas state
+    canvasOffset,
+    setCanvasOffset,
+    isDraggingCanvas,
+    setIsDraggingCanvas,
+    dragStart,
+    setDragStart,
+
     // Form and field
     selectedField,
     setSelectedField,
@@ -71,4 +86,6 @@ export const useUIState = () => {
     textAlignments,
     setTextAlignments,
   };
+
+  return returnObject;
 };

@@ -28,7 +28,7 @@ class AuthService {
     };
 
     // Log the request for debugging
-    console.log('Auth service request:', { endpoint, method: config.method || 'GET' });
+
 
     try {
       const response = await fetch(url, config);

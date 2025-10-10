@@ -11,6 +11,7 @@ const MultiImageComponent = ({
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [isFocused, setIsFocused] = useState(false);
   
   // Resize state management
   const [isResizing, setIsResizing] = useState(false);
@@ -47,12 +48,16 @@ const MultiImageComponent = ({
         return;
       }
       
-      // Check if the container is focused or an element within it is focused
+      // Check if the container exists and slide is active - more lenient focus check
       const container = containerDivRef.current;
-      if (!container || !container.contains(document.activeElement)) {
-        console.log('📷 MultiImageComponent: Ignoring paste - container not focused');
+      if (!container) {
+        console.log('📷 MultiImageComponent: Ignoring paste - container not found');
         return;
       }
+      
+      // Allow paste if the slide is active - don't require strict focus
+      // This makes paste work when user is working on the active slide
+      console.log('📷 MultiImageComponent: Paste event accepted for active slide');
       
       console.log('📷 MultiImageComponent: Handling paste event', { 
         isActiveSlide, 
@@ -359,12 +364,27 @@ const MultiImageComponent = ({
       onMouseUp={handleMouseUp}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onClick={(e) => {
+        // Auto-focus container when clicked to enable paste
+        if (containerDivRef.current && e.target === containerDivRef.current) {
+          containerDivRef.current.focus();
+          console.log('📷 MultiImageComponent: Container focused for paste');
+        }
+      }}
+      onFocus={() => {
+        setIsFocused(true);
+        console.log('📷 MultiImageComponent: Container focused');
+      }}
+      onBlur={() => {
+        setIsFocused(false);
+        console.log('📷 MultiImageComponent: Container blurred');
+      }}
       style={{ 
         width: '100%', 
         height: '100%', 
         position: 'relative',
         touchAction: 'none', // Prevent scrolling during drag
-        pointerEvents: 'none', // Allow clicks to pass through when no images
+        pointerEvents: 'auto', // Allow clicks to focus the container
         zIndex: 10, // Lower z-index to stay below UI elements
         outline: 'none' // Hide focus outline
       }}
@@ -489,15 +509,25 @@ const MultiImageComponent = ({
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            color: "#666",
+            color: isFocused ? "#007bff" : "#666",
             fontSize: "14px",
             fontStyle: "italic",
             textAlign: "center",
-            pointerEvents: "none"
+            pointerEvents: "none",
+            transition: "color 0.2s ease"
           }}
         >
-          Press Ctrl+V to paste images here<br />
-          <small>Multiple images supported</small>
+          {isFocused ? (
+            <>
+              <strong>✓ Ready to paste!</strong><br />
+              <small>Press Ctrl+V to paste images</small>
+            </>
+          ) : (
+            <>
+              Click here, then press Ctrl+V to paste images<br />
+              <small>Multiple images supported</small>
+            </>
+          )}
         </div>
       )}
     </div>

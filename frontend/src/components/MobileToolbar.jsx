@@ -8,7 +8,7 @@ const MobileToolbar = ({
   onExport, 
   onBack,
   onUpdateProjectStatus,
-  currentProjectStatus = 'editing',
+  currentProjectStatus = 'draft',
   getStatusDisplay,
   onToggleSidebar,
   isSaving = false,

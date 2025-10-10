@@ -14,17 +14,14 @@ class LocationDataService {
   initializeFromProject(projectData, multipleLocationsMode) {
     this.locationData.clear();
     
-    console.log('🏗️ Initializing location data service...', { 
-      multipleLocationsMode, 
-      premiseLocation: projectData.formData?.premiseLocation 
-    });
+    // Initializing location data service
     
     if (multipleLocationsMode) {
       // Parse multiple locations from premise location text
       const premiseLocation = projectData.formData?.premiseLocation || '';
       const locations = this.parseLocationsFromText(premiseLocation);
       
-      console.log('📍 Parsed locations:', locations);
+
       
       // Initialize each location with separate data
       locations.forEach((location, index) => {
@@ -40,12 +37,12 @@ class LocationDataService {
         };
         
         this.locationData.set(index, locationData);
-        console.log(`📍 Set location ${index + 1}:`, locationData);
+
       });
       
       // Ensure at least one location exists
       if (this.locationData.size === 0) {
-        console.log('⚠️ No locations found, creating default location');
+
         this.locationData.set(0, { 
           ...projectData.formData,
           premiseLocation: projectData.formData?.premiseLocation || ''
@@ -53,11 +50,11 @@ class LocationDataService {
       }
     } else {
       // Single location mode - use location 0
-      console.log('🏠 Single location mode');
+
       this.locationData.set(0, { ...projectData.formData });
     }
     
-    console.log('✅ Location data service initialized with', this.locationData.size, 'locations');
+
   }
 
   /**
@@ -85,7 +82,7 @@ class LocationDataService {
     const updatedData = { ...currentData, [field]: value };
     this.locationData.set(locationIndex, updatedData);
     
-    console.log(`📍 Updated Location ${locationIndex + 1} - ${field}:`, value);
+
     return updatedData;
   }
 
@@ -127,9 +124,9 @@ class LocationDataService {
    * Clear all location data
    */
   clearLocationData() {
-    console.log('🧹 Clearing location data service...', this.locationData.size, 'locations');
+
     this.locationData.clear();
-    console.log('✅ Location data service cleared');
+
   }
 
   /**

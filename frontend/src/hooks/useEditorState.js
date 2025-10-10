@@ -51,6 +51,9 @@ export const useEditorState = () => {
     premiseLocation: "",
   });
 
+  // Global field positions (separate from slide-specific ones)
+  const [fieldPositions, setFieldPositions] = useState({});
+
   return {
     // Core slides
     slides,
@@ -81,5 +84,9 @@ export const useEditorState = () => {
     setSlideData,
     globalLocationData,
     setGlobalLocationData,
+
+    // Field positions
+    fieldPositions,
+    setFieldPositions,
   };
 };

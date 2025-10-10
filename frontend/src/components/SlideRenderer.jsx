@@ -6,7 +6,7 @@ import Interior from '../pages/slides/Interior';
 import OnlinePresence from '../pages/slides/OnlinePresence';
 import License from '../pages/slides/License';
 import Comments from '../pages/slides/Comments';
-import CommentsNew from '../pages/slides/CommentsNew';
+
 import FireHazard from '../pages/slides/FireHazard';
 import CrimeRate from '../pages/slides/CrimeRate';
 import NearestFireStation from '../pages/slides/NearestFireStation';

@@ -16,7 +16,18 @@ const SlideTwo = forwardRef(({
   allSlideData, // Need this to check other slides
   slides, // Need this to check slide types
 }, ref) => {
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  // Defensive check for required props before calling hook
+  if (!slideData || !updateSlideData) {
+    console.warn('SlideTwo: Missing required props, using defaults');
+  }
+  
+  const imageHandler = useImageHandler(
+    slideData || {}, 
+    updateSlideData || (() => {}), 
+    zoomLevel || 100, 
+    isActiveSlide !== false, 
+    'aerial'
+  );
   const currentViewType = formData.websiteInfo || "Satellite View";
   
   // Force re-render when any slide data changes (for cross-slide logic)

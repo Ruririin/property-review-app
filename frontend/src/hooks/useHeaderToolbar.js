@@ -6,7 +6,7 @@
 import { useState, useCallback } from 'react';
 import lroDataService from '../services/lroDataService';
 import { exportToPDF } from '../utils/pdfExport';
-import { projectSaveService } from '../services/serviceFactory';
+import cleanProjectService from '../services/cleanProjectService';
 import apiService from '../services/apiService';
 
 export const useHeaderToolbar = (sessionUser, currentProjectId) => {
@@ -90,16 +90,16 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
         ...lroFormData
       }));
       
-      console.log('✅ LRO form loading completed');
+
       
     } catch (error) {
       console.error('Error selecting LRO form:', error);
     }
   }, []);
 
-  // Handle PDF export
+  // Handle PDF export - using the main branch approach with slide switching
   const handleExportPdf = useCallback(async (slides, slideData, globalLocationData, callbacks = {}) => {
-    const { syncPositionsToDom = () => {} } = callbacks;
+    const { syncPositionsToDom = () => {}, sessionUser = null, currentSlide = null, setCurrentSlide = null } = callbacks;
     
     try {
       setIsExporting(true);
@@ -110,27 +110,52 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
       // Small delay to ensure DOM updates
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      await exportToPDF(slides, slideData, globalLocationData);
-      
-      // Record export in project service
-      if (currentProjectId) {
-        projectSaveService.recordPdfExport(currentProjectId);
+      if (!setCurrentSlide || !currentSlide) {
+        throw new Error('setCurrentSlide function is required for multi-slide export');
       }
+      
+      // Import the main branch style export function
+      const { exportAllSlidesMainBranchStyle } = await import('../utils/mainBranchPdfExport');
+      
+      // Use the main branch export logic
+      await exportAllSlidesMainBranchStyle(
+        slides, 
+        slideData, 
+        globalLocationData, 
+        sessionUser, 
+        currentSlide, 
+        setCurrentSlide
+      );
+      
+      // Export recorded automatically by the new clean service
       
     } catch (error) {
       console.error('Error exporting PDF:', error);
+      alert('Failed to export PDF. Please try again.');
     } finally {
       setIsExporting(false);
     }
   }, [currentProjectId]);
 
-  // Handle project save
+  // Handle project save with professional feedback
   const handleSaveProject = useCallback(async (saveFunction) => {
     try {
       setIsSaving(true);
-      await saveFunction(false); // Manual save
+      const result = await saveFunction(false); // Manual save
+      
+      if (result && !result.success) {
+        console.error('Save failed:', result.message || result.error);
+        // Error message is already shown by the saveFunction
+      }
+      
+      return result;
     } catch (error) {
-      console.error('Error saving project:', error);
+      console.error('Error during save operation:', error);
+      // Show generic error if no specific error was shown
+      if (typeof window !== 'undefined' && window.showToast) {
+        window.showToast('An unexpected error occurred while saving', 'error');
+      }
+      return { success: false, error: error.message };
     } finally {
       setIsSaving(false);
     }
@@ -150,12 +175,13 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
           });
           
           const statusMessages = {
+            'draft': 'Project marked as draft!',
             'approved': 'Project marked as approved!',
             'denied': 'Project marked as denied!',
             'conditional': 'Project marked as conditional!'
           };
           
-          console.log(`✅ Project marked as ${newStatus}`);
+
           alert(statusMessages[newStatus] || 'Project status updated!');
           // Navigate back to home page
           window.location.href = '/';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useEditor } from '../../contexts/EditorContext';
-import { openBestPlaces, openActiveFires } from '../../utils/editorHelpers';
+import { openActiveFires } from '../../utils/editorHelpers';
 
 const MapsPanel = () => {
   const { getCurrentLocation } = useEditor();
@@ -36,10 +36,7 @@ const MapsPanel = () => {
     console.log('Opened Fire Hazard ArcGIS experience');
   };
 
-  const handleOpenBestPlaces = () => {
-    const location = getCurrentLocation();
-    openBestPlaces(location);
-  };
+
 
   return (
     <div className="mb-3">
@@ -79,17 +76,6 @@ const MapsPanel = () => {
           onClick={handleOpenFireHazard}
         >
           Fire Hazard
-        </button>
-        <button
-          className="btn btn-sm flex-1"
-          style={{
-            backgroundColor: '#2d5016',
-            borderColor: '#2d5016',
-            color: 'white'
-          }}
-          onClick={handleOpenBestPlaces}
-        >
-          BESTPLACES
         </button>
         <button
           className="btn btn-sm flex-1"

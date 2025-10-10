@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEditor } from '../../contexts/EditorContext';
 import { NAVBAR_HEIGHT } from '../../utils/editorUtils';
 
 const EditorNavbar = () => {
   const navigate = useNavigate();
+  const statusDropdownRef = useRef(null);
+  
   const {
     isLroDropdownOpen,
     setIsLroDropdownOpen,
@@ -21,6 +23,21 @@ const EditorNavbar = () => {
     handleExportToPDF,
     saveProject
   } = useEditor();
+
+  // Handle click outside for status dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Close status dropdown if clicking outside
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
+        setShowStatusDropdown(false);
+      }
+    };
+
+    if (showStatusDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showStatusDropdown, setShowStatusDropdown]);
 
   return (
     <nav
@@ -92,7 +109,7 @@ const EditorNavbar = () => {
                 <input
                   type="text"
                   className="form-control form-control-sm mb-3"
-                  placeholder="Search forms by company name..."
+                  placeholder="Search forms by applicant name..."
                   style={{
                     fontSize: "13px",
                     borderRadius: "6px",
@@ -103,7 +120,7 @@ const EditorNavbar = () => {
                 />
                 <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                   {lroForms
-                    .filter(form => form.client_name?.toLowerCase().includes(lroSearchTerm.toLowerCase()))
+                    .filter(form => form.appName?.toLowerCase().includes(lroSearchTerm.toLowerCase()))
                     .map((form) => (
                       <div
                         key={form.id}
@@ -118,9 +135,9 @@ const EditorNavbar = () => {
                         onMouseEnter={(e) => e.target.style.backgroundColor = '#e9ecef'}
                         onMouseLeave={(e) => e.target.style.backgroundColor = '#f8f9fa'}
                       >
-                        <div className="fw-bold">{form.client_name}</div>
+                        <div className="fw-bold">{form.appName}</div>
                         <div className="text-muted small">
-                          {form.premise_location}
+                          {form.locationA} {form.locationB} {form.locationC}
                         </div>
                       </div>
                     ))
@@ -132,7 +149,7 @@ const EditorNavbar = () => {
         </div>
 
         {/* Project Status Dropdown */}
-        <div className="position-relative">
+        <div className="position-relative" ref={statusDropdownRef}>
           <button
             className={`btn btn-sm d-flex align-items-center ${
               currentProjectStatus === 'approved' ? 'btn-success' :
@@ -211,7 +228,14 @@ const EditorNavbar = () => {
         {/* Save Project Button */}
         <button
           className="btn btn-success btn-sm d-flex align-items-center"
-          onClick={saveProject}
+          onClick={() => {
+            console.log('🔴 SAVE BUTTON CLICKED!');
+            if (saveProject) {
+              saveProject();
+            } else {
+              console.error('❌ saveProject function is undefined!');
+            }
+          }}
           style={{
             height: "36px",
             fontSize: "13px",

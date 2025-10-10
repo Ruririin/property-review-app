@@ -82,7 +82,22 @@ const SlidesBar = ({
   onAddSlide = () => {},
   isVisible = true,
   onToggleVisibility = () => {},
-  availableSlideTypes = []
+  availableSlideTypes = [],
+  // Main branch dropdown props
+  showPopupDropdown = false,
+  setShowPopupDropdown = () => {},
+  popupPosition = { top: 0, left: 0 },
+  slideOptions = [],
+  addSlide = () => {},
+  addButtonRef = null,
+  showWebsite = false,
+  showRatings = false,
+  getSlideData = () => ({}),
+  // Zoom controls
+  zoomLevel = 100,
+  onZoomIn = () => {},
+  onZoomOut = () => {},
+  onZoomReset = () => {}
 }) => {
   const slidesContainerRef = useRef(null);
   const SLIDES_BAR_HEIGHT = 160;
@@ -138,15 +153,17 @@ const SlidesBar = ({
 
   return (
     <div
-      className="slides-bar bg-light border-top p-2 d-flex align-items-center position-fixed shadow"
+      className="slides-bar bg-light border-top p-2 position-fixed shadow"
       style={{
         bottom: isVisible ? 0 : -SLIDES_BAR_HEIGHT,
         left: 0,
         right: 0,
         height: SLIDES_BAR_HEIGHT,
-        zIndex: 999,
+        zIndex: 1002,
         transition: "bottom 0.3s ease",
-        background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)"
+        background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+        display: "flex",
+        flexDirection: "column"
       }}
     >
       {/* Toggle Arrow Button */}
@@ -159,53 +176,160 @@ const SlidesBar = ({
         </span>
       </button>
 
-      {/* Add Slide Button */}
-      <div className="position-relative me-3">
-        <button
-          className="btn btn-primary btn-sm d-flex flex-column align-items-center justify-content-center"
-          onClick={onAddSlide}
-          style={{
-            width: "50px",
-            height: "80px",
-            fontSize: "10px",
-            fontWeight: "600",
-            borderRadius: "8px",
-            background: "linear-gradient(135deg, #007bff 0%, #0056b3 100%)",
-            border: "none",
-            boxShadow: "0 2px 4px rgba(0,123,255,0.2)"
-          }}
-        >
-          <i className="bi bi-plus-lg mb-1" style={{ fontSize: "16px" }}></i>
-          Add
-        </button>
+      {/* Top Info Bar */}
+      <div className="d-flex align-items-center justify-content-between" style={{ height: "20px", marginBottom: "8px" }}>
+        <small className="fw-bold text-muted" style={{ fontSize: "11px" }}>SLIDES</small>
+        <span className="badge bg-secondary" style={{ fontSize: "9px", padding: "2px 6px" }}>
+          {slides.length} slide{slides.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
-      {/* Slides Container with horizontal scroll */}
-      <div 
-        ref={slidesContainerRef}
-        className="d-flex flex-nowrap align-items-center"
-        style={{
-          overflowX: "auto",
-          overflowY: "hidden",
-          flex: 1,
-          height: "100px",
-          scrollbarWidth: "thin",
-          scrollbarColor: "#c1c1c1 #f1f1f1",
-          paddingBottom: "10px"
-        }}
-      >
-        {slides.map((slide, index) => (
-          <SlidePreview
-            key={slide.id}
-            slide={slide}
-            index={index}
-            isActive={slide.id === currentSlide}
-            onClick={onSlideSelect}
-            onDelete={onSlideDelete}
-            canDelete={slides.length > 1}
-          />
-        ))}
-      </div>
+        {/* Slides Container with horizontal scroll */}
+        <div 
+          ref={slidesContainerRef}
+          className="d-flex flex-nowrap align-items-center"
+          style={{
+            overflowX: "auto",
+            overflowY: "hidden",
+            flex: 1,
+            height: "100px",
+            scrollbarWidth: "thin",
+            scrollbarColor: "#c1c1c1 #f1f1f1",
+            paddingBottom: "10px"
+          }}
+        >
+          {slides.map((slide, index) => (
+            <SlidePreview
+              key={slide.id}
+              slide={slide}
+              index={index}
+              isActive={slide.id === currentSlide}
+              onClick={onSlideSelect}
+              onDelete={onSlideDelete}
+              canDelete={slides.length > 1}
+            />
+          ))}
+
+          {/* Add Slide Button */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button
+              className="btn btn-outline-primary"
+              onClick={() => setShowPopupDropdown(!showPopupDropdown)}
+              ref={addButtonRef}
+              style={{ whiteSpace: "nowrap", height: "80px", minWidth: "100px" }}
+            >
+              ＋ Add
+            </button>
+          </div>
+        </div>
+
+        {/* Floating Zoom Controls */}
+        <div style={{
+          position: "absolute",
+          top: "8px",
+          right: "100px",
+          display: "flex",
+          gap: "4px",
+          alignItems: "center",
+          zIndex: 1004
+        }}>
+          <button 
+            className="btn btn-sm btn-light border"
+            onClick={onZoomOut}
+            disabled={zoomLevel <= 50}
+            style={{
+              width: "28px",
+              height: "28px",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "14px",
+              fontWeight: "bold"
+            }}
+            title="Zoom Out"
+          >
+            −
+          </button>
+          <span 
+            className="small fw-bold px-2 py-1 bg-white border rounded" 
+            style={{ 
+              minWidth: "45px", 
+              textAlign: "center",
+              fontSize: "11px"
+            }}
+          >
+            {zoomLevel}%
+          </span>
+          <button 
+            className="btn btn-sm btn-light border"
+            onClick={onZoomIn}
+            disabled={zoomLevel >= 200}
+            style={{
+              width: "28px",
+              height: "28px",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "14px",
+              fontWeight: "bold"
+            }}
+            title="Zoom In"
+          >
+            +
+          </button>
+          <button 
+            className="btn btn-sm btn-outline-primary ms-1"
+            onClick={onZoomReset}
+            style={{ fontSize: "10px", padding: "2px 6px" }}
+            title="Reset Zoom"
+          >
+            Reset
+          </button>
+        </div>
+
+      {/* Dropdown positioned outside of scroll container */}
+      {showPopupDropdown && (
+        <div
+          className="position-fixed bg-white border rounded shadow"
+          style={{
+            top: `${popupPosition.top}px`,
+            left: `${popupPosition.left}px`,
+            width: "180px",
+            maxHeight: "200px",
+            overflowY: "auto",
+            zIndex: 5000,
+            boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+          }}
+        >
+          {slideOptions.filter(option => {
+            // Show Website option if showWebsite is true and there's website data in slide 1
+            if (option === 'Website') {
+              const slide1FormData = getSlideData(1)?.formData || {};
+              const websiteValue = slide1FormData.website || '';
+              const hasWebsiteData = showWebsite && websiteValue && websiteValue.trim() !== '';
+              return hasWebsiteData;
+            }
+            // Show Ratings option only if showRatings is true
+            if (option === 'Ratings') {
+              return showRatings;
+            }
+            return true;
+          }).map(option => (
+            <div
+              key={option}
+              className="dropdown-item text-dark"
+              style={{ cursor: "pointer", padding: "8px 12px" }}
+              onClick={() => addSlide(option)}
+              onMouseEnter={(e) => e.target.style.background = "#f0f0f0"}
+              onMouseLeave={(e) => e.target.style.background = "transparent"}
+            >
+              {option}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

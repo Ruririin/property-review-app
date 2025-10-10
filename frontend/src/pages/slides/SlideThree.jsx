@@ -16,8 +16,18 @@ const SlideThree = forwardRef(({
   allSlideData, // Need this to check other slides
   slides, // Need this to check slide types
 }, ref) => {
-  // To add image functionality to any slide, just add these 2 lines:
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  // Defensive check for required props before calling hook
+  if (!slideData || !updateSlideData) {
+    console.warn('SlideThree: Missing required props, using defaults');
+  }
+  
+  const imageHandler = useImageHandler(
+    slideData || {}, 
+    updateSlideData || (() => {}), 
+    zoomLevel || 100, 
+    isActiveSlide !== false, 
+    'aerial'
+  );
   const currentViewType = formData.websiteInfo || "Satellite View";
   
   // Force re-render when any slide data changes (for cross-slide logic)

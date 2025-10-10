@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import exportedItemsService from '../services/exportedItemsService';
 import apiService from '../services/apiService';
 
-export default function ExportedItemsPanel({ sessionUser }) {
+export default function ExportedItemsPanel({ user }) {
   const [exportedItems, setExportedItems] = useState([]);
   const [selectedPDF, setSelectedPDF] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -12,10 +12,10 @@ export default function ExportedItemsPanel({ sessionUser }) {
   const itemsPerPage = 5;
 
   useEffect(() => {
-    if (sessionUser) {
+    if (user) {
       loadExportedItems();
     }
-  }, [sessionUser]);
+  }, [user]);
 
   useEffect(() => {
     // Check if device is mobile
@@ -31,12 +31,13 @@ export default function ExportedItemsPanel({ sessionUser }) {
   }, []);
 
   const loadExportedItems = async () => {
-    if (!sessionUser) return;
+    if (!user) return;
 
     setIsLoading(true);
     try {
       // Load exported items from localStorage
       const items = exportedItemsService.getExportedItems();
+      console.log('🔍 Exported items from localStorage:', items.length, items);
 
       // If no items in localStorage, show the demo/mock items from the public folder
       if (items.length === 0) {
@@ -84,6 +85,69 @@ export default function ExportedItemsPanel({ sessionUser }) {
             file_size: 920000, // 920KB estimate
             export_date: '2025-09-12T09:15:00Z',
             file_path: 'Web Review YW Builders Inc.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 6,
+            filename: 'Property Review ABC Insurance Company.pdf',
+            project_name: 'ABC Insurance Company',
+            file_size: 1050000, // 1.05MB estimate
+            export_date: '2025-09-13T11:30:00Z',
+            file_path: 'Property Review ABC Insurance Company.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 7,
+            filename: 'Property Review Smith Family Trust.pdf',
+            project_name: 'Smith Family Trust',
+            file_size: 980000, // 980KB estimate
+            export_date: '2025-09-14T15:45:00Z',
+            file_path: 'Property Review Smith Family Trust.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 8,
+            filename: 'Property Review Johnson Real Estate LLC.pdf',
+            project_name: 'Johnson Real Estate LLC',
+            file_size: 1300000, // 1.3MB estimate
+            export_date: '2025-09-15T09:20:00Z',
+            file_path: 'Property Review Johnson Real Estate LLC.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 9,
+            filename: 'Property Review Pacific Coast Properties.pdf',
+            project_name: 'Pacific Coast Properties',
+            file_size: 1180000, // 1.18MB estimate
+            export_date: '2025-09-16T13:15:00Z',
+            file_path: 'Property Review Pacific Coast Properties.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 10,
+            filename: 'Property Review Mountain View Holdings.pdf',
+            project_name: 'Mountain View Holdings',
+            file_size: 1420000, // 1.42MB estimate
+            export_date: '2025-09-17T10:00:00Z',
+            file_path: 'Property Review Mountain View Holdings.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 11,
+            filename: 'Property Review Downtown Commercial Group.pdf',
+            project_name: 'Downtown Commercial Group',
+            file_size: 1250000, // 1.25MB estimate
+            export_date: '2025-09-19T14:30:00Z',
+            file_path: 'Property Review Downtown Commercial Group.pdf',
+            isDemoItem: true
+          },
+          {
+            id: 12,
+            filename: 'Property Review Riverside Development Corp.pdf',
+            project_name: 'Riverside Development Corp',
+            file_size: 1080000, // 1.08MB estimate
+            export_date: '2025-09-20T16:45:00Z',
+            file_path: 'Property Review Riverside Development Corp.pdf',
             isDemoItem: true
           }
         ];
