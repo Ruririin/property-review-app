@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useDevice } from "../hooks/useDevice";
 import ProjectLoadingScreen from "../components/ProjectLoadingScreen";
 import Sidebar from "../components/Sidebar";
@@ -30,6 +30,7 @@ import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
 import PDFPreviewModal from "../components/PDFPreviewModal";
 import { generatePDFPreview, cleanupPDFPreview } from "../services/pdfPreviewService";
+import { useAuth } from "../contexts/AuthContext";
 
 const NAVBAR_HEIGHT = 72;
 const SIDEBAR_WIDTH = 350; // Increased to accommodate wider comment options
@@ -221,8 +222,11 @@ const SlidePreview = ({ slide, index, isActive, onClick, onDelete, canDelete, mu
   </div>
 );
 
-export default function Editor({ sessionUser }) {
+export default function Editor() {
   const device = useDevice();
+  const { user } = useAuth();
+  const sessionUser = user?.username || user?.email;
+  const { projectId: urlProjectId } = useParams();
   const [slides, setSlides] = useState([{ id: 1, type: 'cover', title: 'Cover Page' }]);
   const [currentSlide, setCurrentSlide] = useState(1);
   const [nextSlideId, setNextSlideId] = useState(2); // Track next available ID
@@ -453,35 +457,23 @@ export default function Editor({ sessionUser }) {
   // Initialize project when sessionUser changes
   useEffect(() => {
     const initializeProject = async () => {
-    if (sessionUser) {
       // First check if we already have a project ID
-      let projectId = currentProjectId;
+      let projectId = currentProjectId || urlProjectId;
       
-      // If no current project ID, try to get it from URL
-      if (!projectId) {
-        const urlParams = new URLSearchParams(window.location.search);
-        let urlProjectId = urlParams.get('projectId');
-        if (!urlProjectId) {
-          // Check for 'project' parameter for backward compatibility
-          urlProjectId = urlParams.get('project');
+    if (sessionUser) {
+
+      // If we have a project ID from URL, try to load it
+      if (urlProjectId && !currentProjectId) {
+        // Set project ID immediately to prevent race conditions
+        setCurrentProjectId(urlProjectId);
+        // Always try to load project from URL (database or cache)
+        console.log('🔄 Loading project from URL:', urlProjectId);
+        const loadResult = await loadProject(urlProjectId);
+        if (loadResult) {
+          return; // Exit early only if project was successfully loaded
         }
-        
-        if (urlProjectId) {
-          // Set project ID immediately to prevent race conditions
-          projectId = urlProjectId;
-          setCurrentProjectId(urlProjectId);
-        }
-        
-        if (urlProjectId) {
-          // Always try to load project from URL (database or cache)
-          console.log('🔄 Loading project from URL:', urlProjectId);
-          setCurrentProjectId(urlProjectId); // Set this immediately to prevent race conditions
-          const loadResult = await loadProject(urlProjectId);
-          if (loadResult) {
-            return; // Exit early only if project was successfully loaded
-          }
-          // If load failed, continue to create new project
-        }
+        // If load failed, continue to create new project
+      }
         
         // Create new project
         console.log('🆕 Creating new project');
@@ -528,41 +520,48 @@ export default function Editor({ sessionUser }) {
           locationDataService.initializeFromProject(initialProjectData, initialProjectData.multipleLocationsMode);
           console.log('🏗️ Initialized location data service for new project');
           
-          window.history.replaceState({}, '', `/editor?projectId=${projectId}`); // Fixed URL parameter name to match loadProject
+          window.history.replaceState({}, '', `/editor/${projectId}`);
+          
+          // Track project-level editing activity for new projects
+          if (sessionUser && projectId) {
+            fieldActivityService.startEditingField(
+              sessionUser, 
+              `project-${projectId}`, 
+              'Project: New Property Review'
+            );
+          }
         } catch (error) {
           console.error('❌ Failed to create project:', error);
-        }
-        
-        // Track project-level editing activity for new projects
-        if (sessionUser) {
-          fieldActivityService.startEditingField(
-            sessionUser, 
-            `project-${projectId}`, 
-            'Project: New Property Review'
-          );
+          return; // Exit early if project creation fails
         }
       }
-      setCurrentProjectId(projectId);
+
+      // Only proceed if we have a valid project ID
+      if (projectId) {
+        setCurrentProjectId(projectId);
+
+        const currentFormData = getSlideData(1)?.formData;
+        const projectName = currentFormData?.insuredName?.trim() || 'New Property Review';
+
+        userActivityService.startWorking(sessionUser, projectId, projectName);
+
+        // Capture projectId in closure for heartbeat
+        const capturedProjectId = projectId;
+
+        // Set up heartbeat to keep activity alive
+        const heartbeatInterval = setInterval(() => {
+          userActivityService.updateHeartbeat(sessionUser, capturedProjectId);
+        }, 30000); // Every 30 seconds
       
-      const currentFormData = getSlideData(1)?.formData;
-      const projectName = currentFormData?.insuredName?.trim() || 'New Property Review';
-      
-      userActivityService.startWorking(sessionUser, projectId, projectName);
-      
-      // Set up heartbeat to keep activity alive
-      const heartbeatInterval = setInterval(() => {
-        userActivityService.updateHeartbeat(sessionUser, projectId);
-      }, 30000); // Every 30 seconds
-      
-      // Cleanup when component unmounts or user changes
-      return () => {
-        userActivityService.stopWorking(sessionUser, projectId);
+        // Cleanup when component unmounts or user changes
+        return () => {
+          userActivityService.stopWorking(sessionUser, capturedProjectId);
         clearInterval(heartbeatInterval);
         
-        // Clean up project-level field activity tracking
-        if (projectId) {
-          fieldActivityService.stopEditingField(sessionUser, `project-${projectId}`);
-        }
+          // Clean up project-level field activity tracking
+          if (capturedProjectId) {
+            fieldActivityService.stopEditingField(sessionUser, `project-${capturedProjectId}`);
+          }
         
         // Clean up form-level field activity tracking
         if (currentFormId) {
@@ -574,8 +573,8 @@ export default function Editor({ sessionUser }) {
           clearInterval(fieldHeartbeatInterval);
         }
       };
+      }
     }
-    };
     
     initializeProject();
   }, [sessionUser]);
@@ -1900,7 +1899,7 @@ export default function Editor({ sessionUser }) {
           setCurrentProjectId(newProjectId);
           
           // Update URL to reflect the new project
-          const newUrl = `/editor?projectId=${newProjectId}`;
+          const newUrl = `/editor/${newProjectId}`;
           window.history.replaceState({}, '', newUrl);
           
           console.log('✅ Created new project after load failure:', newProjectId);
@@ -1991,7 +1990,7 @@ export default function Editor({ sessionUser }) {
         const newProject = await apiService.createProject(initialProjectData);
         if (newProject?.id) {
           setCurrentProjectId(newProject.id);
-          window.history.replaceState({}, '', `/editor?projectId=${newProject.id}`);
+          window.history.replaceState({}, '', `/editor/${newProject.id}`);
           console.log('✅ Created new project ID:', newProject.id);
         } else {
           console.error(`❌ ${saveType} FAILED: Could not create new project`);

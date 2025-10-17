@@ -1,0 +1,308 @@
+/* PWA-Specific Enhancements for Toolbars and Slidebars */
+
+/* PWA Navbar Enhancements */
+@media (display-mode: standalone) or (display-mode: fullscreen) or (display-mode: minimal-ui) {
+  
+  /* Enhanced Navbar for PWA */
+  .navbar {
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 20px rgba(25, 135, 84, 0.15);
+  }
+
+  .navbar .fw-semibold {
+    color: white !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .navbar img {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+  }
+
+  /* PWA Action Buttons */
+  .navbar .btn-outline-secondary {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    transition: all 0.2s ease;
+  }
+
+  .navbar .btn-outline-secondary:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .navbar .btn-outline-secondary i {
+    color: #20c997 !important;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+  }
+}
+
+/* PWA Slides Bar Enhancements */
+@media (display-mode: standalone) or (display-mode: fullscreen) or (display-mode: minimal-ui) {
+  
+  /* Glass morphism effect for slides bar */
+  .bg-white.border-top[style*="position: fixed"][style*="bottom:"] {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.98) 100%) !important;
+    backdrop-filter: blur(15px) saturate(180%);
+    -webkit-backdrop-filter: blur(15px) saturate(180%);
+    border-top: 1px solid rgba(25, 135, 84, 0.2) !important;
+    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.1), 0 -1px 0 rgba(255, 255, 255, 0.5) inset;
+  }
+
+  /* Enhanced slide thumbnails for PWA */
+  .slide-thumbnail {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+
+  .slide-thumbnail:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 24px rgba(25, 135, 84, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .slide-thumbnail.active {
+    border-color: #198754 !important;
+    box-shadow: 0 6px 24px rgba(25, 135, 84, 0.25), 0 0 0 3px rgba(25, 135, 84, 0.1);
+    transform: scale(1.05);
+  }
+
+  /* PWA Zoom Controls Enhancement */
+  .btn-light.border[style*="zoomButton"] {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.95) 100%);
+    border: 1px solid rgba(25, 135, 84, 0.2) !important;
+    color: #198754;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .btn-light.border[style*="zoomButton"]:hover:not(:disabled) {
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(25, 135, 84, 0.3);
+  }
+
+  .btn-light.border[style*="zoomButton"]:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Enhanced Add Slide Button */
+  .btn-outline-primary {
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.1) 0%, rgba(32, 201, 151, 0.1) 100%);
+    border: 2px solid #198754;
+    color: #198754;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+
+  .btn-outline-primary:hover {
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+    border-color: #20c997;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(25, 135, 84, 0.3);
+  }
+}
+
+/* Mobile PWA Specific Enhancements */
+@media (max-width: 767px) and ((display-mode: standalone) or (display-mode: fullscreen) or (display-mode: minimal-ui)) {
+  
+  /* Mobile Navbar PWA Style */
+  .navbar {
+    min-height: 60px !important;
+    padding: 8px 16px !important;
+  }
+
+  .navbar .fw-semibold {
+    font-size: 15px !important;
+  }
+
+  .navbar img {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  /* Enhanced Mobile Toolbar */
+  .toolbar {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.98) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 12px !important;
+    margin: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+    border: 1px solid rgba(25, 135, 84, 0.1);
+  }
+
+  .toolbar button {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 249, 250, 0.9) 100%);
+    border: 1px solid rgba(25, 135, 84, 0.15);
+    transition: all 0.2s ease;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+
+  .toolbar button:active {
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+    color: white;
+    transform: scale(0.95);
+  }
+
+  /* Mobile Slides Bar PWA Enhancement */
+  .bg-white.border-top[style*="position: fixed"][style*="bottom:"] {
+    border-radius: 20px 20px 0 0 !important;
+    padding: 16px 20px !important;
+  }
+
+  /* Mobile slide thumbnails */
+  .slide-thumbnail {
+    min-width: 70px !important;
+    height: 70px !important;
+    border-radius: 16px !important;
+    margin: 8px 6px !important;
+  }
+
+  /* Enhanced touch targets for mobile PWA */
+  .touch-target {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 249, 250, 0.9) 100%);
+    transition: all 0.2s ease;
+  }
+
+  .touch-target:active {
+    transform: scale(0.95);
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+    color: white;
+  }
+}
+
+/* Tablet PWA Enhancements */
+@media (min-width: 768px) and (max-width: 1199px) and ((display-mode: standalone) or (display-mode: fullscreen) or (display-mode: minimal-ui)) {
+  
+  /* Tablet Sidebar PWA Enhancement */
+  .sidebar, .sidebar-panel {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.98) 100%) !important;
+    backdrop-filter: blur(15px) saturate(180%);
+    -webkit-backdrop-filter: blur(15px) saturate(180%);
+    border-left: 1px solid rgba(25, 135, 84, 0.2) !important;
+    box-shadow: -4px 0 30px rgba(0, 0, 0, 0.1), 1px 0 0 rgba(255, 255, 255, 0.5) inset;
+    border-radius: 20px 0 0 20px;
+  }
+
+  /* Tablet button enhancements */
+  .btn-sm {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border-radius: 10px !important;
+    transition: all 0.2s ease;
+  }
+
+  .btn-sm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(25, 135, 84, 0.2);
+  }
+}
+
+/* PWA Safe Area Support */
+@media (display-mode: standalone) or (display-mode: fullscreen) {
+  .navbar {
+    padding-top: max(8px, env(safe-area-inset-top)) !important;
+    padding-left: max(16px, env(safe-area-inset-left)) !important;
+    padding-right: max(16px, env(safe-area-inset-right)) !important;
+  }
+
+  .bg-white.border-top[style*="position: fixed"][style*="bottom:"] {
+    padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    padding-left: max(20px, env(safe-area-inset-left)) !important;
+    padding-right: max(20px, env(safe-area-inset-right)) !important;
+  }
+}
+
+/* PWA Loading States */
+@media (display-mode: standalone) or (display-mode: fullscreen) or (display-mode: minimal-ui) {
+  .btn:disabled {
+    background: rgba(255, 255, 255, 0.6) !important;
+    border-color: rgba(25, 135, 84, 0.1) !important;
+    color: rgba(25, 135, 84, 0.4) !important;
+    cursor: not-allowed;
+  }
+
+  /* Loading spinner for PWA */
+  @keyframes pwa-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  .loading-state {
+    animation: pwa-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+/* PWA Dark Mode Support */
+@media (prefers-color-scheme: dark) and ((display-mode: standalone) or (display-mode: fullscreen) or (display-mode: minimal-ui)) {
+  .navbar {
+    background: linear-gradient(135deg, #1a5632 0%, #1a6b4a 100%) !important;
+  }
+
+  .bg-white.border-top[style*="position: fixed"][style*="bottom:"] {
+    background: linear-gradient(180deg, rgba(33, 37, 41, 0.95) 0%, rgba(52, 58, 64, 0.98) 100%) !important;
+    border-top-color: rgba(25, 135, 84, 0.3) !important;
+  }
+
+  .slide-thumbnail {
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .slide-thumbnail.active {
+    border-color: #20c997 !important;
+    box-shadow: 0 6px 24px rgba(32, 201, 151, 0.25), 0 0 0 3px rgba(32, 201, 151, 0.1);
+  }
+}
+
+/* PWA Haptic Feedback Simulation */
+@media (display-mode: standalone) or (display-mode: fullscreen) or (display-mode: minimal-ui) {
+  .btn:active, .touch-target:active, .slide-thumbnail:active {
+    transition: transform 0.1s ease;
+    transform: scale(0.96);
+  }
+}
+
+/* PWA Performance Optimizations */
+@media (display-mode: standalone) or (display-mode: fullscreen) or (display-mode: minimal-ui) {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .navbar, .bg-white.border-top[style*="position: fixed"] {
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  .slide-thumbnail {
+    will-change: transform, box-shadow;
+  }
+}

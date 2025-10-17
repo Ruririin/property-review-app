@@ -1,5 +1,5 @@
-import { useState, forwardRef, useImperativeHandle, useEffect } from "react";
-import { useImageHandler } from "../../hooks/useImageHandler";
+import { useState, forwardRef, useImperativeHandle, useEffect, useRef } from "react";
+import MultiImageComponent from "../../components/MultiImageComponent";
 
 const SlideThree = forwardRef(({
   formData,
@@ -16,8 +16,13 @@ const SlideThree = forwardRef(({
   allSlideData, // Need this to check other slides
   slides, // Need this to check slide types
 }, ref) => {
-  // To add image functionality to any slide, just add these 2 lines:
-  const imageHandler = useImageHandler(slideData, updateSlideData, zoomLevel, isActiveSlide, 'aerial');
+  const containerRef = useRef(null);
+
+  // Image handling using MultiImageComponent (replaces broken useImageHandler)
+  const images = slideData?.images || [];
+  const handleUpdateImages = (newImages) => {
+    updateSlideData({ images: newImages });
+  };
   const currentViewType = formData.websiteInfo || "Satellite View";
   
   // Force re-render when any slide data changes (for cross-slide logic)
@@ -193,7 +198,7 @@ const SlideThree = forwardRef(({
 
   return (
     <div
-      ref={imageHandler.containerRef}
+      ref={containerRef}
       style={{
         width: "1280px",
         height: "720px",
@@ -206,131 +211,82 @@ const SlideThree = forwardRef(({
         borderRadius: "12px",
         boxShadow: "0 0 20px rgba(0,0,0,0.15)",
       }}
-      // To add image functionality, replace onClick with these 3 handlers:
-      onMouseMove={imageHandler.handleMouseMove}
-      onMouseUp={imageHandler.handleMouseUp}
-      onTouchMove={imageHandler.handleMouseMove}
-      onTouchEnd={imageHandler.handleMouseUp}
-      onClick={(e) => imageHandler.handleContainerClick(e, onSelect)}
+      onClick={(e) => {
+        if (e.target === containerRef.current) {
+          onSelect(null);
+        }
+      }}
     >
       {renderBingMapsField()}
       {renderField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
       
-      {/* Map area - users can paste aerial images here */}
-      {!imageHandler.imageData && (
-        <div
-          style={{
-            position: "absolute",
-            top: "108px",
-            left: "108px",
-            width: "1064px",
-            height: "504px",
-            border: "2px dashed #ccc",
-            borderRadius: "12px",
-            backgroundColor: "rgba(240, 240, 240, 0.3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "18px",
-            color: "#666",
-            fontFamily: "'Montserrat', sans-serif",
-            pointerEvents: "none",
-            zIndex: 1,
-          }}
-        >
-        <div style={{ marginBottom: '10px', fontSize: '20px' }}>📍</div>
-        <div style={{ fontWeight: 'bold', marginBottom: '12px' }}>Screenshot Instructions</div>
-        <div style={{ fontSize: '13px', opacity: '0.9', textAlign: 'left', lineHeight: '1.5', maxWidth: '500px' }}>
-          {isSecondAerialSlide ? (
-            // Second aerial slide instructions - roof focus
-            <>
-              • Zoom in to show condition of the roof<br/>
-              • Check for the possible more updated view<br/>
-            </>
-          ) : (
-            // First aerial slide instructions - property overview
-            <>
-              • Include street<br/>
-              • Zoom out to show neighboring properties<br/>
-              • Show premise border by adding red lines or a red box<br/>
-              • Bing.com is preferable (address caption) but google.com is acceptable<br/>
-              • Make sure bing and google show the same premise for the address; otherwise, google search the address or check google street view<br/>
-            </>
-          )}
-          <div style={{ textAlign: 'center', marginTop: '10px', fontStyle: 'italic', opacity: '0.7' }}>
-            Paste here (Ctrl+V)
-          </div>
-        </div>
-        </div>
-      )}
-      
-      {/* Image rendering handled by imageHandler */}
-      {imageHandler.imageData && (
-        <img
-          src={imageHandler.imageData.src}
-          alt="Aerial view"
-          style={{
-            position: "absolute",
-            left: `${imageHandler.imagePosition.left}px`,
-            top: `${imageHandler.imagePosition.top}px`,
-            width: `${imageHandler.imageData.width}px`,
-            height: `${imageHandler.imageData.height}px`,
-            cursor: imageHandler.isImageSelected ? 'move' : 'pointer',
-            border: imageHandler.isImageSelected ? '3px solid #007bff' : '5px solid #000',
-            borderRadius: '6px',
-            boxSizing: 'border-box',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
-            zIndex: imageHandler.isImageSelected ? 1001 : 1000,
-          }}
-          onMouseDown={imageHandler.handleMouseDownImage}
-          onTouchStart={imageHandler.handleMouseDownImage}
-          onClick={(e) => {
-            e.stopPropagation();
-            imageHandler.setIsImageSelected(true);
-          }}
+      {/* Map area with image handling - using MultiImageComponent */}
+      <div
+        style={{
+          position: "absolute",
+          top: "108px",
+          left: "108px",
+          width: "1064px",
+          height: "504px",
+        }}
+      >
+        <MultiImageComponent
+          images={images}
+          onUpdateImages={handleUpdateImages}
+          zoomLevel={zoomLevel}
+          isActiveSlide={isActiveSlide}
         />
-      )}
 
-      {/* Resize handles */}
-      {imageHandler.isImageSelected && imageHandler.imageData && (
-        <>
+        {/* Show placeholder when no images */}
+        {images.length === 0 && (
           <div
             style={{
-              position: 'absolute',
-              left: `${imageHandler.imagePosition.left + imageHandler.imageData.width - 10}px`,
-              top: `${imageHandler.imagePosition.top + imageHandler.imageData.height - 10}px`,
-              width: '20px',
-              height: '20px',
-              background: '#007bff',
-              cursor: 'se-resize',
-              zIndex: 1002,
-              borderRadius: '50%',
-              border: '2px solid white',
-            }}
-            onMouseDown={imageHandler.handleResizeMouseDown}
-            onTouchStart={imageHandler.handleResizeMouseDown}
-          />
-          <button
-            onClick={imageHandler.handleDeleteImage}
-            style={{
-              position: 'absolute',
-              left: `${imageHandler.imagePosition.left + imageHandler.imageData.width - 25}px`,
-              top: `${imageHandler.imagePosition.top - 25}px`,
-              background: '#dc3545',
-              color: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: '25px',
-              height: '25px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              zIndex: 1002,
+              position: "absolute",
+              top: "0",
+              left: "0",
+              width: "100%",
+              height: "100%",
+              border: "2px dashed #ccc",
+              borderRadius: "12px",
+              backgroundColor: "rgba(240, 240, 240, 0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "18px",
+              color: "#666",
+              fontFamily: "'Montserrat', sans-serif",
+              pointerEvents: "none",
+              zIndex: 1,
             }}
           >
-            ×
-          </button>
-        </>
-      )}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ marginBottom: '10px', fontSize: '20px' }}>📍</div>
+              <div style={{ fontWeight: 'bold', marginBottom: '12px' }}>Screenshot Instructions</div>
+              <div style={{ fontSize: '13px', opacity: '0.9', textAlign: 'left', lineHeight: '1.5', maxWidth: '500px' }}>
+                {isSecondAerialSlide ? (
+                  // Second aerial slide instructions - roof focus
+                  <>
+                    • Zoom in to show condition of the roof<br/>
+                    • Check for the possible more updated view<br/>
+                  </>
+                ) : (
+                  // First aerial slide instructions - property overview
+                  <>
+                    • Include street<br/>
+                    • Zoom out to show neighboring properties<br/>
+                    • Show premise border by adding red lines or a red box<br/>
+                    • Bing.com is preferable (address caption) but google.com is acceptable<br/>
+                    • Make sure bing and google show the same premise for the address; otherwise, google search the address or check google street view<br/>
+                  </>
+                )}
+                <div style={{ textAlign: 'center', marginTop: '10px', fontStyle: 'italic', opacity: '0.7' }}>
+                  Paste here (Ctrl+V)
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 });

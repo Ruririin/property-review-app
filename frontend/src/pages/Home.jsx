@@ -3,13 +3,17 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import ExportedItemsPanel from "../components/ExportedItemsPanel";
 import apiService from "../services/apiService";
+import { useAuth } from "../contexts/AuthContext";
 
-export default function Home({ sessionUser, onLogout }) {
+export default function Home() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [projects, setProjects] = useState([]);
   const [completedProjects, setCompletedProjects] = useState([]);
   const [activeUsers, setActiveUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  const sessionUser = user?.username || user?.email;
 
   // Update project status
 
@@ -134,15 +138,15 @@ export default function Home({ sessionUser, onLogout }) {
     navigate("/editor");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (sessionUser) {
       updateActiveUser(sessionUser, 'leave');
     }
-    onLogout();
+    await logout();
   };
 
   const handleEditProject = (projectId) => {
-    navigate(`/editor?projectId=${projectId}`);
+    navigate(`/editor/${projectId}`);
   };
 
   const handleDeleteProject = async (projectId) => {
@@ -192,7 +196,7 @@ export default function Home({ sessionUser, onLogout }) {
               Create New PPT
             </button>
             <button className="btn btn-outline-secondary fw-semibold" onClick={handleLogout}>
-              End Session
+              Logout
             </button>
           </div>
         </div>
@@ -278,7 +282,7 @@ export default function Home({ sessionUser, onLogout }) {
                           </div>
                           <div className="text-end">
                             <span className="badge bg-light text-dark">
-                              {project.slideData?._slides?.length || 1} slide{(project.slideData?._slides?.length || 1) !== 1 ? 's' : ''}
+                              {project.slideCount || 1} slide{(project.slideCount || 1) !== 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>
@@ -354,7 +358,7 @@ export default function Home({ sessionUser, onLogout }) {
                             </small>
                             <small className="text-muted d-block">
                               <i className="bi bi-file-earmark-pdf me-1" style={{ color: "#198754" }}></i>
-                              Slides: {project.slideData?._slides?.length || 1}
+                              Slides: {project.slideCount || 1}
                             </small>
                           </div>
                           

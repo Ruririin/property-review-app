@@ -1,11 +1,11 @@
 {
-  "name": "Property Review Editor",
-  "short_name": "PropReview",
-  "description": "Professional property review and assessment application with PDF export and archive management",
-  "start_url": "/?utm_source=pwa",
-  "display": "minimal-ui",
+  "name": "Property Review Maker",
+  "short_name": "NeitClem PR",
+  "description": "Professional property review editor with touch gestures: two-finger drag to pan, pinch to zoom, single tap to select, double tap to edit. Create, edit and export property assessment reports with interactive slide management.",
+  "start_url": "/",
+  "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "theme_color": "#198754",
   "orientation": "any",
   "scope": "/",
   "launch_handler": {
@@ -57,21 +57,21 @@
     {
       "name": "New Property Review",
       "short_name": "New Review",
-      "description": "Create a new property review",
+      "description": "Start a new property assessment with touch-enabled editor: pinch to zoom, two-finger drag to pan",
       "url": "/editor",
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
       "name": "Recent Projects",
       "short_name": "Recent",
-      "description": "View recent property reviews",
+      "description": "View and edit recent property reviews with touch controls",
       "url": "/home",
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
       "name": "Exported Items",
       "short_name": "Exports",
-      "description": "View and manage exported PDF reports",
+      "description": "Access your PDF exports and archived property reports",
       "url": "/home#exported-items",
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     }

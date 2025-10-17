@@ -5,7 +5,12 @@
 
 class ApiService {
   constructor() {
+    // DEPLOYMENT: Use production URL
     this.baseURL = 'https://pr-neitclem.gratusinc.org/api';
+    
+    // LOCAL DEVELOPMENT: Use local server
+    // this.baseURL = 'http://localhost:8000/api';
+    
     this.headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',

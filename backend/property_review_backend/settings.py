@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'property_review',
     'authentication',
     'forms_data',
+
 ]
 
 MIDDLEWARE = [
@@ -237,5 +238,5 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 # Remove duplicate ALLOWED_HOSTS - using config() version above
 
-# Custom User Model
+# Custom User Model - Updated to use new enhanced authentication system
 AUTH_USER_MODEL = 'authentication.User'

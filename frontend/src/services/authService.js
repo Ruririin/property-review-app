@@ -3,7 +3,11 @@
  * Handles session-based authentication with Django backend
  */
 
-const API_BASE_URL = 'https://pr-neitclem.gratusinc.org/api/auth';
+// DEPLOYMENT: Use production URL
+// const API_BASE_URL = 'https://pr-neitclem.gratusinc.org/api/auth';
+
+// LOCAL DEVELOPMENT: Use local server
+const API_BASE_URL = 'http://localhost:8000/api/auth';
 
 class AuthService {
   constructor() {

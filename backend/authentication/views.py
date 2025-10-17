@@ -196,3 +196,11 @@ def session_logout_view(request):
     }, status=status.HTTP_200_OK)
     return add_cors_headers(response)
 
+@api_view(['GET'])
+def profile_view(request):
+    """Get current user profile"""
+    if request.user.is_authenticated:
+        response = Response(UserSerializer(request.user).data)
+        return add_cors_headers(response)
+    response = Response({'error': 'Not authenticated'}, status=401)
+    return add_cors_headers(response)
