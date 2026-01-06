@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import MultiImageComponent from "../../components/MultiImageComponent";
+import FrameLayout from "../../components/FrameLayout";
 
 const CrimeRate = forwardRef(({
   formData,
@@ -16,8 +16,68 @@ const CrimeRate = forwardRef(({
   isActiveSlide,
   slideId = 'crimeRate',
 }, ref) => {
-  
+
   const containerRef = useRef(null);
+
+  // Frame images for custom layout (1 rectangle top, 2 squares bottom)
+  const frameImages = slideData?.frameImages || {};
+
+  const handleImageUpload = (frameId, imageData, file) => {
+    updateSlideData({
+      frameImages: { ...frameImages, [frameId]: imageData }
+    });
+  };
+
+  const handleImageRemove = (frameId) => {
+    const newFrameImages = { ...frameImages };
+    delete newFrameImages[frameId];
+    updateSlideData({ frameImages: newFrameImages });
+  };
+
+  // Custom layout configuration for Crime Rate slide
+  const BORDER_INCHES = 1.5;
+  const SLIDE_WIDTH = 10;
+  const SLIDE_HEIGHT = 7.5;
+  const PIXELS_PER_INCH = 96;
+
+  const borderPx = BORDER_INCHES * PIXELS_PER_INCH;
+  const slideWidthPx = SLIDE_WIDTH * PIXELS_PER_INCH;
+  const slideHeightPx = SLIDE_HEIGHT * PIXELS_PER_INCH;
+
+  const contentWidth = slideWidthPx - (borderPx * 2);
+  const contentHeight = slideHeightPx - (borderPx * 2);
+  const gap = 16;
+
+  // Custom layout: 1 wide rectangle on top, 2 squares on bottom
+  const topHeight = (contentHeight - gap) * 0.5;
+  const bottomHeight = (contentHeight - gap) * 0.5;
+  const bottomWidth = (contentWidth - gap) / 2;
+
+  const customLayout = [
+    {
+      id: 1,
+      style: {
+        width: `${contentWidth}px`,
+        height: `${topHeight}px`,
+        marginBottom: `${gap}px`
+      }
+    },
+    {
+      id: 2,
+      style: {
+        width: `${bottomWidth}px`,
+        height: `${bottomHeight}px`,
+        marginRight: `${gap}px`
+      }
+    },
+    {
+      id: 3,
+      style: {
+        width: `${bottomWidth}px`,
+        height: `${bottomHeight}px`,
+      }
+    }
+  ];
 
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
@@ -52,16 +112,27 @@ const CrimeRate = forwardRef(({
         }
       }}
     >
-      {/* Image Component for paste functionality */}
-      <MultiImageComponent
-        images={slideData?.images || []}
-        onUpdateImages={async (updatedImages) => {
-          if (updateSlideData) {
-            await updateSlideData({ images: updatedImages });
-          }
+      {/* Image frames - Custom layout: 1 rectangle top, 2 squares bottom */}
+      <div
+        style={{
+          position: "absolute",
+          top: "108px",
+          left: "108px",
+          width: "1064px",
+          height: "504px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
         }}
-        zoomLevel={zoomLevel}
-      />
+      >
+        <FrameLayout
+          customLayout={customLayout}
+          images={frameImages}
+          onImageUpload={handleImageUpload}
+          onImageRemove={handleImageRemove}
+        />
+      </div>
     </div>
   );
 });

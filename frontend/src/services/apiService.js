@@ -72,7 +72,7 @@ class ApiService {
       if (!response.ok) {
         // Handle 404 errors gracefully for disabled endpoints
         if (response.status === 404) {
-          console.warn(`⚠️ Endpoint not found: ${config.method || 'GET'} ${endpoint} (404)`);
+          console.warn(`Endpoint not found: ${config.method || 'GET'} ${endpoint} (404)`);
           return null;
         }
         const errorText = await response.text();
@@ -83,18 +83,18 @@ class ApiService {
       const contentType = response.headers.get('content-type');
       if (response.status === 204 || !contentType?.includes('application/json')) {
         if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
-          console.log(`✅ API Success: ${config.method || 'GET'} ${endpoint} (No content)`);
+          console.log(`API Success: ${config.method || 'GET'} ${endpoint} (No content)`);
         }
         return null;
       }
 
       const data = await response.json();
       if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
-        console.log(`✅ API Success: ${config.method || 'GET'} ${endpoint}`, data);
+        console.log(`API Success: ${config.method || 'GET'} ${endpoint}`, data);
       }
       return data;
     } catch (error) {
-      console.error(`❌ API Error: ${config.method || 'GET'} ${endpoint}`, error);
+      console.error(`API Error: ${config.method || 'GET'} ${endpoint}`, error);
       throw error;
     }
   }

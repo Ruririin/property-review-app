@@ -67,7 +67,7 @@ class SlideApiService {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error(`❌ Slide API Error: ${config.method || 'GET'} ${endpoint}`, error);
+      console.error(`Slide API Error: ${config.method || 'GET'} ${endpoint}`, error);
       throw error;
     }
   }

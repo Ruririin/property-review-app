@@ -41,8 +41,8 @@ const ZOOM_STEP = 10;
 
 // CACHE-BUSTER: New Best Places function to force browser refresh
 const handleBestPlacesClickSept4_2025_FINAL = (globalLocationData, multipleLocationsMode, parseMultipleLocations, slides, currentSlide, selectedLocationIndex) => {
-  console.log('🆕🆕🆕 BRAND NEW FUNCTION EXECUTED - SEPT 4 2025! 🆕🆕🆕');
-  alert('✅ SUCCESS! New function is working!');
+  console.log('BRAND NEW FUNCTION EXECUTED - SEPT 4 2025! 🆕🆕🆕');
+  alert('SUCCESS! New function is working!');
   
   console.log('� Parameters:', { globalLocationData, multipleLocationsMode, slides, currentSlide, selectedLocationIndex });
   
@@ -65,17 +65,17 @@ const handleBestPlacesClickSept4_2025_FINAL = (globalLocationData, multipleLocat
   }
   
   if (location) {
-    console.log('🏠 FRESH Best Places - Processing location:', location);
+    console.log('FRESH Best Places - Processing location:', location);
     const zipMatch = location.match(/\b(\d{5})/);
     
     if (zipMatch) {
       const zipCode = zipMatch[1];
       const bestPlacesUrl = `https://www.bestplaces.net/search/?q=${zipCode}`;
-      console.log('🔍 FRESH Best Places - Zip code:', zipCode);
-      console.log('🌐 FRESH Best Places - URL:', bestPlacesUrl);
+      console.log('FRESH Best Places - Zip code:', zipCode);
+      console.log('FRESH Best Places - URL:', bestPlacesUrl);
       window.open(bestPlacesUrl, '_blank');
     } else {
-      console.log('❌ FRESH Best Places - No zip code found in:', location);
+      console.log('FRESH Best Places - No zip code found in:', location);
       alert('Could not extract zip code from the location.');
     }
   } else {
@@ -467,7 +467,7 @@ export default function Editor() {
         // Set project ID immediately to prevent race conditions
         setCurrentProjectId(urlProjectId);
         // Always try to load project from URL (database or cache)
-        console.log('🔄 Loading project from URL:', urlProjectId);
+        console.log('Loading project from URL:', urlProjectId);
         const loadResult = await loadProject(urlProjectId);
         if (loadResult) {
           return; // Exit early only if project was successfully loaded
@@ -476,7 +476,7 @@ export default function Editor() {
       }
         
         // Create new project
-        console.log('🆕 Creating new project');
+        console.log('Creating new project');
         
         // Create initial project save with cleaned up data structure
         const initialProjectData = {
@@ -513,12 +513,12 @@ export default function Editor() {
         try {
           const newProject = await apiService.createProject(initialProjectData);
           projectId = newProject.id;
-          console.log('✅ Created new project:', projectId);
+          console.log('Created new project:', projectId);
           setCurrentProjectId(projectId); // Set the current project ID immediately
           
           // Initialize location data service for the new project
           locationDataService.initializeFromProject(initialProjectData, initialProjectData.multipleLocationsMode);
-          console.log('🏗️ Initialized location data service for new project');
+          console.log('Initialized location data service for new project');
           
           window.history.replaceState({}, '', `/editor/${projectId}`);
           
@@ -531,7 +531,7 @@ export default function Editor() {
             );
           }
         } catch (error) {
-          console.error('❌ Failed to create project:', error);
+          console.error('Failed to create project:', error);
           return; // Exit early if project creation fails
         }
       }
@@ -754,7 +754,7 @@ export default function Editor() {
         fieldActivityService.startEditingField(sessionUser, `insuredName-${formId}`, 'Insured Name');
         
         // Track form-level editing activity for dropdown display
-        // console.log(`🏷️ Tracking form-level activity: form-${formId} for user ${sessionUser}`);
+        // console.log('Tracking form-level activity: form-${formId} for user ${sessionUser}`);
         fieldActivityService.startEditingField(
           sessionUser, 
           `form-${formId}`, 
@@ -944,7 +944,7 @@ export default function Editor() {
     if (multipleLocationsMode && globalLocationData.premiseLocation) {
       // Ensure location data service is properly initialized
       if (locationDataService.getLocationCount() === 0) {
-        console.log('🔄 Auto-initializing location data service');
+        console.log('Auto-initializing location data service');
         locationDataService.initializeFromProject({
           formData: globalLocationData
         }, multipleLocationsMode);
@@ -997,8 +997,8 @@ export default function Editor() {
         // Save to backend if we have a current project
         if (currentProjectId) {
           apiService.updateAppState(currentProjectId, { fontSizes: newFontSizes })
-            .then(() => console.log('✅ Font size saved to backend:', selectedField, size))
-            .catch(error => console.error('❌ Failed to save font size:', error));
+            .then(() => console.log('Font size saved to backend:', selectedField, size))
+            .catch(error => console.error('Failed to save font size:', error));
         }
         
         return newFontSizes;
@@ -1282,7 +1282,7 @@ export default function Editor() {
     
     // Handle drawing mode
     if (isDrawingMode && isDrawing && currentDrawing) {
-      console.log('💾 Saving drawing with coordinates:', {
+      console.log('Saving drawing with coordinates:', {
         startX: currentDrawing.startX,
         startY: currentDrawing.startY,
         endX: currentDrawing.endX,
@@ -1536,7 +1536,7 @@ export default function Editor() {
       } else {
         // Location service not properly initialized or index out of range, use global data
         locationData = globalLocationData;
-        console.warn(`⚠️ Location ${slideLocationIndex} not found, using global data`);
+        console.warn(`Location ${slideLocationIndex} not found, using global data`);
       }
     } else if (slideSpecific.specificLocation) {
       // Use specific location for this slide if available
@@ -1678,7 +1678,7 @@ export default function Editor() {
       
       const savedProject = await apiService.getProject(projectId);
       if (savedProject) {
-        console.log(`📂 Loading project: ${savedProject.title}`, savedProject);
+        console.log(`Loading project: ${savedProject.title}`, savedProject);
         
         // Load project status
         if (savedProject.status) {
@@ -1738,7 +1738,7 @@ export default function Editor() {
           
           // Check for complete globalLocationData first, then fallback to just premiseLocation
           if (_appState.globalLocationData && typeof _appState.globalLocationData === 'object') {
-            console.log('🔄 Migration: Found complete globalLocationData in _appState:', _appState.globalLocationData);
+            console.log('Migration: Found complete globalLocationData in _appState:', _appState.globalLocationData);
             setGlobalLocationData(_appState.globalLocationData);
           } else if (_appState.premiseLocation) {
             setGlobalLocationData(prev => ({
@@ -1748,8 +1748,8 @@ export default function Editor() {
           }
         }
         
-        // console.log('🔍 LOAD DEBUG - Original slideData from saved project:', savedProject.slideData);
-        // console.log('🔍 LOAD DEBUG - Saved fieldPositions from project:', savedProject.fieldPositions);
+        // console.log('LOAD DEBUG - Original slideData from saved project:', savedProject.slideData);
+        // console.log('LOAD DEBUG - Saved fieldPositions from project:', savedProject.fieldPositions);
         
         // If we have fieldPositions saved separately, merge them back into slideData
         if (savedProject.fieldPositions) {
@@ -1758,31 +1758,31 @@ export default function Editor() {
             if (slideKey.startsWith('slide_')) {
               // New format: "slide_2" -> "2"
               const slideId = slideKey.replace('slide_', '');
-              // console.log(`🔍 LOAD DEBUG - Processing slide ${slideKey} -> ${slideId}:`, positions);
+              // console.log('LOAD DEBUG - Processing slide ${slideKey} -> ${slideId}:`, positions);
               if (restoredSlideData[slideId]) {
                 restoredSlideData[slideId] = {
                   ...restoredSlideData[slideId],
                   fieldPositions: positions
                 };
-                // console.log(`🔍 LOAD DEBUG - Updated slideData[${slideId}].fieldPositions:`, restoredSlideData[slideId].fieldPositions);
+                // console.log('LOAD DEBUG - Updated slideData[${slideId}].fieldPositions:`, restoredSlideData[slideId].fieldPositions);
               } else {
-                console.warn(`🔍 LOAD DEBUG - No slideData found for slideId: ${slideId}`);
+                console.warn(`LOAD DEBUG - No slideData found for slideId: ${slideId}`);
               }
             } else {
               // Old format: field names directly - assume these belong to the Comments slide (slide 2)
-              // console.log(`🔍 LOAD DEBUG - Processing legacy field ${slideKey}:`, positions);
+              // console.log('LOAD DEBUG - Processing legacy field ${slideKey}:`, positions);
               if (restoredSlideData['2']) {
                 if (!restoredSlideData['2'].fieldPositions) {
                   restoredSlideData['2'].fieldPositions = {};
                 }
                 restoredSlideData['2'].fieldPositions[slideKey] = positions;
-                // console.log(`🔍 LOAD DEBUG - Added legacy field ${slideKey} to slide 2`);
+                // console.log('LOAD DEBUG - Added legacy field ${slideKey} to slide 2`);
               }
             }
           });
         }
         
-        // console.log('🔍 LOAD DEBUG - Final restored slideData:', restoredSlideData);
+        // console.log('LOAD DEBUG - Final restored slideData:', restoredSlideData);
         setSlideData(restoredSlideData);
         // console.log('📍 Restored fieldPositions from saved project:', savedProject.fieldPositions);
       }
@@ -1791,7 +1791,7 @@ export default function Editor() {
       setGlobalLocationData(currentGlobalData => {
         // If _appState already set complete data, don't overwrite it
         if (currentGlobalData.insuredName || currentGlobalData.website || currentGlobalData.description) {
-          console.log('🔄 Migration: globalLocationData already set by _appState, keeping existing data');
+          console.log('Migration: globalLocationData already set by _appState, keeping existing data');
           return currentGlobalData;
         }
         
@@ -1811,7 +1811,7 @@ export default function Editor() {
           originalLroFormId: slide1FormData.originalLroFormId || savedFormData.originalLroFormId || ''
         };
         
-        console.log('🔄 Migration: Initializing globalLocationData from saved project sources:', completeFormData);
+        console.log('Migration: Initializing globalLocationData from saved project sources:', completeFormData);
         return completeFormData;
       });
       
@@ -1820,7 +1820,7 @@ export default function Editor() {
         
         // Initialize location data service
         locationDataService.initializeFromProject(savedProject, savedProject.multipleLocationsMode);
-        console.log('🏗️ Initialized location data service with', locationDataService.getLocationCount(), 'locations');
+        console.log('Initialized location data service with', locationDataService.getLocationCount(), 'locations');
       }
       
       if (typeof savedProject.selectedLocationIndex === 'number') {
@@ -1844,7 +1844,7 @@ export default function Editor() {
       
       // Track project-level editing activity when project is loaded
       if (sessionUser) {
-        // console.log(`📋 Tracking project-level activity: project-${projectId} for user ${sessionUser}`);
+        // console.log('Tracking project-level activity: project-${projectId} for user ${sessionUser}`);
         fieldActivityService.startEditingField(
           sessionUser, 
           `project-${projectId}`, 
@@ -1854,7 +1854,7 @@ export default function Editor() {
         // Also track form-level activity if this project came from an LRO form
         const originalLroFormId = savedProject.slideData?.[1]?.formData?.originalLroFormId;
         if (originalLroFormId) {
-          // console.log(`🏷️ Tracking form-level activity for loaded project: form-${originalLroFormId} for user ${sessionUser}`);
+          // console.log('Tracking form-level activity for loaded project: form-${originalLroFormId} for user ${sessionUser}`);
           fieldActivityService.startEditingField(
             sessionUser, 
             `form-${originalLroFormId}`, 
@@ -1874,16 +1874,16 @@ export default function Editor() {
         
         return true;
       } else {
-        console.log(`📂 No project found for ID: ${projectId}`);
+        console.log(`No project found for ID: ${projectId}`);
         setIsLoadingProject(false);
         return false;
       }
     } catch (error) {
-      console.error(`❌ Failed to load project ${projectId}:`, error);
+      console.error(`Failed to load project ${projectId}:`, error);
       
       // If loading failed, create a new project to prevent white screen
       if (sessionUser) {
-        console.log('🆕 Creating new project due to load failure');
+        console.log('Creating new project due to load failure');
         const initialProjectData = {
           title: 'New Property Review',
           insuredName: '',
@@ -1902,11 +1902,11 @@ export default function Editor() {
           const newUrl = `/editor/${newProjectId}`;
           window.history.replaceState({}, '', newUrl);
           
-          console.log('✅ Created new project after load failure:', newProjectId);
+          console.log('Created new project after load failure:', newProjectId);
           setIsLoadingProject(false);
           return true;
         } catch (createError) {
-          console.error('❌ Failed to create new project:', createError);
+          console.error('Failed to create new project:', createError);
           setIsLoadingProject(false);
         }
       }
@@ -1968,7 +1968,7 @@ export default function Editor() {
     // Save initiated
     
     if (!sessionUser) {
-      console.error(`❌ ${saveType} FAILED: No session user`);
+      console.error(`${saveType} FAILED: No session user`);
       if (!isAutoSave) alert('Save failed: No user session');
       return false;
     }
@@ -1991,14 +1991,14 @@ export default function Editor() {
         if (newProject?.id) {
           setCurrentProjectId(newProject.id);
           window.history.replaceState({}, '', `/editor/${newProject.id}`);
-          console.log('✅ Created new project ID:', newProject.id);
+          console.log('Created new project ID:', newProject.id);
         } else {
-          console.error(`❌ ${saveType} FAILED: Could not create new project`);
+          console.error(`${saveType} FAILED: Could not create new project`);
           if (!isAutoSave) alert('Save failed: Could not create new project');
           return false;
         }
       } catch (error) {
-        console.error(`❌ ${saveType} FAILED: Error creating new project`, error);
+        console.error(`${saveType} FAILED: Error creating new project`, error);
         if (!isAutoSave) alert('Save failed: Could not create new project');
         return false;
       }
@@ -2049,7 +2049,7 @@ export default function Editor() {
         isoClass: currentFormData.isoClass || ''
       };
       
-      // console.log('💾 SAVE DEBUG - Project data:', projectData);
+      // console.log('SAVE DEBUG - Project data:', projectData);
       
       try {
         const result = await apiService.updateProject(currentProjectId, projectData);
@@ -2064,7 +2064,7 @@ export default function Editor() {
         }
         return true;
       } catch (error) {
-        console.error(`❌ ${saveType} ERROR:`, error);
+        console.error(`${saveType} ERROR:`, error);
         if (!isAutoSave) {
           alert('Save failed: ' + error.message);
         }
@@ -2085,7 +2085,7 @@ export default function Editor() {
           // Interval auto-save completed
         }
       } catch (error) {
-        console.error('❌ Interval auto-save failed:', error);
+        console.error('Interval auto-save failed:', error);
       } finally {
         setIsAutoSaving(false);
       }
@@ -2167,7 +2167,7 @@ export default function Editor() {
       };
     }
 
-    console.log(`🆕 Creating new slide for Location ${selectedLocationIndex + 1}:`, initialFormData);
+    console.log(`Creating new slide for Location ${selectedLocationIndex + 1}:`, initialFormData);
 
     // Set default field positions for Comments slides
     let defaultFieldPositions = {};
@@ -2919,7 +2919,7 @@ export default function Editor() {
           : 'Single Location'
         }
         onLocationChange={(newIndex) => {
-          console.log(`🔄 Switching to location ${newIndex + 1}`);
+          console.log(`Switching to location ${newIndex + 1}`);
           setSelectedLocationIndex(newIndex);
           
           // Initialize location data service for all locations if not already done

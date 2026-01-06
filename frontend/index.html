@@ -88,28 +88,11 @@
     
     <!-- PWA Installation -->
     <script>
-      // Service worker temporarily disabled during development to prevent caching issues
-      // TODO: Re-enable for production
-      /*
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js')
-            .then(function(registration) {
-              console.log('SW registered: ', registration);
-            })
-            .catch(function(registrationError) {
-              console.log('SW registration failed: ', registrationError);
-            });
-        });
-      }
-      */
-
-      // Unregister any existing service workers during development
+      // Unregister service workers during development
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(registrations) {
           for(let registration of registrations) {
             registration.unregister();
-            console.log('SW unregistered:', registration);
           }
         });
       }

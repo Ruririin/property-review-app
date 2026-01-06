@@ -150,10 +150,10 @@ const Comments = forwardRef(({
           console.log('💾 Comments: Saving field positions to backend:', dimensionsToSave);
           await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', dimensionsToSave);
         } catch (error) {
-          console.warn('❌ Comments: Failed to save field positions to backend:', error);
+          console.warn('Comments: Failed to save field positions to backend:', error);
         }
       } else {
-        console.log('⚠️ Comments: No field positions to save - fieldPositions:', fieldPositions);
+        console.log('Comments: No field positions to save - fieldPositions:', fieldPositions);
       }
     };
 

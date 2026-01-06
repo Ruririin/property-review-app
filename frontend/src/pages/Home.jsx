@@ -68,7 +68,7 @@ export default function Home() {
       setProjects(activeProjects);
       setCompletedProjects(completedProjects);
     } catch (error) {
-      console.error('❌ Failed to load projects:', error);
+      console.error('Failed to load projects:', error);
       setProjects([]);
       setCompletedProjects([]);
     } finally {
@@ -154,9 +154,9 @@ export default function Home() {
       try {
         await apiService.deleteProject(projectId);
         await refreshProjects();
-        console.log(`✅ Project deleted and lists refreshed`);
+        console.log(`Project deleted and lists refreshed`);
       } catch (error) {
-        console.error('❌ Error deleting project:', error);
+        console.error('Error deleting project:', error);
         alert('Failed to delete project. Please try again.');
       }
     }

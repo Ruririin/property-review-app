@@ -93,7 +93,7 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
         ...lroFormData
       }));
       
-      console.log('✅ LRO form loading completed');
+      console.log('LRO form loading completed');
       
     } catch (error) {
       console.error('Error selecting LRO form:', error);
@@ -209,7 +209,7 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
             'conditional': 'Project marked as conditional!'
           };
           
-          console.log(`✅ Project marked as ${newStatus}`);
+          console.log(`Project marked as ${newStatus}`);
           alert(statusMessages[newStatus] || 'Project status updated!');
           // Navigate back to home page
           window.location.href = '/';

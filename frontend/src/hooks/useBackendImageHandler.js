@@ -55,13 +55,13 @@ export const useBackendImageHandler = (
                   }
                 });
                 setIsImageSelected(true);
-                console.log('✅ Image uploaded to backend successfully');
+                console.log('Image uploaded to backend successfully');
               } else {
-                console.error('❌ Backend image upload failed:', response.error);
+                console.error('Backend image upload failed:', response.error);
                 alert('Failed to upload image. Please try again.');
               }
             } catch (error) {
-              console.error('❌ Error uploading image:', error);
+              console.error('Error uploading image:', error);
               alert('Failed to upload image. Please try again.');
             } finally {
               setIsUploading(false);
@@ -103,7 +103,7 @@ export const useBackendImageHandler = (
 
       return await response.json();
     } catch (error) {
-      console.error('❌ Backend upload error:', error);
+      console.error('Backend upload error:', error);
       throw error;
     }
   };
@@ -130,7 +130,7 @@ export const useBackendImageHandler = (
 
       return await response.json();
     } catch (error) {
-      console.error('❌ Backend delete error:', error);
+      console.error('Backend delete error:', error);
       throw error;
     }
   };
@@ -239,7 +239,7 @@ export const useBackendImageHandler = (
       
       if (filePath) {
         await deleteImageFromBackend(filePath);
-        console.log('✅ Image deleted from backend successfully');
+        console.log('Image deleted from backend successfully');
       }
       
       // Clear frontend data
@@ -251,7 +251,7 @@ export const useBackendImageHandler = (
       setIsImageSelected(false);
       
     } catch (error) {
-      console.error('❌ Error deleting image:', error);
+      console.error('Error deleting image:', error);
       // Still clear frontend even if backend deletion fails
       updateSlideData({
         imageData: null,

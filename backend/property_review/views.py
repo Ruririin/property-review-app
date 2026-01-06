@@ -674,9 +674,7 @@ def get_location_url_view(request):
     try:
         project_id = request.data.get('project_id')
         service_type = request.data.get('service_type')  # 'google_maps', 'bing_maps', 'fire_hazard'
-        
-        print(f"🔍 Location URL request - Project: {project_id}, Service: {service_type}")
-        
+
         if not all([project_id, service_type]):
             return Response({
                 'error': 'project_id and service_type are required'
@@ -741,9 +739,7 @@ def get_location_url_view(request):
             return Response({
                 'error': f'Unknown service type: {service_type}'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        print(f"🌐 Generated URL for {service_type}: {service_url}")
-        
+
         return Response({
             'success': True,
             'service_type': service_type,

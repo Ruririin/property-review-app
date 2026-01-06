@@ -107,10 +107,10 @@ const FireHazard = forwardRef(({
               ...fireHazardData
             }));
           } else {
-            console.log('⚠️ No fire hazard form data found in result:', result);
+            console.log('No fire hazard form data found in result:', result);
           }
         } else {
-          console.log('⚠️ No content found in result:', result);
+          console.log('No content found in result:', result);
         }
 
         console.log('Loaded fire hazard slide data from backend for slide:', slideId);
@@ -168,9 +168,9 @@ const FireHazard = forwardRef(({
       try {
         console.log('💾 Saving fire hazard data:', formData);
         await slideApiService.updateFireHazard(currentProjectId, slideId, formData);
-        console.log('✅ Saved fire hazard content to backend for slide:', slideId);
+        console.log('Saved fire hazard content to backend for slide:', slideId);
       } catch (error) {
-        console.error('❌ Failed to save fire hazard content to backend:', error);
+        console.error('Failed to save fire hazard content to backend:', error);
       }
     };
 

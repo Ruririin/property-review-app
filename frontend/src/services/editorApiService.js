@@ -144,7 +144,7 @@ class EditorApiService {
       const result = await this.getBusinessSearchUrl(projectId);
       if (result.success && result.url) {
         window.open(result.url, '_blank');
-        console.log('✅ Opened Business search for:', result.location);
+        console.log('Opened Business search for:', result.location);
       }
     } catch (error) {
       console.error('Error opening Business search:', error);

@@ -1,5 +1,6 @@
-import { useRef, forwardRef, useImperativeHandle } from "react";
-import MultiImageComponent from "../../components/MultiImageComponent";
+import { useRef, forwardRef, useImperativeHandle, useState } from "react";
+import FrameLayout from "../../components/FrameLayout";
+import FrameSelector from "../../components/FrameSelector";
 
 const Interior = forwardRef(({
   formData,
@@ -16,8 +17,29 @@ const Interior = forwardRef(({
   fieldPositions,
   setFieldPositions,
 }, ref) => {
-  
+
   const containerRef = useRef(null);
+
+  // Frame layout state (default to 1 frame)
+  const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
+  const frameImages = slideData?.frameImages || {};
+
+  const handleImageUpload = (frameId, imageData, file) => {
+    updateSlideData({
+      frameImages: { ...frameImages, [frameId]: imageData }
+    });
+  };
+
+  const handleImageRemove = (frameId) => {
+    const newFrameImages = { ...frameImages };
+    delete newFrameImages[frameId];
+    updateSlideData({ frameImages: newFrameImages });
+  };
+
+  const handleFrameLayoutChange = (layout) => {
+    setFrameLayout(layout);
+    updateSlideData({ frameLayout: layout });
+  };
 
   // Expose method for PDF export
   useImperativeHandle(ref, () => ({
@@ -65,7 +87,6 @@ const Interior = forwardRef(({
             cursor: "text",
             minHeight: "36px",
             display: "flex",
-            alignItems: "center",
             justifyContent: "flex-end",
             ...(position.bottom !== undefined 
               ? { bottom: `${position.bottom}px` }
@@ -154,16 +175,32 @@ const Interior = forwardRef(({
     >
       {renderField("websiteInfo", "www.(source).com/(source) – (mm/yyyy)")}
       {renderField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
-      
-      <MultiImageComponent
-        images={slideData?.images || []}
-        onUpdateImages={async (updatedImages) => {
-          if (updateSlideData) {
-            await updateSlideData({ images: updatedImages });
-          }
-        }}
-        zoomLevel={zoomLevel}
+
+      {/* Frame layout selector */}
+      <FrameSelector
+        currentLayout={frameLayout}
+        onLayoutChange={handleFrameLayoutChange}
       />
+
+      {/* Image frames */}
+      <div
+        style={{
+          position: "absolute",
+          top: "108px",
+          left: "108px",
+          width: "1064px",
+          height: "504px",
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <FrameLayout
+          layoutType={frameLayout}
+          images={frameImages}
+          onImageUpload={handleImageUpload}
+          onImageRemove={handleImageRemove}
+        />
+      </div>
     </div>
   );
 });

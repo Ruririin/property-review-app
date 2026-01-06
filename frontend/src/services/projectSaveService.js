@@ -93,11 +93,11 @@ class ProjectSaveService {
         console.log(`💾 Project saved to localStorage: ${saveData.title} (${projectId})`);
       }
     } catch (error) {
-      console.error('❌ Database save failed, using localStorage fallback:', error);
+      console.error('Database save failed, using localStorage fallback:', error);
       this.saveProjectToLocalStorage(projectId, saveData);
     } finally {
       // Always remove the lock when save completes
-      console.log(`✅ SAVE COMPLETED for project ${projectId} (removing lock)`);
+      console.log(`SAVE COMPLETED for project ${projectId} (removing lock)`);
       this.savingProjects.delete(projectId);
     }
 
@@ -126,7 +126,7 @@ class ProjectSaveService {
         if (existingProject?.databaseId) {
           // Update existing project in database using the stored databaseId
           dbProject = await apiService.updateProject(existingProject.databaseId, apiData);
-          console.log('✅ Updated existing project in database:', existingProject.databaseId);
+          console.log('Updated existing project in database:', existingProject.databaseId);
         } else {
           // Check if this looks like a UUID and if we have it stored as a database ID
           const isDatabaseId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
@@ -135,12 +135,12 @@ class ProjectSaveService {
             // This looks like a database ID and we have it in cache, try to update
             try {
               dbProject = await apiService.updateProject(projectId, apiData);
-              console.log('✅ Updated existing database project:', projectId);
+              console.log('Updated existing database project:', projectId);
             } catch (updateError) {
               // If update fails, create new
               if (updateError.message.includes('404') || updateError.message.includes('DoesNotExist')) {
                 dbProject = await apiService.createProject(apiData);
-                console.log('✅ Created new project after 404:', dbProject.id);
+                console.log('Created new project after 404:', dbProject.id);
               } else {
                 throw updateError;
               }
@@ -148,7 +148,7 @@ class ProjectSaveService {
           } else {
             // Either not a UUID or we don't have it in cache - create new
             dbProject = await apiService.createProject(apiData);
-            console.log('✅ Created new project:', dbProject.id);
+            console.log('Created new project:', dbProject.id);
           }
         }
 
@@ -182,7 +182,7 @@ class ProjectSaveService {
 
         return dbProject;
       } catch (error) {
-        console.error('❌ Primary save strategy failed:', error);
+        console.error('Primary save strategy failed:', error);
         throw error;
       }
 
@@ -191,7 +191,7 @@ class ProjectSaveService {
 
       return dbProject;
     } catch (error) {
-      console.error('❌ Database save error:', error);
+      console.error('Database save error:', error);
       throw error;
     }
   }
@@ -255,7 +255,7 @@ class ProjectSaveService {
         }
 
       } catch (error) {
-        console.warn(`⚠️ Failed to save slide ${slideNumber}:`, error);
+        console.warn(`Failed to save slide ${slideNumber}:`, error);
       }
     }
   }
@@ -276,10 +276,10 @@ class ProjectSaveService {
         altText: `Slide ${slideId} image`
       });
       
-      console.log('✅ Image uploaded:', uploadResult);
+      console.log('Image uploaded:', uploadResult);
       return uploadResult;
     } catch (error) {
-      console.error('❌ Image upload failed:', error);
+      console.error('Image upload failed:', error);
     }
   }
 
@@ -309,7 +309,7 @@ class ProjectSaveService {
       projects[projectId] = lightweightData;
       localStorage.setItem('savedProjects', JSON.stringify(projects));
     } catch (error) {
-      console.error('❌ localStorage save failed:', error);
+      console.error('localStorage save failed:', error);
     }
   }
 
@@ -329,7 +329,7 @@ class ProjectSaveService {
         return this.loadProjectFromLocalStorage(projectId);
       }
     } catch (error) {
-      console.error('❌ Failed to load project, trying localStorage:', error);
+      console.error('Failed to load project, trying localStorage:', error);
       return this.loadProjectFromLocalStorage(projectId);
     }
   }
@@ -358,7 +358,7 @@ class ProjectSaveService {
         title: dbProject.title || dbProject.name || 'Untitled Project',
         insuredName: dbProject.title || dbProject.name || 'Untitled Project',
         description: dbProject.description || '',
-        sessionUser: 'database-user', // TODO: Get from auth
+        sessionUser: 'database-user',
         slides: [],
         slideData: {},
         formData: dbProject.formData || {},
@@ -381,11 +381,11 @@ class ProjectSaveService {
       // Now load slides asynchronously
       await this.ensureProjectSlidesLoaded(projectId);
       
-      console.log(`✅ Project ${projectId} loaded from database`);
+      console.log(`Project ${projectId} loaded from database`);
       return this.projects.get(projectId);
       
     } catch (error) {
-      console.error(`❌ Database load failed for project ${projectId}:`, error);
+      console.error(`Database load failed for project ${projectId}:`, error);
       throw error;
     }
   }
@@ -455,9 +455,9 @@ class ProjectSaveService {
       localStorage.setItem(cacheTimeKey, Date.now().toString());
       
       const loadTime = Math.round(performance.now() - startTime);
-      console.log(`✅ Loaded ${this.projects.size} projects from database in ${loadTime}ms (slides will load on demand)`);
+      console.log(`Loaded ${this.projects.size} projects from database in ${loadTime}ms (slides will load on demand)`);
     } catch (error) {
-      console.error('❌ Failed to load projects from database:', error);
+      console.error('Failed to load projects from database:', error);
       // Try to use cached data even if expired
       this.loadProjectsFromCache();
     }
@@ -476,7 +476,7 @@ class ProjectSaveService {
         return;
       }
     } catch (error) {
-      console.error('❌ Cache load failed:', error);
+      console.error('Cache load failed:', error);
     }
     this.loadProjectsFromLocalStorage();
   }
@@ -512,10 +512,10 @@ class ProjectSaveService {
         }, {});
         
         project.slidesLoaded = true;
-        console.log(`✅ Loaded ${slides.length} slides for project ${projectId}`);
+        console.log(`Loaded ${slides.length} slides for project ${projectId}`);
       }
     } catch (error) {
-      console.warn(`⚠️ Could not load slides for project ${projectId}:`, error);
+      console.warn(`Could not load slides for project ${projectId}:`, error);
       project.slideData = {};
       project.slides = [];
       project.slidesLoaded = true; // Mark as loaded even if failed to prevent retry loops
@@ -535,7 +535,7 @@ class ProjectSaveService {
         return projects[projectId] || null;
       }
     } catch (error) {
-      console.error('❌ localStorage load failed:', error);
+      console.error('localStorage load failed:', error);
     }
     return null;
   }
@@ -552,7 +552,7 @@ class ProjectSaveService {
         console.log(`📂 Loaded ${this.projects.size} projects from localStorage`);
       }
     } catch (error) {
-      console.error('❌ localStorage load failed:', error);
+      console.error('localStorage load failed:', error);
       this.projects = new Map();
     }
   }
@@ -569,7 +569,7 @@ class ProjectSaveService {
         await apiService.deleteProject(projectId);
       }
     } catch (error) {
-      console.warn('⚠️ Database delete failed:', error);
+      console.warn('Database delete failed:', error);
     }
 
     // Always remove from cache and localStorage
@@ -583,7 +583,7 @@ class ProjectSaveService {
         localStorage.setItem('savedProjects', JSON.stringify(projects));
       }
     } catch (error) {
-      console.warn('⚠️ localStorage delete failed:', error);
+      console.warn('localStorage delete failed:', error);
     }
 
     console.log(`🗑️ Project deleted: ${project.title} (${projectId})`);
@@ -799,10 +799,10 @@ class ProjectSaveService {
         console.log('🔄 Refreshing projects from database...');
         this.projects.clear(); // Clear cache
         await this.loadProjectsFromDatabase();
-        console.log(`✅ Refreshed: ${this.projects.size} projects loaded from database`);
+        console.log(`Refreshed: ${this.projects.size} projects loaded from database`);
         return true;
       } catch (error) {
-        console.error('❌ Failed to refresh from database:', error);
+        console.error('Failed to refresh from database:', error);
         return false;
       }
     }

@@ -637,9 +637,9 @@ const NearestFireStation = forwardRef(({
           console.log('🔄 NearestFireStation onUpdateImages called with:', updatedImages);
           if (updateSlideData) {
             await updateSlideData({ images: updatedImages });
-            console.log('✅ Called updateSlideData for slideId:', slideId);
+            console.log('Called updateSlideData for slideId:', slideId);
           } else {
-            console.warn('❌ updateSlideData not available');
+            console.warn('updateSlideData not available');
           }
         }}
         zoomLevel={zoomLevel}

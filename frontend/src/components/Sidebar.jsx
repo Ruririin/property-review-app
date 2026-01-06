@@ -286,10 +286,10 @@ const Sidebar = ({
                 // Save to backend if we have a current project
                 if (currentProjectId) {
                   await apiService.updateAppState(currentProjectId, { showWebsite: newShowWebsite });
-                  console.log('✅ Website visibility saved to backend:', newShowWebsite);
+                  console.log('Website visibility saved to backend:', newShowWebsite);
                 }
               } catch (error) {
-                console.error('❌ Failed to save website visibility:', error);
+                console.error('Failed to save website visibility:', error);
                 // Revert on error
                 setShowWebsite(!showWebsite);
               }
@@ -555,10 +555,10 @@ const Sidebar = ({
               try {
                 if (currentProjectId) {
                   await apiService.toggleMultipleLocations(currentProjectId);
-                  console.log('✅ Multiple locations mode saved to backend:', newMode);
+                  console.log('Multiple locations mode saved to backend:', newMode);
                 }
               } catch (error) {
-                console.error('❌ Failed to save multiple locations mode:', error);
+                console.error('Failed to save multiple locations mode:', error);
                 // Don't revert since the local state change is likely still valid
               }
             }}

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import MultiImageComponent from "../../components/MultiImageComponent";
+import FrameLayout from "../../components/FrameLayout";
+import FrameSelector from "../../components/FrameSelector";
 
 const Ratings = forwardRef(({
   formData,
@@ -16,8 +17,29 @@ const Ratings = forwardRef(({
   isActiveSlide,
   slideId = 'ratings',
 }, ref) => {
-  
+
   const containerRef = useRef(null);
+
+  // Frame layout state (default to 1 frame)
+  const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
+  const frameImages = slideData?.frameImages || {};
+
+  const handleImageUpload = (frameId, imageData, file) => {
+    updateSlideData({
+      frameImages: { ...frameImages, [frameId]: imageData }
+    });
+  };
+
+  const handleImageRemove = (frameId) => {
+    const newFrameImages = { ...frameImages };
+    delete newFrameImages[frameId];
+    updateSlideData({ frameImages: newFrameImages });
+  };
+
+  const handleFrameLayoutChange = (layout) => {
+    setFrameLayout(layout);
+    updateSlideData({ frameLayout: layout });
+  };
 
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
@@ -54,50 +76,29 @@ const Ratings = forwardRef(({
         }
       }}
     >
-      {/* Screenshot area - users can paste Google reviews screenshots here */}
-      {(slideData?.images || []).length === 0 && (
-        <div
-          style={{
-            position: "absolute",
-            top: "108px",
-            left: "108px",
-            width: "1064px",
-            height: "504px",
-            border: "2px dashed #ccc",
-            borderRadius: "12px",
-            backgroundColor: "rgba(240, 240, 240, 0.3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "18px",
-            color: "#666",
-            fontFamily: "'Montserrat', sans-serif",
-            pointerEvents: "none",
-            zIndex: 1,
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ marginBottom: '10px', fontSize: '20px' }}>⭐</div>
-            <div style={{ fontWeight: 'bold', marginBottom: '12px' }}>Google Reviews Screenshot</div>
-            <div style={{ fontSize: '13px', opacity: '0.9', textAlign: 'center', lineHeight: '1.5', maxWidth: '500px' }}>
-              Paste screenshot of Google reviews here
-            </div>
-            <div style={{ textAlign: 'center', marginTop: '10px', fontStyle: 'italic', opacity: '0.7' }}>
-              Paste here (Ctrl+V)
-            </div>
-          </div>
-        </div>
-      )}
-
-      <MultiImageComponent
-        images={slideData?.images || []}
-        onUpdateImages={async (updatedImages) => {
-          if (updateSlideData) {
-            await updateSlideData({ images: updatedImages });
-          }
-        }}
-        zoomLevel={zoomLevel}
+      {/* Frame layout selector */}
+      <FrameSelector
+        currentLayout={frameLayout}
+        onLayoutChange={handleFrameLayoutChange}
       />
+
+      {/* Image frames */}
+      <div
+        style={{
+          position: "absolute",
+          top: "108px",
+          left: "108px",
+          width: "1064px",
+          height: "504px",
+        }}
+      >
+        <FrameLayout
+          layoutType={frameLayout}
+          images={frameImages}
+          onImageUpload={handleImageUpload}
+          onImageRemove={handleImageRemove}
+        />
+      </div>
     </div>
   );
 });

@@ -1,5 +1,5 @@
 import { useState, forwardRef, useImperativeHandle, useEffect, useRef } from "react";
-import MultiImageComponent from "../../components/MultiImageComponent";
+import FrameLayout from "../../components/FrameLayout";
 
 const SlideThree = forwardRef(({
   formData,
@@ -18,10 +18,18 @@ const SlideThree = forwardRef(({
 }, ref) => {
   const containerRef = useRef(null);
 
-  // Image handling using MultiImageComponent (replaces broken useImageHandler)
-  const images = slideData?.images || [];
-  const handleUpdateImages = (newImages) => {
-    updateSlideData({ images: newImages });
+  // Image handling using FrameLayout (1 frame only for aerial views)
+  const frameImages = slideData?.frameImages || {};
+  const handleImageUpload = (frameId, imageData, file) => {
+    updateSlideData({
+      frameImages: { ...frameImages, [frameId]: imageData }
+    });
+  };
+
+  const handleImageRemove = (frameId) => {
+    const newFrameImages = { ...frameImages };
+    delete newFrameImages[frameId];
+    updateSlideData({ frameImages: newFrameImages });
   };
   const currentViewType = formData.websiteInfo || "Satellite View";
   
@@ -220,7 +228,7 @@ const SlideThree = forwardRef(({
       {renderBingMapsField()}
       {renderField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
       
-      {/* Map area with image handling - using MultiImageComponent */}
+      {/* Image frame - 1 frame layout only for aerial views */}
       <div
         style={{
           position: "absolute",
@@ -230,62 +238,12 @@ const SlideThree = forwardRef(({
           height: "504px",
         }}
       >
-        <MultiImageComponent
-          images={images}
-          onUpdateImages={handleUpdateImages}
-          zoomLevel={zoomLevel}
-          isActiveSlide={isActiveSlide}
+        <FrameLayout
+          layoutType={1}
+          images={frameImages}
+          onImageUpload={handleImageUpload}
+          onImageRemove={handleImageRemove}
         />
-
-        {/* Show placeholder when no images */}
-        {images.length === 0 && (
-          <div
-            style={{
-              position: "absolute",
-              top: "0",
-              left: "0",
-              width: "100%",
-              height: "100%",
-              border: "2px dashed #ccc",
-              borderRadius: "12px",
-              backgroundColor: "rgba(240, 240, 240, 0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "18px",
-              color: "#666",
-              fontFamily: "'Montserrat', sans-serif",
-              pointerEvents: "none",
-              zIndex: 1,
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <div style={{ marginBottom: '10px', fontSize: '20px' }}>📍</div>
-              <div style={{ fontWeight: 'bold', marginBottom: '12px' }}>Screenshot Instructions</div>
-              <div style={{ fontSize: '13px', opacity: '0.9', textAlign: 'left', lineHeight: '1.5', maxWidth: '500px' }}>
-                {isSecondAerialSlide ? (
-                  // Second aerial slide instructions - roof focus
-                  <>
-                    • Zoom in to show condition of the roof<br/>
-                    • Check for the possible more updated view<br/>
-                  </>
-                ) : (
-                  // First aerial slide instructions - property overview
-                  <>
-                    • Include street<br/>
-                    • Zoom out to show neighboring properties<br/>
-                    • Show premise border by adding red lines or a red box<br/>
-                    • Bing.com is preferable (address caption) but google.com is acceptable<br/>
-                    • Make sure bing and google show the same premise for the address; otherwise, google search the address or check google street view<br/>
-                  </>
-                )}
-                <div style={{ textAlign: 'center', marginTop: '10px', fontStyle: 'italic', opacity: '0.7' }}>
-                  Paste here (Ctrl+V)
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

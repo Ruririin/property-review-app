@@ -45,7 +45,7 @@ class LocationDataService {
       
       // Ensure at least one location exists
       if (this.locationData.size === 0) {
-        console.log('⚠️ No locations found, creating default location');
+        console.log('No locations found, creating default location');
         this.locationData.set(0, { 
           ...projectData.formData,
           premiseLocation: projectData.formData?.premiseLocation || ''
@@ -57,7 +57,7 @@ class LocationDataService {
       this.locationData.set(0, { ...projectData.formData });
     }
     
-    console.log('✅ Location data service initialized with', this.locationData.size, 'locations');
+    console.log('Location data service initialized with', this.locationData.size, 'locations');
   }
 
   /**
