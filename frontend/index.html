@@ -63,8 +63,7 @@
     <link rel="dns-prefetch" href="//fonts.gstatic.com">
     
     <!-- Preload critical assets -->
-    <link rel="preload" href="/NeitClemLogo.png" as="image" type="image/png">
-    <link rel="preload" href="/manifest.json" as="manifest">
+    <link rel="preload" href="/NeitClemLogo.png" as="image" type="image/png" fetchpriority="high">
     
     <!-- Mobile performance hints -->
     <link rel="prefetch" href="/home">
@@ -84,12 +83,14 @@
     
     <!-- Security -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <!-- X-Frame-Options should be set via HTTP headers, not meta tags -->
     <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
     
     <!-- PWA Installation -->
     <script>
-      // Register service worker
+      // Service worker temporarily disabled during development to prevent caching issues
+      // TODO: Re-enable for production
+      /*
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/sw.js')
@@ -99,6 +100,17 @@
             .catch(function(registrationError) {
               console.log('SW registration failed: ', registrationError);
             });
+        });
+      }
+      */
+
+      // Unregister any existing service workers during development
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+            console.log('SW unregistered:', registration);
+          }
         });
       }
       

@@ -1,7 +1,7 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from django.db import models
 from .models import FormData
 from .serializers import FormDataSerializer
@@ -10,16 +10,16 @@ class FormDataListView(generics.ListAPIView):
     """List all form data from the forms database"""
     queryset = FormData.objects.using('forms_db').all()
     serializer_class = FormDataSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]  # Require authentication
 
 class FormDataDetailView(generics.RetrieveAPIView):
     """Retrieve specific form data by ID"""
     queryset = FormData.objects.using('forms_db').all()
     serializer_class = FormDataSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]  # Require authentication
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def search_form_data(request):
     """Search form data by various criteria"""
     app_name = request.GET.get('app_name', '')
@@ -47,7 +47,7 @@ def search_form_data(request):
     return Response(serializer.data)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_form_data_for_property_review(request):
     """Get form data specifically formatted for property review text fields"""
     form_id = request.GET.get('id')
@@ -113,7 +113,7 @@ def get_form_data_for_property_review(request):
         return Response({'error': 'Form data not found'}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def search_iso_codes(request):
     """Search ISO codes from tbl_lro table by description text"""
     search_term = request.GET.get('search', '').strip()
@@ -152,7 +152,7 @@ def search_iso_codes(request):
     return Response(results)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_all_iso_codes(request):
     """Get all unique ISO codes from tbl_lro table"""
     queryset = FormData.objects.using('forms_db').exclude(

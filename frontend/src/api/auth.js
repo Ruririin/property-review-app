@@ -2,16 +2,40 @@ import axios from 'axios';
 
 // Create axios instance with default config
 const apiClient = axios.create({
-  baseURL: 'https://pr-neitclem.gratusinc.org/api',
+  baseURL: 'http://localhost:8000/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to handle auth tokens
+// Helper function to get CSRF token from cookies
+const getCsrfToken = () => {
+  const name = 'csrftoken';
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
+
+// Request interceptor to handle CSRF tokens
 apiClient.interceptors.request.use(
   (config) => {
+    // Add CSRF token to non-GET requests
+    if (config.method !== 'get') {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        config.headers['X-CSRFToken'] = csrfToken;
+      }
+    }
     return config;
   },
   (error) => {
@@ -69,8 +93,12 @@ export const authApi = {
   // Check authentication status
   checkAuth: async () => {
     try {
-      const response = await apiClient.get('/auth/profile/');
-      return response.data;
+      // Use session/status endpoint which is publicly accessible and sets CSRF cookie
+      const response = await apiClient.get('/auth/session/status/');
+      if (response.data.authenticated) {
+        return response.data.user;
+      }
+      throw new Error('Not authenticated');
     } catch (error) {
       throw error;
     }

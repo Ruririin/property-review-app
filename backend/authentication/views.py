@@ -1,112 +1,81 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import login, logout
-from django.http import HttpResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from .serializers import UserRegistrationSerializer, UserLoginSerializer, UserSerializer
 
-def add_cors_headers(response):
-    """Add CORS headers to response"""
-    response['Access-Control-Allow-Origin'] = '*'
-    response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-CSRFToken'
-    response['Access-Control-Allow-Credentials'] = 'true'
-    return response
+# CORS headers are now handled by CORS middleware in settings.py
+# No need for manual CORS header management
 
-@api_view(['POST', 'OPTIONS'])
-@permission_classes([AllowAny])
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Registration must be public
 def register_view(request):
     """User registration endpoint"""
-    if request.method == 'OPTIONS':
-        response = HttpResponse()
-        return add_cors_headers(response)
-        
     serializer = UserRegistrationSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
-        response = Response({
+        return Response({
             'success': True,
             'message': 'User registered successfully',
             'user': UserSerializer(user).data
         }, status=status.HTTP_201_CREATED)
-        return add_cors_headers(response)
-    response = Response({
+    return Response({
         'success': False,
         'error': serializer.errors
     }, status=status.HTTP_400_BAD_REQUEST)
-    return add_cors_headers(response)
 
-@api_view(['POST', 'OPTIONS'])
-@permission_classes([AllowAny])
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Login must be public
 def login_view(request):
     """User login endpoint"""
-    if request.method == 'OPTIONS':
-        response = HttpResponse()
-        return add_cors_headers(response)
-        
     serializer = UserLoginSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.validated_data['user']
         login(request, user)
-        response = Response({
+        return Response({
             'success': True,
             'token': 'dummy-auth-token',  # For compatibility with frontend
             'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
-        return add_cors_headers(response)
-    response = Response({
+    return Response({
         'success': False,
         'error': serializer.errors
     }, status=status.HTTP_401_UNAUTHORIZED)
-    return add_cors_headers(response)
 
-@api_view(['POST', 'OPTIONS'])
-@permission_classes([AllowAny])
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Logout should be accessible
 @authentication_classes([])
 def logout_view(request):
     """User logout endpoint"""
-    if request.method == 'OPTIONS':
-        response = HttpResponse()
-        return add_cors_headers(response)
-        
     logout(request)
-    response = Response({
+    return Response({
         'success': True,
         'message': 'Logged out successfully'
     }, status=status.HTTP_200_OK)
-    return add_cors_headers(response)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def check_auth_view(request):
     """Check authentication status"""
-    if request.user.is_authenticated:
-        return Response({
-            'authenticated': True,
-            'user': UserSerializer(request.user).data
-        })
     return Response({
-        'authenticated': False
+        'authenticated': True,
+        'user': UserSerializer(request.user).data
     })
 
 # Simple Session-based Authentication (for Property Review App)
-@api_view(['POST', 'OPTIONS'])
-@permission_classes([AllowAny])
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Login must be public
 def session_login_view(request):
     """Simple session login - create or get user by display name"""
-    if request.method == 'OPTIONS':
-        response = HttpResponse()
-        return add_cors_headers(response)
     
     display_name = request.data.get('name', '').strip()
     if not display_name:
-        response = Response({
+        return Response({
             'success': False,
             'error': 'Name is required'
         }, status=status.HTTP_400_BAD_REQUEST)
-        return add_cors_headers(response)
     
     try:
         from .models import User
@@ -133,7 +102,7 @@ def session_login_view(request):
             # Keep only last 10 users
             request.session['recent_users'] = recent_users[:10]
         
-        response = Response({
+        return Response({
             'success': True,
             'message': 'Session started successfully',
             'user': {
@@ -144,21 +113,20 @@ def session_login_view(request):
             },
             'session_created': created
         }, status=status.HTTP_200_OK)
-        return add_cors_headers(response)
-        
+
     except Exception as e:
-        response = Response({
+        return Response({
             'success': False,
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return add_cors_headers(response)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([AllowAny])  # Session status should be publicly accessible
+@ensure_csrf_cookie  # Ensure CSRF cookie is set for subsequent requests
 def session_status_view(request):
     """Check current session status"""
     if request.user.is_authenticated:
-        response = Response({
+        return Response({
             'authenticated': True,
             'user': {
                 'id': request.user.id,
@@ -168,39 +136,28 @@ def session_status_view(request):
             },
             'recent_users': request.session.get('recent_users', [])
         })
-        return add_cors_headers(response)
-    
-    response = Response({
+
+    return Response({
         'authenticated': False,
         'recent_users': request.session.get('recent_users', [])
     })
-    return add_cors_headers(response)
 
-@api_view(['POST', 'OPTIONS'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Logout should be accessible
 def session_logout_view(request):
     """Simple session logout"""
-    if request.method == 'OPTIONS':
-        response = HttpResponse()
-        return add_cors_headers(response)
-    
     # Keep recent users but clear authentication
     recent_users = request.session.get('recent_users', [])
     logout(request)
     request.session['recent_users'] = recent_users
-    
-    response = Response({
+
+    return Response({
         'success': True,
         'message': 'Session ended successfully'
     }, status=status.HTTP_200_OK)
-    return add_cors_headers(response)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def profile_view(request):
     """Get current user profile"""
-    if request.user.is_authenticated:
-        response = Response(UserSerializer(request.user).data)
-        return add_cors_headers(response)
-    response = Response({'error': 'Not authenticated'}, status=401)
-    return add_cors_headers(response)
+    return Response(UserSerializer(request.user).data)

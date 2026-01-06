@@ -5,12 +5,12 @@
 
 class ApiService {
   constructor() {
-    // DEPLOYMENT: Use production URL
-    this.baseURL = 'https://pr-neitclem.gratusinc.org/api';
-    
     // LOCAL DEVELOPMENT: Use local server
-    // this.baseURL = 'http://localhost:8000/api';
-    
+    this.baseURL = 'http://localhost:8000/api';
+
+    // DEPLOYMENT: Use production URL
+    // this.baseURL = 'https://pr-neitclem.gratusinc.org/api';
+
     this.headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -18,12 +18,39 @@ class ApiService {
   }
 
   /**
+   * Get CSRF token from cookie
+   */
+  getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  /**
    * Generic API request handler
    */
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+
+    // Get CSRF token and add to headers for non-GET requests
+    const csrfToken = this.getCookie('csrftoken');
+    const headers = {
+      ...this.headers,
+      ...(csrfToken && { 'X-CSRFToken': csrfToken })
+    };
+
     const config = {
-      headers: this.headers,
+      headers,
+      credentials: 'include',  // Send cookies with requests
       ...options,
     };
 

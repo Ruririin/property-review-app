@@ -3,9 +3,7 @@ from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.exceptions import ValidationError
-from django.views.decorators.csrf import csrf_exempt
 from django.middleware.csrf import get_token
-from django.utils.decorators import method_decorator
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -26,6 +24,7 @@ from .pdf_service import pdf_exporter
 
 # PPTX Template extraction (equivalent to Express route)
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def extract_template_view(request):
     """Extract content from PPTX template"""
     try:
@@ -56,10 +55,9 @@ def extract_template_view(request):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ViewSets for CRUD operations - OPTIMIZED FOR PERFORMANCE
-@method_decorator(csrf_exempt, name='dispatch')
 class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer  # Default serializer
-    permission_classes = [AllowAny]  # Allow unauthenticated access for testing
+    permission_classes = [IsAuthenticated]  # Require authentication
     
     def get_serializer_class(self):
         """Use lightweight serializer for list, full serializer for details"""
@@ -68,39 +66,27 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return ProjectSerializer
     
     def get_queryset(self):
-        return Project.objects.all()  # Return all projects for testing
+        # Only return projects owned by the current user
+        return Project.objects.filter(owner=self.request.user)
     
     def get_object(self):
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
         lookup = self.kwargs[lookup_url_kwarg]
-        
-        # Try getting by UUID first
+
+        # Try getting by UUID first - SECURED: Filter by owner
         try:
-            return Project.objects.get(id=lookup)
+            return Project.objects.get(id=lookup, owner=self.request.user)
         except (ValidationError, Project.DoesNotExist):
-            # If it's a numeric ID, try looking up by legacy_id
+            # If it's a numeric ID, try looking up by legacy_id - SECURED: Filter by owner
             if lookup.isdigit():
-                project = Project.objects.filter(legacy_id=int(lookup)).first()
+                project = Project.objects.filter(legacy_id=int(lookup), owner=self.request.user).first()
                 if project:
                     return project
             raise
     
-    def get_object(self):
-        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-        lookup = self.kwargs[lookup_url_kwarg]
-        
-        # Try getting by UUID first
-        try:
-            return Project.objects.get(id=lookup)
-        except (ValidationError, Project.DoesNotExist):
-            # If it's a numeric ID, try looking up by legacy_id
-            if lookup.isdigit():
-                return Project.objects.filter(legacy_id=int(lookup)).first()
-            raise
-    
     def perform_create(self, serializer):
-        # For now, create projects without an owner (since we're allowing AllowAny)
-        serializer.save()
+        # Set the owner to the current user
+        serializer.save(owner=self.request.user)
     
     @action(detail=True, methods=['post'])
     def toggle_multiple_locations(self, request, pk=None):
@@ -151,27 +137,33 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'selectedLocationIndex': project.selectedLocationIndex
         })
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PropertySlideViewSet(viewsets.ModelViewSet):
     serializer_class = PropertySlideSerializer
-    permission_classes = [AllowAny]  # Allow unauthenticated access for testing
+    permission_classes = [IsAuthenticated]  # Require authentication
     
     def get_queryset(self):
-        # Filter by project if provided
+        # Filter by project if provided - SECURED: Only user's projects
         project_id = self.request.query_params.get('project', None)
         if project_id is not None:
             try:
-                # Try using it as a UUID first
-                return PropertySlide.objects.filter(project_id=project_id)
+                # Try using it as a UUID first - SECURED: Check ownership
+                return PropertySlide.objects.filter(
+                    project_id=project_id,
+                    project__owner=self.request.user
+                )
             except ValidationError:
-                # Legacy numeric ID support
+                # Legacy numeric ID support - SECURED: Check ownership
                 if project_id.isdigit():
                     # Find project with legacy ID and get its UUID
-                    project = Project.objects.filter(legacy_id=int(project_id)).first()
+                    project = Project.objects.filter(
+                        legacy_id=int(project_id),
+                        owner=self.request.user
+                    ).first()
                     if project:
                         return PropertySlide.objects.filter(project=project)
                 return PropertySlide.objects.none()  # Return empty queryset if no match
-        return PropertySlide.objects.all()
+        # Return all slides from user's projects
+        return PropertySlide.objects.filter(project__owner=self.request.user)
     
     def perform_create(self, serializer):
         # Ensure formData and fieldPositions are included
@@ -202,17 +194,20 @@ class TemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Template.objects.filter(is_active=True)
 
-@method_decorator(csrf_exempt, name='dispatch')
 class ProjectLocationViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectLocationSerializer
-    permission_classes = [AllowAny]  # Allow unauthenticated access for testing
+    permission_classes = [IsAuthenticated]  # Require authentication
     
     def get_queryset(self):
-        # Filter by project if provided
+        # Filter by project if provided - SECURED: Only user's projects
         project_id = self.request.query_params.get('project', None)
         if project_id is not None:
-            return ProjectLocation.objects.filter(project_id=project_id)
-        return ProjectLocation.objects.all()
+            return ProjectLocation.objects.filter(
+                project_id=project_id,
+                project__owner=self.request.user
+            )
+        # Return all locations from user's projects
+        return ProjectLocation.objects.filter(project__owner=self.request.user)
     
     def perform_create(self, serializer):
         # Auto-increment location_index for the project
@@ -225,6 +220,7 @@ class ProjectLocationViewSet(viewsets.ModelViewSet):
 
 # PDF Export Views
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def export_frontend_slides_view(request):
     """
     Export slides from frontend with positioning adjustments
@@ -251,6 +247,7 @@ def export_frontend_slides_view(request):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def export_pdf_view(request):
     """
     Export slides to PDF - Django backend version
@@ -280,6 +277,7 @@ def export_pdf_view(request):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def export_project_pdf_view(request, project_id):
     """
     Export a specific project's slides to PDF
@@ -306,6 +304,7 @@ def export_project_pdf_view(request, project_id):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def preview_pdf_view(request):
     """
     Preview slides as PDF (inline viewing) - Django backend version
@@ -335,6 +334,7 @@ def preview_pdf_view(request):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def preview_project_pdf_view(request, project_id):
     """
     Preview a specific project's slides as PDF (inline viewing)
@@ -362,8 +362,7 @@ def preview_project_pdf_view(request, project_id):
 
 # Textbox Dimension Persistence Views
 @api_view(['POST'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([IsAuthenticated])
 def save_textbox_dimensions_view(request):
     """
     Save textbox dimensions for a specific slide
@@ -375,9 +374,9 @@ def save_textbox_dimensions_view(request):
         if not slide_id:
             return Response({'error': 'slide_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Find the slide and update its field_dimensions
+        # Find the slide and update its field_dimensions - SECURED: Check ownership
         try:
-            slide = PropertySlide.objects.get(id=slide_id)
+            slide = PropertySlide.objects.get(id=slide_id, project__owner=request.user)
         except PropertySlide.DoesNotExist:
             return Response({'error': 'Slide not found'}, status=status.HTTP_404_NOT_FOUND)
         
@@ -398,8 +397,7 @@ def save_textbox_dimensions_view(request):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([IsAuthenticated])
 def get_textbox_dimensions_view(request, slide_id):
     """
     Get textbox dimensions for a specific slide
@@ -414,9 +412,9 @@ def get_textbox_dimensions_view(request, slide_id):
                 'field_dimensions': {}
             })
 
-        # Try to get the slide
+        # Try to get the slide - SECURED: Check ownership
         try:
-            slide = PropertySlide.objects.get(id=slide_id)
+            slide = PropertySlide.objects.get(id=slide_id, project__owner=request.user)
             field_dimensions = slide.field_dimensions or {}
             return Response({
                 'slide_id': str(slide_id),
@@ -436,8 +434,7 @@ def get_textbox_dimensions_view(request, slide_id):
 
 # Image Upload and Management Views
 @api_view(['POST'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([IsAuthenticated])
 def upload_slide_image_view(request):
     """
     Generalized image upload for any slide
@@ -454,9 +451,9 @@ def upload_slide_image_view(request):
                 'error': 'project_id, slide_id, and image_data are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validate project exists
+        # Validate project exists - SECURED: Check ownership
         try:
-            project = Project.objects.get(id=project_id)
+            project = Project.objects.get(id=project_id, owner=request.user)
         except Project.DoesNotExist:
             return Response({
                 'error': 'Project not found'
@@ -555,13 +552,20 @@ def upload_slide_image_view(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['DELETE'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([IsAuthenticated])
 def delete_slide_image_view(request, project_id, slide_id):
     """
     Delete image for a specific slide
     """
     try:
+        # SECURED: Verify project ownership before deleting
+        try:
+            Project.objects.get(id=project_id, owner=request.user)
+        except Project.DoesNotExist:
+            return Response({
+                'error': 'Project not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
         # Get the file path from request data
         file_path = request.data.get('file_path')
         
@@ -591,8 +595,7 @@ def get_csrf_token_view(request):
 
 # Session Authentication Views
 @api_view(['POST'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([AllowAny])  # Login endpoint must be public
 def session_login_view(request):
     """
     Session-based authentication for session user picker
@@ -622,8 +625,7 @@ def session_login_view(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([AllowAny])  # Logout should be accessible
 def session_logout_view(request):
     """
     Logout and clear session
@@ -663,8 +665,7 @@ def session_status_view(request):
 
 # Sidebar Button API Views
 @api_view(['POST'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([IsAuthenticated])
 def get_location_url_view(request):
     """
     Generate URLs for location-based services (Google Maps, Bing Maps, Fire Hazard)
@@ -681,9 +682,9 @@ def get_location_url_view(request):
                 'error': 'project_id and service_type are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get project
+        # Get project - SECURED: Check ownership
         try:
-            project = Project.objects.get(id=project_id)
+            project = Project.objects.get(id=project_id, owner=request.user)
         except Project.DoesNotExist:
             return Response({
                 'error': 'Project not found'
@@ -756,8 +757,7 @@ def get_location_url_view(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([IsAuthenticated])
 def search_business_view(request):
     """
     Generate business search URL for the selected location
@@ -770,9 +770,9 @@ def search_business_view(request):
                 'error': 'project_id is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get project
+        # Get project - SECURED: Check ownership
         try:
-            project = Project.objects.get(id=project_id)
+            project = Project.objects.get(id=project_id, owner=request.user)
         except Project.DoesNotExist:
             return Response({
                 'error': 'Project not found'
@@ -829,8 +829,7 @@ def search_business_view(request):
 
 # Comments and Fire Hazard Slide Management APIs
 @api_view(['POST'])
-@permission_classes([AllowAny])
-@csrf_exempt
+@permission_classes([IsAuthenticated])
 def update_slide_content_view(request):
     """
     Update slide content and field positions for Comments, Fire Hazard, and other slides
@@ -848,9 +847,9 @@ def update_slide_content_view(request):
                 'error': 'project_id, slide_id, and slide_type are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get project
+        # Get project - SECURED: Check ownership
         try:
-            project = Project.objects.get(id=project_id)
+            project = Project.objects.get(id=project_id, owner=request.user)
         except Project.DoesNotExist:
             return Response({
                 'error': 'Project not found'
@@ -893,15 +892,15 @@ def update_slide_content_view(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_slide_content_view(request, project_id, slide_id):
     """
     Get slide content and field positions for Comments, Fire Hazard, and other slides
     """
     try:
-        # Get project
+        # Get project - SECURED: Check ownership
         try:
-            project = Project.objects.get(id=project_id)
+            project = Project.objects.get(id=project_id, owner=request.user)
         except Project.DoesNotExist:
             return Response({
                 'error': 'Project not found'
