@@ -12,6 +12,7 @@ const ImageFrame = ({
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleFileSelect = (event) => {
     const file = event.target.files?.[0];
@@ -86,13 +87,20 @@ const ImageFrame = ({
       className={`relative overflow-hidden transition-all ${className}`}
       style={{
         ...style,
-        border: image ? 'none' : (isDragging ? '2px dashed #8B9A5B' : '2px dashed #d1d5db'),
-        backgroundColor: isDragging ? '#f5f7f0' : (image ? 'transparent' : 'white')
+        border: image ? 'none' : (isDragging ? '2px dashed #8B9A5B' : (isFocused ? '2px solid #8B9A5B' : '2px dashed #d1d5db')),
+        backgroundColor: isDragging ? '#f5f7f0' : (image ? 'transparent' : 'white'),
+        outline: isFocused && !image ? '2px solid #8B9A5B' : 'none',
+        outlineOffset: '2px'
       }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={() => !image && fileInputRef.current?.click()}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+      onClick={(e) => {
+        // Only focus the container, don't trigger file upload on click
+        containerRef.current?.focus();
+      }}
     >
       {image ? (
         <>
@@ -126,13 +134,39 @@ const ImageFrame = ({
           </button>
         </>
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-[#fafbf8] transition-colors">
-          <Upload className="w-12 h-12 text-[#8B9A5B] mb-3 opacity-60" />
-          <p className="text-sm text-[#6b7a4b] text-center px-4 font-medium">
-            Click, drag, or paste (Ctrl+V) image here
+        <div className="absolute inset-0 flex flex-col items-center justify-center transition-all duration-200">
+          <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-6 transition-all duration-300 ${
+            isFocused
+              ? 'bg-[#8B9A5B] shadow-lg scale-110'
+              : 'bg-gradient-to-br from-[#8B9A5B] to-[#7a8950] shadow-md'
+          }`}>
+            <Upload className="w-10 h-10 text-white" strokeWidth={2} />
+          </div>
+
+          <h3 className={`text-lg font-bold text-center mb-2 transition-colors duration-200 ${
+            isFocused ? 'text-[#8B9A5B]' : 'text-gray-800'
+          }`}>
+            {isFocused ? 'Ready to Paste!' : 'Upload Image'}
+          </h3>
+
+          <p className="text-sm text-gray-600 text-center mb-6 px-4">
+            {isFocused
+              ? 'Press Ctrl+V to paste'
+              : 'Click here, then paste or browse files'}
           </p>
-          <p className="text-xs text-gray-500 mt-2">
-            PNG, JPG, GIF up to 10MB
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+            className="px-6 py-3 bg-white border-2 border-[#8B9A5B] text-[#8B9A5B] hover:bg-[#8B9A5B] hover:text-white rounded-lg text-sm font-bold transition-all duration-200 shadow-sm hover:shadow-md"
+          >
+            Browse Files
+          </button>
+
+          <p className="text-xs text-gray-500 mt-5">
+            Supports PNG, JPG, GIF (up to 10MB)
           </p>
         </div>
       )}

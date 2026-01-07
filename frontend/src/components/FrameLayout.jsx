@@ -29,159 +29,43 @@ const FrameLayout = ({
 
     switch (layoutType) {
       case 1:
-        // 1 frame uses full content area (1064x504) without additional border
+        // 1 frame uses full content area
         return [
           {
             id: 1,
-            style: {
-              width: '1064px',
-              height: '504px',
-            }
+            style: {}
           }
         ];
 
       case 2:
-        const height2 = (contentHeight - gap) / 2;
         return [
-          {
-            id: 1,
-            style: {
-              width: `${contentWidth}px`,
-              height: `${height2}px`,
-              marginBottom: `${gap}px`
-            }
-          },
-          {
-            id: 2,
-            style: {
-              width: `${contentWidth}px`,
-              height: `${height2}px`,
-            }
-          }
+          { id: 1, style: { flex: 1 } },
+          { id: 2, style: { flex: 1 } }
         ];
 
       case 3:
-        const topHeight3 = (contentHeight - gap) * 0.5;
-        const bottomHeight3 = (contentHeight - gap) * 0.5;
-        const topWidth3 = (contentWidth - gap) / 2;
         return [
-          {
-            id: 1,
-            style: {
-              width: `${topWidth3}px`,
-              height: `${topHeight3}px`,
-              marginRight: `${gap}px`,
-              marginBottom: `${gap}px`
-            }
-          },
-          {
-            id: 2,
-            style: {
-              width: `${topWidth3}px`,
-              height: `${topHeight3}px`,
-              marginBottom: `${gap}px`
-            }
-          },
-          {
-            id: 3,
-            style: {
-              width: `${contentWidth}px`,
-              height: `${bottomHeight3}px`,
-            }
-          }
+          { id: 1, style: {} },
+          { id: 2, style: {} },
+          { id: 3, style: {} }
         ];
 
       case 4:
-        const width4 = (contentWidth - gap) / 2;
-        const height4 = (contentHeight - gap) / 2;
         return [
-          {
-            id: 1,
-            style: {
-              width: `${width4}px`,
-              height: `${height4}px`,
-              marginRight: `${gap}px`,
-              marginBottom: `${gap}px`
-            }
-          },
-          {
-            id: 2,
-            style: {
-              width: `${width4}px`,
-              height: `${height4}px`,
-              marginBottom: `${gap}px`
-            }
-          },
-          {
-            id: 3,
-            style: {
-              width: `${width4}px`,
-              height: `${height4}px`,
-              marginRight: `${gap}px`
-            }
-          },
-          {
-            id: 4,
-            style: {
-              width: `${width4}px`,
-              height: `${height4}px`,
-            }
-          }
+          { id: 1, style: {} },
+          { id: 2, style: {} },
+          { id: 3, style: {} },
+          { id: 4, style: {} }
         ];
 
       case 6:
-        const width6 = (contentWidth - gap * 2) / 3;
-        const height6 = (contentHeight - gap) / 2;
         return [
-          {
-            id: 1,
-            style: {
-              width: `${width6}px`,
-              height: `${height6}px`,
-              marginRight: `${gap}px`,
-              marginBottom: `${gap}px`
-            }
-          },
-          {
-            id: 2,
-            style: {
-              width: `${width6}px`,
-              height: `${height6}px`,
-              marginRight: `${gap}px`,
-              marginBottom: `${gap}px`
-            }
-          },
-          {
-            id: 3,
-            style: {
-              width: `${width6}px`,
-              height: `${height6}px`,
-              marginBottom: `${gap}px`
-            }
-          },
-          {
-            id: 4,
-            style: {
-              width: `${width6}px`,
-              height: `${height6}px`,
-              marginRight: `${gap}px`
-            }
-          },
-          {
-            id: 5,
-            style: {
-              width: `${width6}px`,
-              height: `${height6}px`,
-              marginRight: `${gap}px`
-            }
-          },
-          {
-            id: 6,
-            style: {
-              width: `${width6}px`,
-              height: `${height6}px`,
-            }
-          }
+          { id: 1, style: {} },
+          { id: 2, style: {} },
+          { id: 3, style: {} },
+          { id: 4, style: {} },
+          { id: 5, style: {} },
+          { id: 6, style: {} }
         ];
 
       default:
@@ -197,9 +81,9 @@ const FrameLayout = ({
       return {
         display: 'flex',
         flexDirection: 'column',
-        width: `${contentWidth}px`,
-        height: `${contentHeight}px`,
-        padding: `${borderPx}px`
+        width: '100%',
+        height: '100%',
+        padding: '0'
       };
     }
 
@@ -209,9 +93,9 @@ const FrameLayout = ({
         gridTemplateColumns: 'repeat(2, 1fr)',
         gridTemplateRows: 'auto auto',
         gap: `${gap}px`,
-        width: `${contentWidth}px`,
-        height: `${contentHeight}px`,
-        padding: `${borderPx}px`
+        width: '100%',
+        height: '100%',
+        padding: '0'
       };
     }
 
@@ -221,9 +105,9 @@ const FrameLayout = ({
         gridTemplateColumns: 'repeat(2, 1fr)',
         gridTemplateRows: 'repeat(2, 1fr)',
         gap: `${gap}px`,
-        width: `${contentWidth}px`,
-        height: `${contentHeight}px`,
-        padding: `${borderPx}px`
+        width: '100%',
+        height: '100%',
+        padding: '0'
       };
     }
 
@@ -233,17 +117,17 @@ const FrameLayout = ({
         gridTemplateColumns: 'repeat(3, 1fr)',
         gridTemplateRows: 'repeat(2, 1fr)',
         gap: `${gap}px`,
-        width: `${contentWidth}px`,
-        height: `${contentHeight}px`,
-        padding: `${borderPx}px`
+        width: '100%',
+        height: '100%',
+        padding: '0'
       };
     }
 
     // Default: layout type 1 or 2 (no grid)
     if (layoutType === 1) {
       return {
-        width: '1064px',
-        height: '504px',
+        width: '100%',
+        height: '100%',
         padding: '0',
         position: 'relative'
       };
@@ -252,9 +136,10 @@ const FrameLayout = ({
     return {
       display: 'flex',
       flexDirection: 'column',
-      width: `${contentWidth}px`,
-      height: `${contentHeight}px`,
-      padding: `${borderPx}px`
+      width: '100%',
+      height: '100%',
+      padding: '0',
+      gap: `${gap}px`
     };
   };
 
@@ -262,15 +147,7 @@ const FrameLayout = ({
     if (layoutType === 3 && frame.id === 3) {
       return {
         ...frame.style,
-        gridColumn: '1 / -1',
-        margin: 0
-      };
-    }
-
-    if ([3, 4, 6].includes(layoutType)) {
-      return {
-        ...frame.style,
-        margin: 0
+        gridColumn: '1 / -1'
       };
     }
 
