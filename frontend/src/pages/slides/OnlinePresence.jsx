@@ -1,6 +1,7 @@
 import { useState, useRef, forwardRef, useImperativeHandle } from "react";
 import FrameLayout from "../../components/FrameLayout";
 import FrameSelector from "../../components/FrameSelector";
+import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
 
 const OnlinePresence = forwardRef(({
   formData,
@@ -14,25 +15,41 @@ const OnlinePresence = forwardRef(({
   zoomLevel,
   isActiveSlide,
   fieldPositions,
-  setFieldPositions
+  setFieldPositions,
+  projectId,
+  currentProjectId,
 }, ref) => {
 
   const containerRef = useRef(null);
 
+  const activeProjectId = projectId || currentProjectId;
+  const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(activeProjectId, slideId);
+
   // Frame layout state (default to 1 frame)
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
+  const frameMeta = slideData?.frameMeta || {};
 
-  const handleImageUpload = (frameId, imageData, file) => {
-    updateSlideData({
-      frameImages: { ...frameImages, [frameId]: imageData }
-    });
+  const handleImageUpload = async (frameId, imageData, file) => {
+    updateSlideData({ frameImages: { ...frameImages, [frameId]: imageData } });
+    if (activeProjectId) {
+      const result = await uploadFrameImage(frameId, imageData);
+      if (result?.success) {
+        updateSlideData({
+          frameMeta: { ...frameMeta, [frameId]: { filePath: result.filePath, url: result.url, width: result.width, height: result.height, aspectRatio: result.aspectRatio } }
+        });
+      }
+    }
   };
 
-  const handleImageRemove = (frameId) => {
+  const handleImageRemove = async (frameId) => {
+    const filePath = frameMeta[frameId]?.filePath;
+    if (filePath && activeProjectId) await deleteFrameImage(frameId, filePath);
     const newFrameImages = { ...frameImages };
+    const newFrameMeta = { ...frameMeta };
     delete newFrameImages[frameId];
-    updateSlideData({ frameImages: newFrameImages });
+    delete newFrameMeta[frameId];
+    updateSlideData({ frameImages: newFrameImages, frameMeta: newFrameMeta });
   };
 
   const handleFrameLayoutChange = (layout) => {

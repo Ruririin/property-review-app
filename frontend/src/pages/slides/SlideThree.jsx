@@ -1,5 +1,6 @@
 import { useState, forwardRef, useImperativeHandle, useEffect, useRef } from "react";
 import FrameLayout from "../../components/FrameLayout";
+import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
 
 const SlideThree = forwardRef(({
   formData,
@@ -15,21 +16,63 @@ const SlideThree = forwardRef(({
   isActiveSlide,
   allSlideData, // Need this to check other slides
   slides, // Need this to check slide types
+  projectId,
+  currentProjectId,
 }, ref) => {
   const containerRef = useRef(null);
 
+  // Use projectId or currentProjectId (whichever is available)
+  const activeProjectId = projectId || currentProjectId;
+
+  // Frame image handler for backend upload/delete
+  const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
+    activeProjectId,
+    slideId
+  );
+
   // Image handling using FrameLayout (1 frame only for aerial views)
   const frameImages = slideData?.frameImages || {};
-  const handleImageUpload = (frameId, imageData, file) => {
+  const frameMeta = slideData?.frameMeta || {};
+
+  const handleImageUpload = async (frameId, imageData, file) => {
     updateSlideData({
       frameImages: { ...frameImages, [frameId]: imageData }
     });
+
+    if (activeProjectId) {
+      const result = await uploadFrameImage(frameId, imageData);
+      if (result && result.success) {
+        updateSlideData({
+          frameMeta: {
+            ...frameMeta,
+            [frameId]: {
+              filePath: result.filePath,
+              url: result.url,
+              width: result.width,
+              height: result.height,
+              aspectRatio: result.aspectRatio
+            }
+          }
+        });
+      }
+    }
   };
 
-  const handleImageRemove = (frameId) => {
+  const handleImageRemove = async (frameId) => {
+    const filePath = frameMeta[frameId]?.filePath;
+    if (filePath && activeProjectId) {
+      await deleteFrameImage(frameId, filePath);
+    }
+
     const newFrameImages = { ...frameImages };
+    const newFrameMeta = { ...frameMeta };
     delete newFrameImages[frameId];
-    updateSlideData({ frameImages: newFrameImages });
+    delete newFrameMeta[frameId];
+
+    updateSlideData({
+      frameImages: newFrameImages,
+      frameMeta: newFrameMeta
+    });
   };
   const currentViewType = formData.websiteInfo || "Satellite View";
   

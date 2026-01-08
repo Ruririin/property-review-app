@@ -1,5 +1,6 @@
 import { useState, forwardRef, useImperativeHandle, useEffect, useRef } from "react";
 import FrameLayout from "../../components/FrameLayout";
+import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
 
 const SlideTwo = forwardRef(({
   formData,
@@ -15,21 +16,71 @@ const SlideTwo = forwardRef(({
   isActiveSlide,
   allSlideData, // Need this to check other slides
   slides, // Need this to check slide types
+  projectId,
+  currentProjectId,
 }, ref) => {
   const containerRef = useRef(null);
 
+  // Use projectId or currentProjectId (whichever is available)
+  const activeProjectId = projectId || currentProjectId;
+
+  // Frame image handler for backend upload/delete
+  const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
+    activeProjectId,
+    slideId
+  );
+
   // Image handling using FrameLayout (1 frame only for aerial views)
   const frameImages = slideData?.frameImages || {};
-  const handleImageUpload = (frameId, imageData, file) => {
+  const frameMeta = slideData?.frameMeta || {};
+
+  const handleImageUpload = async (frameId, imageData, file) => {
+    // Store the base64 data immediately for display
     updateSlideData({
       frameImages: { ...frameImages, [frameId]: imageData }
     });
+
+    // Upload to backend if project ID is available
+    if (activeProjectId) {
+      const result = await uploadFrameImage(frameId, imageData);
+
+      if (result && result.success) {
+        // Store backend metadata
+        updateSlideData({
+          frameMeta: {
+            ...frameMeta,
+            [frameId]: {
+              filePath: result.filePath,
+              url: result.url,
+              width: result.width,
+              height: result.height,
+              aspectRatio: result.aspectRatio
+            }
+          }
+        });
+      }
+    }
   };
 
-  const handleImageRemove = (frameId) => {
+  const handleImageRemove = async (frameId) => {
+    // Get file path from metadata
+    const filePath = frameMeta[frameId]?.filePath;
+
+    // Delete from backend if file path exists
+    if (filePath && activeProjectId) {
+      await deleteFrameImage(frameId, filePath);
+    }
+
+    // Remove from frontend
     const newFrameImages = { ...frameImages };
+    const newFrameMeta = { ...frameMeta };
     delete newFrameImages[frameId];
-    updateSlideData({ frameImages: newFrameImages });
+    delete newFrameMeta[frameId];
+
+    updateSlideData({
+      frameImages: newFrameImages,
+      frameMeta: newFrameMeta
+    });
   };
 
   const currentViewType = formData.websiteInfo || "Satellite View";

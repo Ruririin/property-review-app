@@ -2411,6 +2411,7 @@ export default function Editor() {
       setShowWebsite, // Add this for LRO form handling
       multipleLocationsMode,
       setMultipleLocationsMode,
+      projectId: currentProjectId, // Add project ID for backend uploads
       selectedLocationIndex,
       slideId,
       currentProjectId, // Add project ID for backend API calls

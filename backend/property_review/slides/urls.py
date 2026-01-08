@@ -3,7 +3,7 @@ URL configuration for slide-specific API endpoints
 """
 
 from django.urls import path
-from . import slide_one, slide_two, slide_three, street_view, image_handler
+from . import slide_one, slide_two, slide_three, street_view, image_handler, frame_image_handler
 
 # SlideOne URLs
 slide_one_patterns = [
@@ -50,11 +50,18 @@ image_handler_patterns = [
     path('images/delete/', image_handler.delete_image, name='delete_image'),
 ]
 
+# Frame Image Handler URLs
+frame_image_handler_patterns = [
+    path('upload-frame-image/', frame_image_handler.upload_frame_image, name='upload_frame_image'),
+    path('<str:project_id>/<str:slide_id>/delete-frame-image/', frame_image_handler.delete_frame_image, name='delete_frame_image'),
+]
+
 # Combine all patterns
 urlpatterns = (
-    slide_one_patterns + 
-    slide_two_patterns + 
-    slide_three_patterns + 
-    street_view_patterns + 
-    image_handler_patterns
+    slide_one_patterns +
+    slide_two_patterns +
+    slide_three_patterns +
+    street_view_patterns +
+    image_handler_patterns +
+    frame_image_handler_patterns
 )
