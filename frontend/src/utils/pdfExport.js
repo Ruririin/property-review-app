@@ -103,17 +103,23 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
         canvasOptions.foreignObjectRendering = false;
         canvasOptions.removeContainer = true;
         canvasOptions.onclone = (clonedDoc) => {
+          // Hide all elements with no-export class (frame selectors, delete buttons, etc.)
+          const noExportElements = clonedDoc.querySelectorAll('.no-export');
+          noExportElements.forEach(el => {
+            el.style.display = 'none';
+          });
+
           // Convert all textareas to divs for better PDF rendering
           const textareas = clonedDoc.querySelectorAll('textarea');
           textareas.forEach(textarea => {
             const div = clonedDoc.createElement('div');
             const fieldName = textarea.getAttribute('data-field');
             const textContent = textarea.value || textarea.placeholder || '';
-            
+
             // Don't add bullets here as they're already rendered visually in the component
             // Just use the text content as-is
             div.textContent = textContent;
-            
+
             // Copy styling but ensure clean rendering
             div.style.cssText = textarea.style.cssText;
             div.style.border = 'none';
@@ -121,7 +127,7 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
             div.style.outline = 'none';
             div.style.whiteSpace = 'pre-wrap';
             div.style.wordWrap = 'break-word';
-            
+
             textarea.parentNode.replaceChild(div, textarea);
           });
         };

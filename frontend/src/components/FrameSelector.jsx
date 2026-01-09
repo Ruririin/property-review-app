@@ -12,6 +12,7 @@ const FrameSelector = ({ currentLayout, onLayoutChange }) => {
 
   return (
     <div
+      className="no-export"
       style={{
         position: "absolute",
         top: "20px",
