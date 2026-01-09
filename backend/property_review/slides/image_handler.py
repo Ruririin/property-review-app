@@ -23,20 +23,85 @@ class ImageHandlerService:
     """
     Service class for handling image operations
     """
-    
+
+    # SECURITY: Whitelist of allowed image formats
+    ALLOWED_FORMATS = {'JPEG', 'JPG', 'PNG'}
+
+    # SECURITY: Maximum file size (10MB)
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
+
+    @staticmethod
+    def validate_image_data(base64_data):
+        """
+        Validate base64 image data before processing
+        Returns (is_valid, error_message)
+        """
+        try:
+            # Check if data is provided
+            if not base64_data:
+                return False, "No image data provided"
+
+            # Remove data URL prefix if present
+            if ',' in base64_data:
+                base64_data = base64_data.split(',')[1]
+
+            # Check base64 data length (rough file size check)
+            estimated_size = len(base64_data) * 3 / 4
+            if estimated_size > ImageHandlerService.MAX_FILE_SIZE:
+                return False, f"Image too large. Maximum size is {ImageHandlerService.MAX_FILE_SIZE / (1024*1024)}MB"
+
+            # Decode base64 data
+            try:
+                image_data = base64.b64decode(base64_data)
+            except Exception:
+                return False, "Invalid base64 data"
+
+            # Verify it's actually an image and check format
+            try:
+                image = Image.open(io.BytesIO(image_data))
+                image.verify()  # Verify image integrity
+
+                # Check if format is allowed
+                if image.format not in ImageHandlerService.ALLOWED_FORMATS:
+                    return False, f"Invalid image format. Allowed formats: {', '.join(ImageHandlerService.ALLOWED_FORMATS)}"
+
+                # Re-open image (verify() closes it)
+                image = Image.open(io.BytesIO(image_data))
+
+                # Check image dimensions (prevent extremely large images)
+                width, height = image.size
+                if width > 10000 or height > 10000:
+                    return False, "Image dimensions too large. Maximum 10000x10000 pixels"
+
+                return True, None
+
+            except Exception as e:
+                return False, f"Invalid image file: {str(e)}"
+
+        except Exception as e:
+            return False, f"Validation error: {str(e)}"
+
     @staticmethod
     def process_base64_image(base64_data, max_width=1200, max_height=800):
         """
         Process base64 image data and save to storage
         """
         try:
+            # SECURITY: Validate image data before processing
+            is_valid, error_msg = ImageHandlerService.validate_image_data(base64_data)
+            if not is_valid:
+                return {
+                    'success': False,
+                    'error': error_msg
+                }
+
             # Remove data URL prefix if present
             if ',' in base64_data:
                 base64_data = base64_data.split(',')[1]
-            
+
             # Decode base64 data
             image_data = base64.b64decode(base64_data)
-            
+
             # Open image with PIL
             image = Image.open(io.BytesIO(image_data))
             
@@ -231,14 +296,30 @@ def get_image_metadata(request):
     Get metadata for an existing image
     """
     file_path = request.GET.get('filePath', '')
-    
+
     if not file_path:
         return Response({
             'error': 'File path required'
         }, status=status.HTTP_400_BAD_REQUEST)
-    
-    metadata = ImageHandlerService.get_image_metadata(file_path)
-    
+
+    # SECURITY: Prevent path traversal attacks
+    # Validate that the file path doesn't contain directory traversal patterns
+    if '..' in file_path or file_path.startswith('/'):
+        return Response({
+            'error': 'Invalid file path'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Normalize the path and ensure it's within the media storage
+    normalized_path = os.path.normpath(file_path)
+
+    # Verify the file exists in allowed storage before accessing
+    if not default_storage.exists(normalized_path):
+        return Response({
+            'error': 'File not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    metadata = ImageHandlerService.get_image_metadata(normalized_path)
+
     if metadata:
         return Response(metadata)
     else:
@@ -253,14 +334,23 @@ def delete_image(request):
     Delete an image from storage
     """
     file_path = request.data.get('filePath', '')
-    
+
     if not file_path:
         return Response({
             'error': 'File path required'
         }, status=status.HTTP_400_BAD_REQUEST)
-    
-    success = ImageHandlerService.delete_image(file_path)
-    
+
+    # SECURITY: Prevent path traversal attacks
+    if '..' in file_path or file_path.startswith('/'):
+        return Response({
+            'error': 'Invalid file path'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Normalize the path
+    normalized_path = os.path.normpath(file_path)
+
+    success = ImageHandlerService.delete_image(normalized_path)
+
     if success:
         return Response({'deleted': True})
     else:

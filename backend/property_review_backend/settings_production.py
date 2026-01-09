@@ -72,44 +72,36 @@ CSRF_TRUSTED_ORIGINS = [
     'https://www.pr-neitclem.gratusinc.org',
 ]
 
-# Security
-SECURE_SSL_REDIRECT = False
+# Security - HTTPS Configuration
+# Note: Set SECURE_SSL_REDIRECT = True when HTTPS is fully configured on the server
+SECURE_SSL_REDIRECT = False  # Enable when HTTPS is ready
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_HSTS_SECONDS = 0
-SECURE_HSTS_INCLUDE_SUBDOMAINS = False
-SECURE_HSTS_PRELOAD = False
 
-# Session & CSRF cookies (safe config for dev/prod hybrid)
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+# HSTS (HTTP Strict Transport Security)
+# Enable when HTTPS is configured
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
 
-# COMPLETELY DISABLE CSRF - OVERRIDE MIDDLEWARE COMPLETELY
-CSRF_COOKIE_NAME = None
-CSRF_USE_SESSIONS = False
+# Session & CSRF cookies
+# Set to True when HTTPS is enabled
+SESSION_COOKIE_SECURE = False  # Change to True when HTTPS is enabled
+CSRF_COOKIE_SECURE = False  # Change to True when HTTPS is enabled
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# CSRF Protection - RE-ENABLED
+# CSRF middleware is now enabled for security
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',  # CSRF PROTECTION ENABLED
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-# DEBUG: Print middleware to verify CSRF is removed
-import sys
-print("=" * 50, file=sys.stderr)
-print("DJANGO SETTINGS DEBUG", file=sys.stderr)
-print("MIDDLEWARE:", MIDDLEWARE, file=sys.stderr)
-print("CSRF_COOKIE_NAME:", globals().get('CSRF_COOKIE_NAME'), file=sys.stderr)
-print("CSRF_USE_SESSIONS:", globals().get('CSRF_USE_SESSIONS'), file=sys.stderr)
-print("=" * 50, file=sys.stderr)
-sys.stderr.flush()
-
-# FORCE DISABLE CSRF COMPLETELY - NUCLEAR OPTION
-# Monkey patch to disable CSRF completely
-import django.middleware.csrf
-django.middleware.csrf.get_token = lambda request: None
-django.middleware.csrf.CsrfViewMiddleware.process_request = lambda self, request: None
-django.middleware.csrf.CsrfViewMiddleware.process_view = lambda self, request, callback, callback_args, callback_kwargs: None

@@ -14,9 +14,12 @@ import json
 import uuid
 import subprocess
 import base64
+import logging
 from pathlib import Path
 from PIL import Image
 import io
+
+logger = logging.getLogger(__name__)
 
 from .models import Project, PropertySlide, Template, ProjectLocation
 from .serializers import ProjectSerializer, LightProjectSerializer, PropertySlideSerializer, TemplateSerializer, ProjectLocationSerializer
@@ -568,18 +571,41 @@ def delete_slide_image_view(request, project_id, slide_id):
 
         # Get the file path from request data
         file_path = request.data.get('file_path')
-        
+
+        if not file_path:
+            return Response({
+                'error': 'File path required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # SECURITY: Prevent path traversal attacks
+        if '..' in file_path or file_path.startswith('/'):
+            return Response({
+                'error': 'Invalid file path'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # SECURITY: Verify file path belongs to this project
+        # Expected path format: slide_images/{project_id}/{slide_id}_*
+        import os
+        normalized_path = os.path.normpath(file_path)
+        expected_prefix = f"slide_images/{project_id}/"
+
+        if not normalized_path.startswith(expected_prefix):
+            return Response({
+                'error': 'Unauthorized: File does not belong to this project'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         if file_path and default_storage.exists(file_path):
             default_storage.delete(file_path)
-        
+
         return Response({
             'success': True,
             'message': 'Image deleted successfully'
         }, status=status.HTTP_200_OK)
-        
+
     except Exception as e:
+        logger.error(f"Error deleting slide image: {str(e)}")
         return Response({
-            'error': str(e)
+            'error': 'Failed to delete image'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # CSRF Token View

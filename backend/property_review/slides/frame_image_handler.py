@@ -5,7 +5,7 @@ Handles multiple frame image uploads, processing, and management for slides
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -24,12 +24,77 @@ class FrameImageHandlerService:
     Service class for handling frame image operations
     """
 
+    # SECURITY: Whitelist of allowed image formats
+    ALLOWED_FORMATS = {'JPEG', 'JPG', 'PNG'}
+
+    # SECURITY: Maximum file size (10MB)
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
+
+    @staticmethod
+    def validate_image_data(base64_data):
+        """
+        Validate base64 image data before processing
+        Returns (is_valid, error_message)
+        """
+        try:
+            # Check if data is provided
+            if not base64_data:
+                return False, "No image data provided"
+
+            # Remove data URL prefix if present
+            if ',' in base64_data:
+                base64_data = base64_data.split(',')[1]
+
+            # Check base64 data length (rough file size check)
+            estimated_size = len(base64_data) * 3 / 4
+            if estimated_size > FrameImageHandlerService.MAX_FILE_SIZE:
+                return False, f"Image too large. Maximum size is {FrameImageHandlerService.MAX_FILE_SIZE / (1024*1024)}MB"
+
+            # Decode base64 data
+            try:
+                image_data = base64.b64decode(base64_data)
+            except Exception:
+                return False, "Invalid base64 data"
+
+            # Verify it's actually an image and check format
+            try:
+                image = Image.open(io.BytesIO(image_data))
+                image.verify()  # Verify image integrity
+
+                # Check if format is allowed
+                if image.format not in FrameImageHandlerService.ALLOWED_FORMATS:
+                    return False, f"Invalid image format. Allowed formats: {', '.join(FrameImageHandlerService.ALLOWED_FORMATS)}"
+
+                # Re-open image (verify() closes it)
+                image = Image.open(io.BytesIO(image_data))
+
+                # Check image dimensions (prevent extremely large images)
+                width, height = image.size
+                if width > 10000 or height > 10000:
+                    return False, "Image dimensions too large. Maximum 10000x10000 pixels"
+
+                return True, None
+
+            except Exception as e:
+                return False, f"Invalid image file: {str(e)}"
+
+        except Exception as e:
+            return False, f"Validation error: {str(e)}"
+
     @staticmethod
     def process_frame_image(base64_data, max_width=1200, max_height=800):
         """
         Process base64 frame image data and save to storage
         """
         try:
+            # SECURITY: Validate image data before processing
+            is_valid, error_msg = FrameImageHandlerService.validate_image_data(base64_data)
+            if not is_valid:
+                return {
+                    'success': False,
+                    'error': error_msg
+                }
+
             # Remove data URL prefix if present
             if ',' in base64_data:
                 base64_data = base64_data.split(',')[1]
@@ -100,7 +165,7 @@ class FrameImageHandlerService:
 
 # API Views for Frame Image Handler
 @api_view(['POST'])
-@permission_classes([AllowAny])  # Using AllowAny for now, change to IsAuthenticated in production
+@permission_classes([IsAuthenticated])  # Authentication required for security
 def upload_frame_image(request):
     """
     Upload and process a frame image from base64 data
@@ -136,7 +201,7 @@ def upload_frame_image(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE'])
-@permission_classes([AllowAny])  # Using AllowAny for now, change to IsAuthenticated in production
+@permission_classes([IsAuthenticated])  # Authentication required for security
 def delete_frame_image(request, project_id, slide_id):
     """
     Delete a frame image from storage
