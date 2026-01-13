@@ -555,19 +555,29 @@ export default function Editor() {
       
         // Cleanup when component unmounts or user changes
         return () => {
+          // IMPORTANT: Save project before cleanup to prevent data loss
+          if (capturedProjectId && sessionUser) {
+            try {
+              saveProject();
+              console.log('Project saved on component unmount');
+            } catch (error) {
+              console.error('Failed to save on unmount:', error);
+            }
+          }
+
           userActivityService.stopWorking(sessionUser, capturedProjectId);
         clearInterval(heartbeatInterval);
-        
+
           // Clean up project-level field activity tracking
           if (capturedProjectId) {
             fieldActivityService.stopEditingField(sessionUser, `project-${capturedProjectId}`);
           }
-        
+
         // Clean up form-level field activity tracking
         if (currentFormId) {
           fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
         }
-        
+
         // Also clean up field heartbeat
         if (fieldHeartbeatInterval) {
           clearInterval(fieldHeartbeatInterval);
