@@ -93,8 +93,8 @@ export const authApi = {
   // Check authentication status
   checkAuth: async () => {
     try {
-      // Use session/status endpoint which is publicly accessible and sets CSRF cookie
-      const response = await apiClient.get('/auth/session/status/');
+      // SECURITY FIX: Use secure check-auth endpoint instead of removed session/status
+      const response = await apiClient.get('/auth/check-auth/');
       if (response.data.authenticated) {
         return response.data.user;
       }
