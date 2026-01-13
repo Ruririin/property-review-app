@@ -266,7 +266,7 @@ export default function Home() {
                           </div>
                           <div className="text-end">
                             <span className="badge bg-light text-dark">
-                              {project.slideCount || 1} slide{(project.slideCount || 1) !== 1 ? 's' : ''}
+                              {project.totalSlides || project.slides?.length || 1} slide{(project.totalSlides || project.slides?.length || 1) !== 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>
@@ -342,7 +342,7 @@ export default function Home() {
                             </small>
                             <small className="text-muted d-block">
                               <i className="bi bi-file-earmark-pdf me-1" style={{ color: "#198754" }}></i>
-                              Slides: {project.slideCount || 1}
+                              Slides: {project.totalSlides || project.slides?.length || 1}
                             </small>
                           </div>
                           
