@@ -73,21 +73,21 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Security - HTTPS Configuration
-# Note: Set SECURE_SSL_REDIRECT = True when HTTPS is fully configured on the server
-SECURE_SSL_REDIRECT = False  # Enable when HTTPS is ready
+# PRODUCTION READY: HTTPS enforcement enabled
+SECURE_SSL_REDIRECT = True  # Force HTTPS in production
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # For reverse proxy
 
 # HSTS (HTTP Strict Transport Security)
-# Enable when HTTPS is configured
+# Enabled for production security
 SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# Session & CSRF cookies
-# Set to True when HTTPS is enabled
-SESSION_COOKIE_SECURE = False  # Change to True when HTTPS is enabled
-CSRF_COOKIE_SECURE = False  # Change to True when HTTPS is enabled
+# Session & CSRF cookies - PRODUCTION SECURE
+SESSION_COOKIE_SECURE = True  # HTTPS only
+CSRF_COOKIE_SECURE = True  # HTTPS only
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
 SESSION_COOKIE_SAMESITE = 'Lax'
