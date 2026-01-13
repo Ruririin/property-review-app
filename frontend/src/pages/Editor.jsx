@@ -2647,22 +2647,26 @@ export default function Editor() {
         
         {/* Right - Actions Toolbar */}
         <div className="d-flex align-items-center" style={{ gap: "4px" }}>
-          {/* LRO Database Dropdown */}
+          {/* LRO Database Dropdown - DISABLED FOR SECURITY */}
           <div className="position-relative">
             <button
               className="btn btn-outline-secondary btn-sm d-flex align-items-center"
-              onClick={() => setIsLroDropdownOpen(!isLroDropdownOpen)}
-              disabled={isLoadingLroForms}
-              style={{ 
+              onClick={(e) => e.preventDefault()}
+              disabled={true}
+              title="Database loading disabled for security"
+              style={{
                 height: "36px",
                 fontSize: "13px",
                 fontWeight: "500",
                 borderRadius: "6px",
-                padding: "0 12px"
+                padding: "0 12px",
+                opacity: "0.6",
+                cursor: "not-allowed",
+                pointerEvents: "none"
               }}
             >
-              <i className="bi bi-database me-1" style={{ fontSize: "12px", color: "#198754" }}></i>
-              <span className="d-none d-md-inline">{isLoadingLroForms ? 'Loading...' : 'Load from Database'}</span>
+              <i className="bi bi-database me-1" style={{ fontSize: "12px", color: "#6c757d" }}></i>
+              <span className="d-none d-md-inline">Load from Database (Disabled)</span>
               <span className="d-md-none">DB</span>
             </button>
             
