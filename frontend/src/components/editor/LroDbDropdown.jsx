@@ -55,17 +55,20 @@ const LroDbDropdown = ({
       <button
         className="btn btn-outline-secondary btn-sm d-flex align-items-center"
         onClick={() => setIsOpen(!isOpen)}
-        disabled={isLoading}
-        style={{ 
+        disabled={true}
+        title="Database loading disabled for security"
+        style={{
           height: "36px",
           fontSize: "13px",
           fontWeight: "500",
           borderRadius: "6px",
-          padding: "0 12px"
+          padding: "0 12px",
+          opacity: "0.6",
+          cursor: "not-allowed"
         }}
       >
-        <i className="bi bi-database me-1" style={{ fontSize: "12px", color: "#198754" }}></i>
-        {isLoading ? 'Loading...' : 'Load from Database'}
+        <i className="bi bi-database me-1" style={{ fontSize: "12px", color: "#6c757d" }}></i>
+        Load from Database (Disabled)
       </button>
       
       {isOpen && (
