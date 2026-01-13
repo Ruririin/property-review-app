@@ -78,6 +78,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'property_review_backend.middleware.SecurityHeadersMiddleware',  # SECURITY: Add security headers
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -86,6 +87,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'property_review_backend.middleware.ProductionErrorHandlingMiddleware',  # SECURITY: Generic errors in production
 ]
 
 ROOT_URLCONF = 'property_review_backend.urls'

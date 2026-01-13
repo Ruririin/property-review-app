@@ -34,28 +34,60 @@ def extract_template_view(request):
         # Path to PPTX template (adjust as needed)
         pptx_path = os.path.join(settings.BASE_DIR.parent, 'backend', 'pptx', 'template.pptx')
         script_path = os.path.join(settings.BASE_DIR.parent, 'backend', 'pptx', 'extract_pptx_text.py')
-        
+
+        # SECURITY: Validate paths are within expected directory to prevent path traversal
+        base_dir = os.path.abspath(settings.BASE_DIR.parent)
+        abs_pptx_path = os.path.abspath(pptx_path)
+        abs_script_path = os.path.abspath(script_path)
+
+        if not abs_pptx_path.startswith(base_dir) or not abs_script_path.startswith(base_dir):
+            return Response({
+                'error': 'Invalid file path'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         if not os.path.exists(pptx_path):
-            return Response({'error': 'Template file not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Execute Python script
-        result = subprocess.run(['python', script_path, pptx_path], 
-                              capture_output=True, text=True)
-        
+            return Response({
+                'error': 'Template file not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if not os.path.exists(script_path):
+            return Response({
+                'error': 'Extraction script not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # SECURITY: Execute Python script with timeout to prevent hanging
+        try:
+            result = subprocess.run(
+                ['python', script_path, pptx_path],
+                capture_output=True,
+                text=True,
+                timeout=30,  # 30 second timeout
+                shell=False  # Never use shell=True for security
+            )
+        except subprocess.TimeoutExpired:
+            return Response({
+                'error': 'PPTX extraction timed out (exceeded 30 seconds)'
+            }, status=status.HTTP_408_REQUEST_TIMEOUT)
+
         if result.returncode != 0:
-            return Response({'error': 'Failed to extract PPTX content'}, 
-                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+            return Response({
+                'error': 'Failed to extract PPTX content',
+                'details': result.stderr if result.stderr else None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         # Parse JSON output
         try:
             extracted_data = json.loads(result.stdout)
             return Response(extracted_data)
         except json.JSONDecodeError:
-            return Response({'error': 'Invalid JSON from extraction script'}, 
-                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+            return Response({
+                'error': 'Invalid JSON from extraction script'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ViewSets for CRUD operations - OPTIMIZED FOR PERFORMANCE
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -804,17 +836,31 @@ def update_slide_content_view(request):
     Handles both content updates and textbox positioning
     """
     try:
+        from .utils.validators import validate_json_data
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
         project_id = request.data.get('project_id')
         slide_id = request.data.get('slide_id')
         slide_type = request.data.get('slide_type')  # 'comments', 'fire_hazard', etc.
         content_updates = request.data.get('content', {})
         field_positions = request.data.get('field_positions', {})
-        
+
         if not all([project_id, slide_id, slide_type]):
             return Response({
                 'error': 'project_id, slide_id, and slide_type are required'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        # SECURITY: Validate JSON payload size and depth to prevent DoS attacks
+        try:
+            if content_updates:
+                validate_json_data(content_updates, max_size_bytes=524288, max_depth=10)  # 512KB max
+            if field_positions:
+                validate_json_data(field_positions, max_size_bytes=262144, max_depth=5)  # 256KB max
+        except DRFValidationError as e:
+            return Response({
+                'error': f'Invalid request data: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Get project - SECURED: Check ownership
         try:
             project = Project.objects.get(id=project_id, owner=request.user)
@@ -822,38 +868,38 @@ def update_slide_content_view(request):
             return Response({
                 'error': 'Project not found'
             }, status=status.HTTP_404_NOT_FOUND)
-        
+
         # Update project slideData with the new content and positions
         slide_data = project.slideData or {}
-        
+
         # Initialize slide-specific data if it doesn't exist
         if slide_id not in slide_data:
             slide_data[slide_id] = {}
-        
+
         # Update content (comments, fire hazard data, etc.)
         if content_updates:
             slide_data[slide_id]['content'] = {
                 **slide_data[slide_id].get('content', {}),
                 **content_updates
             }
-        
+
         # Update field positions (textbox dimensions and positions)
         if field_positions:
             slide_data[slide_id]['fieldPositions'] = {
                 **slide_data[slide_id].get('fieldPositions', {}),
                 **field_positions
             }
-        
+
         # Save back to project
         project.slideData = slide_data
         project.save()
-        
+
         return Response({
             'success': True,
             'message': f'{slide_type} slide updated successfully',
             'slide_data': slide_data[slide_id]
         }, status=status.HTTP_200_OK)
-        
+
     except Exception as e:
         return Response({
             'error': str(e)

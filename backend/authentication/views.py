@@ -3,7 +3,6 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import login, logout
-from django.views.decorators.csrf import ensure_csrf_cookie
 from django_ratelimit.decorators import ratelimit
 from .serializers import UserRegistrationSerializer, UserLoginSerializer, UserSerializer
 
@@ -81,104 +80,28 @@ def check_auth_view(request):
         'user': UserSerializer(request.user).data
     })
 
-# Simple Session-based Authentication (for Property Review App)
-@api_view(['POST'])
-@permission_classes([AllowAny])  # Login must be public
-@ratelimit(key='ip', rate='10/h', method='POST')  # SECURITY: Max 10 session logins per hour per IP
-def session_login_view(request):
-    """Simple session login - create or get user by display name"""
-    # Check if rate limited
-    if getattr(request, 'limited', False):
-        return Response({
-            'success': False,
-            'error': 'Too many session requests. Please try again later.'
-        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
-
-    display_name = request.data.get('name', '').strip()
-    if not display_name:
-        return Response({
-            'success': False,
-            'error': 'Name is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        from .models import User
-        
-        # Try to find existing user by username (display name)
-        user, created = User.objects.get_or_create(
-            username=display_name,
-            defaults={
-                'email': f'{display_name.lower().replace(" ", "_")}@propertyreview.local',
-                'first_name': display_name,
-            }
-        )
-        
-        # Log the user in (creates session)
-        login(request, user)
-        
-        # Store recent users in session for quick access
-        if 'recent_users' not in request.session:
-            request.session['recent_users'] = []
-        
-        recent_users = request.session['recent_users']
-        if display_name not in recent_users:
-            recent_users.insert(0, display_name)
-            # Keep only last 10 users
-            request.session['recent_users'] = recent_users[:10]
-        
-        return Response({
-            'success': True,
-            'message': 'Session started successfully',
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'display_name': display_name,
-                'email': user.email
-            },
-            'session_created': created
-        }, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        return Response({
-            'success': False,
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-@permission_classes([AllowAny])  # Session status should be publicly accessible
-@ensure_csrf_cookie  # Ensure CSRF cookie is set for subsequent requests
-def session_status_view(request):
-    """Check current session status"""
-    if request.user.is_authenticated:
-        return Response({
-            'authenticated': True,
-            'user': {
-                'id': request.user.id,
-                'username': request.user.username,
-                'display_name': request.user.first_name or request.user.username,
-                'email': request.user.email
-            },
-            'recent_users': request.session.get('recent_users', [])
-        })
-
-    return Response({
-        'authenticated': False,
-        'recent_users': request.session.get('recent_users', [])
-    })
-
-@api_view(['POST'])
-@permission_classes([AllowAny])  # Logout should be accessible
-def session_logout_view(request):
-    """Simple session logout"""
-    # Keep recent users but clear authentication
-    recent_users = request.session.get('recent_users', [])
-    logout(request)
-    request.session['recent_users'] = recent_users
-
-    return Response({
-        'success': True,
-        'message': 'Session ended successfully'
-    }, status=status.HTTP_200_OK)
+# REMOVED: Insecure Session Authentication Endpoints
+# ===================================================
+# The following endpoints have been REMOVED for security reasons:
+# - session_login_view() - Allowed login without password verification (CRITICAL vulnerability)
+# - session_status_view() - Depended on insecure authentication
+# - session_logout_view() - Depended on insecure authentication
+#
+# SECURITY ISSUE: These endpoints allowed anyone to impersonate any user by simply
+# providing a display name, with no password or authentication required.
+#
+# USE INSTEAD: Secure authentication endpoints above:
+# - register_view() - POST /api/auth/register/ (proper user registration with password)
+# - login_view() - POST /api/auth/login/ (secure login with password verification)
+# - logout_view() - POST /api/auth/logout/ (secure logout)
+# - check_auth_view() - GET /api/auth/check/ (secure authentication status check)
+#
+# If you need simple name-based authentication for development/testing:
+# 1. Use it ONLY in development environment (DEBUG=True)
+# 2. Add proper authentication checks
+# 3. Never deploy to production
+#
+# For production, users MUST authenticate with proper credentials.
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
