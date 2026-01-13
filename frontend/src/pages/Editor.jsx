@@ -25,6 +25,7 @@ import userActivityService from "../services/userActivityService";
 import fieldActivityService from "../services/fieldActivityService";
 import apiService from "../services/apiService";
 import editorApiService from "../services/editorApiService";
+import projectSaveService from "../services/projectSaveService";
 import FieldEditorTag from "../components/FieldEditorTag";
 import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
@@ -1687,7 +1688,7 @@ export default function Editor() {
       setLoadingMessage("Fetching project details...");
 
       // IMPORTANT: Use projectSaveService instead of apiService to get localStorage fallback
-      const savedProject = await projectSaveService.getProject(projectId);
+      const savedProject = await projectSaveService.loadProject(projectId);
       if (savedProject) {
         console.log(`Loading project: ${savedProject.title}`, savedProject);
         
