@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import ExportedItemsPanel from "../components/ExportedItemsPanel";
-import apiService from "../services/apiService";
+import projectSaveService from "../services/projectSaveService";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Home() {
@@ -39,32 +39,15 @@ export default function Home() {
 
   const refreshProjects = async (showLoading = true) => {
     if (!sessionUser) return;
-    
+
     if (showLoading) setIsLoading(true);
-    
+
     try {
-      // Get all projects from database
-      const allProjects = await apiService.listProjects({ 
-        page_size: 50,  // Reduced from 100 for faster loading
-        ordering: '-updated_at'  // Most recently updated first
-      });
-      
-      // Handle paginated response
-      const projectList = allProjects.results || allProjects;
-      
-      // More efficient filtering using a single pass
-      const activeProjects = [];
-      const completedProjects = [];
-      
-      for (const project of projectList) {
-        const status = project.status || 'editing';
-        if (status === 'completed') {
-          completedProjects.push(project);
-        } else {
-          activeProjects.push(project);
-        }
-      }
-      
+      // IMPORTANT: Use projectSaveService to load from localStorage when database unavailable
+      // Get user's active and completed projects (supports localStorage fallback)
+      const activeProjects = projectSaveService.getUserActiveProjects(sessionUser);
+      const completedProjects = projectSaveService.getUserCompletedProjects(sessionUser);
+
       setProjects(activeProjects);
       setCompletedProjects(completedProjects);
     } catch (error) {
@@ -152,7 +135,8 @@ export default function Home() {
   const handleDeleteProject = async (projectId) => {
     if (window.confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       try {
-        await apiService.deleteProject(projectId);
+        // IMPORTANT: Use projectSaveService to delete from both database and localStorage
+        await projectSaveService.deleteProject(projectId);
         await refreshProjects();
         console.log(`Project deleted and lists refreshed`);
       } catch (error) {
