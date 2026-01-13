@@ -32,11 +32,15 @@ urlpatterns = [
     path('textbox-dimensions/save/', views.save_textbox_dimensions_view, name='save_textbox_dimensions'),
     path('textbox-dimensions/<str:slide_id>/', views.get_textbox_dimensions_view, name='get_textbox_dimensions'),
     
-    # Session authentication endpoints
+    # CSRF token endpoint
     path('auth/csrf-token/', views.get_csrf_token_view, name='get_csrf_token'),
-    path('auth/session-login/', views.session_login_view, name='session_login'),
-    path('auth/session-logout/', views.session_logout_view, name='session_logout'),
-    path('auth/session-status/', views.session_status_view, name='session_status'),
+
+    # REMOVED: Insecure session authentication endpoints
+    # These have been removed for security reasons (allowed login without password)
+    # Use secure endpoints in authentication app instead:
+    # - /api/auth/session-login/
+    # - /api/auth/session-logout/
+    # - /api/auth/session-status/
     
     # Sidebar button API endpoints
     path('location-url/', views.get_location_url_view, name='get_location_url'),

@@ -619,75 +619,21 @@ def get_csrf_token_view(request):
         'csrf_token': get_token(request)
     })
 
-# Session Authentication Views
-@api_view(['POST'])
-@permission_classes([AllowAny])  # Login endpoint must be public
-def session_login_view(request):
-    """
-    Session-based authentication for session user picker
-    """
-    try:
-        username = request.data.get('username')
-        
-        if not username:
-            return Response({
-                'error': 'Username is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # For now, we'll create a simple session without password verification
-        # In production, you'd want proper authentication
-        request.session['session_user'] = username
-        request.session['is_authenticated'] = True
-        
-        return Response({
-            'success': True,
-            'username': username,
-            'session_id': request.session.session_key
-        }, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        return Response({
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['POST'])
-@permission_classes([AllowAny])  # Logout should be accessible
-def session_logout_view(request):
-    """
-    Logout and clear session
-    """
-    try:
-        request.session.flush()
-        return Response({
-            'success': True,
-            'message': 'Logged out successfully'
-        }, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        return Response({
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def session_status_view(request):
-    """
-    Check session status
-    """
-    try:
-        is_authenticated = request.session.get('is_authenticated', False)
-        username = request.session.get('session_user', None)
-        
-        return Response({
-            'is_authenticated': is_authenticated,
-            'username': username,
-            'session_id': request.session.session_key
-        }, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        return Response({
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+# REMOVED: Insecure Session Authentication
+# The following insecure endpoints have been removed for security:
+# - session_login_view (allowed login without password)
+# - session_logout_view
+# - session_status_view
+#
+# SECURITY FIX: These endpoints allowed authentication without password verification,
+# which is a critical security vulnerability.
+#
+# USE INSTEAD: Secure authentication endpoints in authentication app:
+# - POST /api/auth/session-login/ (with proper authentication)
+# - POST /api/auth/session-logout/
+# - GET /api/auth/session-status/
+#
+# See: backend/authentication/views.py for secure implementation
 
 # Sidebar Button API Views
 @api_view(['POST'])
