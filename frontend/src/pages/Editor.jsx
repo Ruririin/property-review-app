@@ -512,22 +512,25 @@ export default function Editor() {
         };
         
         try {
-          const newProject = await apiService.createProject(initialProjectData);
-          projectId = newProject.id;
+          // IMPORTANT: Generate ID first, then use projectSaveService for localStorage fallback
+          projectId = projectSaveService.generateProjectId(null, sessionUser);
           console.log('Created new project:', projectId);
           setCurrentProjectId(projectId); // Set the current project ID immediately
-          
+
+          // Save initial project data using projectSaveService (handles localStorage fallback)
+          await projectSaveService.saveProject(projectId, initialProjectData);
+
           // Initialize location data service for the new project
           locationDataService.initializeFromProject(initialProjectData, initialProjectData.multipleLocationsMode);
           console.log('Initialized location data service for new project');
-          
+
           window.history.replaceState({}, '', `/editor/${projectId}`);
-          
+
           // Track project-level editing activity for new projects
           if (sessionUser && projectId) {
             fieldActivityService.startEditingField(
-              sessionUser, 
-              `project-${projectId}`, 
+              sessionUser,
+              `project-${projectId}`,
               'Project: New Property Review'
             );
           }
@@ -2062,14 +2065,24 @@ export default function Editor() {
       };
       
       // console.log('SAVE DEBUG - Project data:', projectData);
-      
+
       try {
-        const result = await apiService.updateProject(currentProjectId, projectData);
-        
+        // IMPORTANT: Use projectSaveService instead of apiService to enable localStorage fallback
+        const result = await projectSaveService.saveProject(currentProjectId, {
+          ...projectData,
+          sessionUser: sessionUser,
+          slides: slides,
+          multipleLocationsMode: multipleLocationsMode,
+          selectedLocationIndex: selectedLocationIndex,
+          status: currentProjectStatus || 'editing',
+          showWebsite: showWebsite,
+          fontSizes: fontSizes
+        });
+
         // Save completed successfully
         setHasUnsavedChanges(false);
         setLastSaveTime(new Date());
-        
+
         // Only show success message for manual saves
         if (!isAutoSave) {
           alert('Project saved successfully!');
