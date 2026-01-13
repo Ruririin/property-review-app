@@ -4,6 +4,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import login, logout
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django_ratelimit.decorators import ratelimit
 from .serializers import UserRegistrationSerializer, UserLoginSerializer, UserSerializer
 
 # CORS headers are now handled by CORS middleware in settings.py
@@ -11,8 +12,16 @@ from .serializers import UserRegistrationSerializer, UserLoginSerializer, UserSe
 
 @api_view(['POST'])
 @permission_classes([AllowAny])  # Registration must be public
+@ratelimit(key='ip', rate='3/h', method='POST')  # SECURITY: Max 3 registrations per hour per IP
 def register_view(request):
     """User registration endpoint"""
+    # Check if rate limited
+    if getattr(request, 'limited', False):
+        return Response({
+            'success': False,
+            'error': 'Too many registration attempts. Please try again later.'
+        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
     serializer = UserRegistrationSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
@@ -28,8 +37,16 @@ def register_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])  # Login must be public
+@ratelimit(key='ip', rate='5/15m', method='POST')  # SECURITY: Max 5 login attempts per 15 minutes per IP
 def login_view(request):
     """User login endpoint"""
+    # Check if rate limited
+    if getattr(request, 'limited', False):
+        return Response({
+            'success': False,
+            'error': 'Too many login attempts. Please try again in 15 minutes.'
+        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
     serializer = UserLoginSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.validated_data['user']
@@ -67,9 +84,16 @@ def check_auth_view(request):
 # Simple Session-based Authentication (for Property Review App)
 @api_view(['POST'])
 @permission_classes([AllowAny])  # Login must be public
+@ratelimit(key='ip', rate='10/h', method='POST')  # SECURITY: Max 10 session logins per hour per IP
 def session_login_view(request):
     """Simple session login - create or get user by display name"""
-    
+    # Check if rate limited
+    if getattr(request, 'limited', False):
+        return Response({
+            'success': False,
+            'error': 'Too many session requests. Please try again later.'
+        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
     display_name = request.data.get('name', '').strip()
     if not display_name:
         return Response({

@@ -183,6 +183,21 @@ FILE_UPLOAD_PERMISSIONS = 0o644
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Rate Limiting Configuration
+# ===========================
+# django-ratelimit settings for protecting against brute force and abuse
+RATELIMIT_ENABLE = True  # Enable rate limiting
+RATELIMIT_USE_CACHE = 'default'  # Use default cache backend for rate limit tracking
+
+# Cache configuration for rate limiting
+# Using in-memory cache for development, should use Redis/Memcached in production
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ratelimit-cache',
+    }
+}
+
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'
 
