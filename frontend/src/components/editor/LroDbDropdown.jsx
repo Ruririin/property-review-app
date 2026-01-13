@@ -54,7 +54,7 @@ const LroDbDropdown = ({
     <div className="position-relative" ref={dropdownRef}>
       <button
         className="btn btn-outline-secondary btn-sm d-flex align-items-center"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => e.preventDefault()}
         disabled={true}
         title="Database loading disabled for security"
         style={{
@@ -64,7 +64,8 @@ const LroDbDropdown = ({
           borderRadius: "6px",
           padding: "0 12px",
           opacity: "0.6",
-          cursor: "not-allowed"
+          cursor: "not-allowed",
+          pointerEvents: "none"
         }}
       >
         <i className="bi bi-database me-1" style={{ fontSize: "12px", color: "#6c757d" }}></i>
