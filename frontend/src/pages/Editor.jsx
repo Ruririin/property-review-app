@@ -1679,14 +1679,15 @@ export default function Editor() {
       // Show loading screen
       setIsLoadingProject(true);
       setLoadingMessage("Loading project data...");
-      
+
       // Set current project ID immediately to prevent race conditions
       setCurrentProjectId(projectId);
-      
+
       // Update loading message
       setLoadingMessage("Fetching project details...");
-      
-      const savedProject = await apiService.getProject(projectId);
+
+      // IMPORTANT: Use projectSaveService instead of apiService to get localStorage fallback
+      const savedProject = await projectSaveService.getProject(projectId);
       if (savedProject) {
         console.log(`Loading project: ${savedProject.title}`, savedProject);
         
