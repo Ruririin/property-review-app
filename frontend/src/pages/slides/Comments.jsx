@@ -579,11 +579,19 @@ const Comments = forwardRef(({
                     setFormData({ ...formData, [field]: "" });
                   }
                 }
+
+                // Remove from fieldPositions
                 if (setFieldPositions) {
                   const updatedPositions = { ...(fieldPositions || {}) };
                   delete updatedPositions[field];
                   setFieldPositions(updatedPositions);
                 }
+
+                // Also remove from stablePositionsRef
+                if (stablePositionsRef.current[field]) {
+                  delete stablePositionsRef.current[field];
+                }
+
                 onSelect(null);
               }}
               style={{
