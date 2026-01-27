@@ -2452,16 +2452,16 @@ export default function Editor() {
       slides: slides // Pass slides array to check slide types
     };
 
-    // Debug logging for Comments slide
-    if (slideData.type === 'comments') {
-      console.log('💬 Comments slideProps:', {
-        hasFormData: !!formDataToUse,
-        formData: formDataToUse,
-        hasFieldPositions: !!(slideSpecificData.fieldPositions),
-        fieldPositions: slideSpecificData.fieldPositions,
-        slideSpecificData: slideSpecificData
-      });
-    }
+    // Debug logging for Comments slide (disabled)
+    // if (slideData.type === 'comments') {
+    //   console.log('💬 Comments slideProps:', {
+    //     hasFormData: !!formDataToUse,
+    //     formData: formDataToUse,
+    //     hasFieldPositions: !!(slideSpecificData.fieldPositions),
+    //     fieldPositions: slideSpecificData.fieldPositions,
+    //     slideSpecificData: slideSpecificData
+    //   });
+    // }
 
     // Handle all street view variants (street_view_1, street_view_2, etc.)
     if (slideData.type.startsWith('street_view')) {
