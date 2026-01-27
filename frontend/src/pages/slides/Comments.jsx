@@ -458,40 +458,12 @@ const Comments = forwardRef(({
           position: "absolute",
           top: position.top,
           left: position.left,
-          width: position.width + 30, // Add space for bullet
+          width: position.width,
           height: position.height,
           zIndex: 1000, // Ensure text fields are above images
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag handle (bullet point) - positioned absolutely, hidden in print/export */}
-        <span 
-          onMouseDown={(e) => {
-            handleFieldMouseDown(e, field);
-          }}
-          onTouchStart={(e) => {
-            handleFieldMouseDown(e, field);
-          }}
-          className="no-print-bullet"
-          style={{
-            position: "absolute",
-            left: "-20px",
-            top: "12px",
-            color: "#8B9A5B",
-            fontFamily: "'Montserrat', sans-serif",
-            fontSize: fontSizes[field] || 32,
-            fontWeight: "bold",
-            cursor: isActive ? "move" : "default",
-            padding: "2px",
-            borderRadius: "3px",
-            background: isActive ? "rgba(139, 154, 91, 0.15)" : "transparent",
-            userSelect: "none",
-          }}
-          title={isActive ? "Drag to move" : ""}
-        >
-          •
-        </span>
-        
         {/* Delete button - only show when active */}
         {isActive && (
           <button
