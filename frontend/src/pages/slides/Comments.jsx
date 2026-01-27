@@ -464,52 +464,149 @@ const Comments = forwardRef(({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Delete button - only show when active */}
+        {/* Toolbar - only show when active */}
         {isActive && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (setFormData) {
-                // For dynamic fields (compiled, custom, interiorView), remove the key entirely
-                if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
-                  const updatedFormData = { ...formData };
-                  delete updatedFormData[field];
-                  setFormData(updatedFormData);
-                } else {
-                  // For standard fields, just empty the value
-                  setFormData({ ...formData, [field]: "" });
-                }
-              }
-              if (setFieldPositions) {
-                const updatedPositions = { ...(fieldPositions || {}) };
-                delete updatedPositions[field];
-                setFieldPositions(updatedPositions);
-              }
-              onSelect(null);
-            }}
+          <div
             style={{
               position: "absolute",
-              top: "-8px",
-              right: "-8px",
-              width: "20px",
-              height: "20px",
-              borderRadius: "50%",
-              background: "#ff4444",
-              color: "white",
-              border: "none",
-              fontSize: "12px",
-              cursor: "pointer",
+              top: "-36px",
+              left: "50%",
+              transform: "translateX(-50%)",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
+              gap: "4px",
+              padding: "4px 8px",
+              background: "rgba(255, 255, 255, 0.95)",
+              border: "1px solid #ccc",
+              borderRadius: "20px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              zIndex: 1001,
             }}
-            title="Delete text field"
           >
-            ×
-          </button>
+            {/* Drag Handle Button */}
+            <button
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                handleFieldMouseDown(e, field);
+              }}
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "50%",
+                background: "#6c757d",
+                color: "white",
+                border: "none",
+                fontSize: "14px",
+                cursor: "move",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+              title="Drag to move"
+            >
+              ⋮⋮
+            </button>
+
+            {/* Duplicate Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (setFormData && fieldPositions) {
+                  // Create new key with timestamp
+                  const prefix = field.startsWith('compiled_') ? 'compiled_' :
+                                 field.startsWith('custom_') ? 'custom_' :
+                                 field.startsWith('interiorView_') ? 'interiorView_' : '';
+
+                  if (prefix) {
+                    const newKey = `${prefix}${Date.now()}`;
+                    const currentPosition = fieldPositions[field] || position;
+
+                    // Copy content
+                    setFormData({
+                      ...formData,
+                      [newKey]: formData[field]
+                    });
+
+                    // Copy position with slight offset
+                    if (setFieldPositions) {
+                      setFieldPositions({
+                        ...fieldPositions,
+                        [newKey]: {
+                          top: currentPosition.top + 20,
+                          left: currentPosition.left + 20,
+                          width: currentPosition.width,
+                          height: currentPosition.height
+                        }
+                      });
+                    }
+
+                    // Select the new field
+                    setTimeout(() => onSelect(newKey), 50);
+                  }
+                }
+              }}
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "50%",
+                background: "#007bff",
+                color: "white",
+                border: "none",
+                fontSize: "14px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+              title="Duplicate"
+            >
+              ⎘
+            </button>
+
+            {/* Delete Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (setFormData) {
+                  // For dynamic fields (compiled, custom, interiorView), remove the key entirely
+                  if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
+                    const updatedFormData = { ...formData };
+                    delete updatedFormData[field];
+                    setFormData(updatedFormData);
+                  } else {
+                    // For standard fields, just empty the value
+                    setFormData({ ...formData, [field]: "" });
+                  }
+                }
+                if (setFieldPositions) {
+                  const updatedPositions = { ...(fieldPositions || {}) };
+                  delete updatedPositions[field];
+                  setFieldPositions(updatedPositions);
+                }
+                onSelect(null);
+              }}
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "50%",
+                background: "#dc3545",
+                color: "white",
+                border: "none",
+                fontSize: "16px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+              title="Delete"
+            >
+              ×
+            </button>
+          </div>
         )}
-        
+
         {/* Text field container with resize handles */}
         <div style={{ position: "relative", width: "100%", height: "100%" }}>
           <textarea
