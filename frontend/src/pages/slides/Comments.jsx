@@ -33,14 +33,6 @@ const Comments = forwardRef(({
   const stablePositionsRef = useRef({});
   const containerRef = useRef(null); // For container reference instead of imageHandler
 
-  // Debug: Log when formData changes
-  useEffect(() => {
-    if (formData) {
-      const compiledFields = Object.keys(formData).filter(k => k.startsWith('compiled_'));
-      console.log(`🔄 FormData changed - compiled fields:`, compiledFields);
-    }
-  }, [formData]);
-
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
@@ -579,36 +571,24 @@ const Comments = forwardRef(({
               onMouseDown={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                console.log(`🗑️ DELETE MOUSEDOWN for field: ${field}`);
 
                 // Perform delete operation
                 const performDelete = async () => {
-                  console.log(`🗑️ DELETE clicked for field: ${field}`);
-                  console.log(`🗑️ Field type check - compiled: ${field.startsWith('compiled_')}, custom: ${field.startsWith('custom_')}, interior: ${field.startsWith('interiorView_')}`);
-
                   // For dynamic fields (compiled, custom, interiorView), remove the key entirely
                   if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
-                    console.log(`🗑️ Deleting dynamic field: ${field}`);
-
                     // Remove from formData
                     if (setFormData && formData) {
                       const updatedFormData = { ...formData };
                       delete updatedFormData[field];
-                      console.log(`🗑️ FormData keys before: ${Object.keys(formData).length}, after: ${Object.keys(updatedFormData).length}`);
-                      console.log(`🗑️ Compiled fields remaining:`, Object.keys(updatedFormData).filter(k => k.startsWith('compiled_')));
-                      console.log(`🗑️ Calling setFormData with updated data`);
                       setFormData(updatedFormData);
 
                       // Immediately save to backend if project exists
                       if (currentProjectId) {
                         try {
                           await slideApiService.updateComments(currentProjectId, 'comments_slide', updatedFormData);
-                          console.log(`✅ Deleted ${field} from backend`);
                         } catch (error) {
                           console.warn('Failed to delete comment from backend:', error);
                         }
-                      } else {
-                        console.log(`📝 Skipping backend save (draft project)`);
                       }
                     }
 
@@ -616,14 +596,12 @@ const Comments = forwardRef(({
                     if (setFieldPositions && fieldPositions) {
                       const updatedPositions = { ...fieldPositions };
                       delete updatedPositions[field];
-                      console.log(`🗑️ FieldPositions keys before: ${Object.keys(fieldPositions).length}, after: ${Object.keys(updatedPositions).length}`);
                       setFieldPositions(updatedPositions);
 
                       // Immediately save positions to backend if project exists
                       if (currentProjectId) {
                         try {
                           await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', updatedPositions);
-                          console.log(`✅ Deleted ${field} position from backend`);
                         } catch (error) {
                           console.warn('Failed to delete field position from backend:', error);
                         }
@@ -633,12 +611,8 @@ const Comments = forwardRef(({
                     // Remove from stablePositionsRef
                     if (stablePositionsRef.current[field]) {
                       delete stablePositionsRef.current[field];
-                      console.log(`🗑️ Removed ${field} from stablePositionsRef`);
                     }
-
-                    console.log(`✅ Delete complete for ${field}`);
                   } else {
-                    console.log(`🗑️ Emptying standard field: ${field}`);
                     // For standard fields, just empty the value
                     if (setFormData) {
                       setFormData({ ...formData, [field]: "" });
