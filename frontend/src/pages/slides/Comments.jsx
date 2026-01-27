@@ -150,7 +150,7 @@ const Comments = forwardRef(({
         try {
           await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', dimensionsToSave);
         } catch (error) {
-          console.warn('Comments: Failed to save field positions to backend:', error);
+          // Silently ignore - likely a draft project
         }
       }
     };
@@ -169,7 +169,10 @@ const Comments = forwardRef(({
       try {
         await slideApiService.updateComments(currentProjectId, 'comments_slide', formData);
       } catch (error) {
-        console.warn('Failed to save comments content to backend:', error);
+        // Silently ignore errors for draft projects
+        if (currentProjectId) {
+          console.warn('Failed to save comments content to backend:', error);
+        }
       }
     };
 
@@ -579,7 +582,7 @@ const Comments = forwardRef(({
                         try {
                           await slideApiService.updateComments(currentProjectId, 'comments_slide', updatedFormData);
                         } catch (error) {
-                          console.warn('Failed to delete comment from backend:', error);
+                          // Silently ignore
                         }
                       }
                     }
@@ -595,7 +598,7 @@ const Comments = forwardRef(({
                         try {
                           await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', updatedPositions);
                         } catch (error) {
-                          console.warn('Failed to delete field position from backend:', error);
+                          // Silently ignore
                         }
                       }
                     }
