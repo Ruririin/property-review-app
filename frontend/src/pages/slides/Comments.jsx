@@ -61,18 +61,22 @@ const Comments = forwardRef(({
         return;
       }
 
+      // Skip backend fetch for draft projects
+      if (!currentProjectId) {
+        return;
+      }
+
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, 'comments_slide');
         
         // Load field positions if they exist
         if (result.field_positions && Object.keys(result.field_positions).length > 0) {
-          console.log('🔄 Comments: Loading positions from backend:', Object.keys(result.field_positions), result.field_positions);
           // Update both the state and the stable ref with defensive checks
           stablePositionsRef.current = {
             ...stablePositionsRef.current,
             ...result.field_positions
           };
-          
+
           // Only update field positions if the function exists and component is still mounted
           if (setFieldPositions && typeof setFieldPositions === 'function') {
             try {
@@ -81,20 +85,16 @@ const Comments = forwardRef(({
                 setFieldPositions(prev => {
                   // Defensive check to ensure prev is an object
                   const safePrev = prev && typeof prev === 'object' ? prev : {};
-                  const newPositions = {
+                  return {
                     ...safePrev,
                     ...result.field_positions
                   };
-                  console.log('🔄 Comments: Updated field positions state:', Object.keys(newPositions));
-                  return newPositions;
                 });
               }, 50);
             } catch (error) {
               console.warn('Failed to update field positions:', error);
             }
           }
-        } else {
-          console.log('📋 Comments: No field positions found in backend response');
         }
 
         // Load comments content if it exists
@@ -143,23 +143,15 @@ const Comments = forwardRef(({
             ...(data.top !== undefined && { top: data.top }),
             ...(data.left !== undefined && { left: data.left })
           };
-          console.log(`📐 Comments: Preparing to save field "${field}":`, dimensionsToSave[field]);
         }
       });
 
-      console.log('📐 Comments: Total fields to save:', Object.keys(dimensionsToSave).length, Object.keys(dimensionsToSave));
-
       if (Object.keys(dimensionsToSave).length > 0 && currentProjectId) {
         try {
-          console.log('💾 Comments: Saving field positions to backend:', dimensionsToSave);
           await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', dimensionsToSave);
         } catch (error) {
           console.warn('Comments: Failed to save field positions to backend:', error);
         }
-      } else if (Object.keys(dimensionsToSave).length > 0) {
-        console.log('Comments: Skipping backend save (draft project) - field positions:', dimensionsToSave);
-      } else {
-        console.log('Comments: No field positions to save - fieldPositions:', fieldPositions);
       }
     };
 
@@ -656,7 +648,6 @@ const Comments = forwardRef(({
             onInput={(e) => autoResize(e.target)}
             placeholder={placeholder}
             onFocus={() => {
-              console.log('Textarea focused, selecting field:', field);
               if (selectedField !== field) {
                 onSelect(field);
               }
