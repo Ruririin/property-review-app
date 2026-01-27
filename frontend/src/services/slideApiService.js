@@ -84,7 +84,7 @@ class SlideApiService {
 
     try {
       const response = await fetch(url, config);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`API Error ${response.status}: ${errorText}`);
@@ -93,7 +93,10 @@ class SlideApiService {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error(`Slide API Error: ${config.method || 'GET'} ${endpoint}`, error);
+      // Only log non-404 errors (404s are expected for draft projects)
+      if (!error.message || !error.message.includes('404')) {
+        console.error(`Slide API Error: ${config.method || 'GET'} ${endpoint}`, error);
+      }
       throw error;
     }
   }
