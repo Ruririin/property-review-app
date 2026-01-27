@@ -33,6 +33,14 @@ const Comments = forwardRef(({
   const stablePositionsRef = useRef({});
   const containerRef = useRef(null); // For container reference instead of imageHandler
 
+  // Debug: Log when formData changes
+  useEffect(() => {
+    if (formData) {
+      const compiledFields = Object.keys(formData).filter(k => k.startsWith('compiled_'));
+      console.log(`🔄 FormData changed - compiled fields:`, compiledFields);
+    }
+  }, [formData]);
+
   // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
@@ -587,6 +595,7 @@ const Comments = forwardRef(({
                       const updatedFormData = { ...formData };
                       delete updatedFormData[field];
                       console.log(`🗑️ FormData keys before: ${Object.keys(formData).length}, after: ${Object.keys(updatedFormData).length}`);
+                      console.log(`🗑️ Compiled fields remaining:`, Object.keys(updatedFormData).filter(k => k.startsWith('compiled_')));
                       console.log(`🗑️ Calling setFormData with updated data`);
                       setFormData(updatedFormData);
 
