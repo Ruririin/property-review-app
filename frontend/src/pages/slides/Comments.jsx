@@ -498,7 +498,15 @@ const Comments = forwardRef(({
             onClick={(e) => {
               e.stopPropagation();
               if (setFormData) {
-                setFormData({ ...formData, [field]: "" });
+                // For dynamic fields (compiled, custom, interiorView), remove the key entirely
+                if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
+                  const updatedFormData = { ...formData };
+                  delete updatedFormData[field];
+                  setFormData(updatedFormData);
+                } else {
+                  // For standard fields, just empty the value
+                  setFormData({ ...formData, [field]: "" });
+                }
               }
               if (setFieldPositions) {
                 const updatedPositions = { ...(fieldPositions || {}) };
