@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import CommentBuilderPopup from './CommentBuilderPopup';
 
 // Interior Builder Form Component
 const InteriorBuilderForm = ({ updateSlideFormData, currentSlide, getSlideData, setIsInteriorBuilderVisible }) => {
@@ -198,6 +199,183 @@ const InteriorBuilderForm = ({ updateSlideFormData, currentSlide, getSlideData, 
         Add Interior View
       </button>
     </div>
+  );
+};
+
+// Comment Multi-Select Component
+const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData }) => {
+  const [selectedComments, setSelectedComments] = useState([]);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [compiledText, setCompiledText] = useState('');
+
+  const commentOptions = [
+    { key: 'fireHydrantWithin', label: 'Hydrant Within', text: 'The nearest fire hydrant is within the premise.' },
+    { key: 'fireHydrantAway', label: 'Hydrant Away', text: 'The nearest fire hydrant is (distance) away from the premise.' },
+    { key: 'matureTree', label: 'Mature Tree', text: 'There is a mature tree beside the premise.' },
+    { key: 'handrailsStairs', label: 'Handrails Stairs', text: 'The premise has handrails for stairs.' },
+    { key: 'guardRailsBalcony', label: 'Guard Rails Balcony', text: 'The premise has guard rails for the balcony.' },
+    { key: 'handrailsGuardRails', label: 'Handrails & Guard Rails', text: 'The premise has handrails for stairs and guard rails for the balcony.' },
+    { key: 'pwdProvisions', label: 'PWD Provisions', text: 'The premise has PWD provisions (parking, ramp, etc.).' },
+    { key: 'cctvCameras', label: 'CCTV Cameras', text: 'There are CCTV cameras present on the property.' },
+    { key: 'poolGateFence', label: 'Pool Gate & Fence', text: 'There is a gate and fence around the pool.' },
+    { key: 'vandalism', label: 'No Vandalism', text: 'There are no visible vandalism on the premise and its surroundings.' }
+  ];
+
+  const toggleComment = (key) => {
+    setSelectedComments(prev =>
+      prev.includes(key)
+        ? prev.filter(k => k !== key)
+        : [...prev, key]
+    );
+  };
+
+  const getPreviewText = () => {
+    if (selectedComments.length === 0) return '';
+    return selectedComments
+      .map(key => {
+        const option = commentOptions.find(opt => opt.key === key);
+        return option ? `• ${option.text}` : '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  };
+
+  const handleAddToSlide = () => {
+    if (selectedComments.length === 0) {
+      alert('Please select at least one comment.');
+      return;
+    }
+    const preview = getPreviewText();
+    setCompiledText(preview);
+    setIsPopupOpen(true);
+  };
+
+  const handleSaveComment = (editedText) => {
+    const currentFormData = getSlideData(currentSlide).formData;
+    const newKey = `compiled_${Date.now()}`;
+    updateSlideFormData(currentSlide, {
+      ...currentFormData,
+      [newKey]: editedText
+    });
+
+    // Reset selection after adding
+    setSelectedComments([]);
+    console.log('Added compiled comment to slide:', editedText);
+  };
+
+  const previewText = getPreviewText();
+
+  return (
+    <>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {/* Comment Options with Checkboxes */}
+        <div style={{
+          maxHeight: "200px",
+          overflowY: "auto",
+          padding: "8px",
+          background: "rgba(248,249,250,0.8)",
+          borderRadius: "6px",
+          border: "1px solid rgba(0,0,0,0.1)"
+        }}>
+          {commentOptions.map((option) => (
+            <label
+              key={option.key}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "6px",
+                cursor: "pointer",
+                borderRadius: "4px",
+                transition: "background 0.2s",
+                fontSize: "11px",
+                marginBottom: "4px"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(0, 123, 255, 0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selectedComments.includes(option.key)}
+                onChange={() => toggleComment(option.key)}
+                style={{
+                  width: "16px",
+                  height: "16px",
+                  cursor: "pointer"
+                }}
+              />
+              <span style={{ color: "#495057", fontWeight: "500" }}>
+                {option.label}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {/* Live Preview */}
+        {previewText && (
+          <div style={{
+            padding: "10px",
+            background: "rgba(0, 123, 255, 0.05)",
+            borderRadius: "6px",
+            border: "1px solid rgba(0, 123, 255, 0.2)",
+            fontSize: "10px",
+            color: "#495057",
+            maxHeight: "120px",
+            overflowY: "auto",
+            whiteSpace: "pre-wrap",
+            lineHeight: "1.5"
+          }}>
+            <div style={{ fontWeight: "600", marginBottom: "6px", color: "#007bff" }}>
+              Preview ({selectedComments.length} selected):
+            </div>
+            {previewText}
+          </div>
+        )}
+
+        {/* Add to Slide Button */}
+        <button
+          onClick={handleAddToSlide}
+          disabled={selectedComments.length === 0}
+          style={{
+            backgroundColor: selectedComments.length > 0 ? "#007bff" : "#ccc",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            padding: "10px 16px",
+            fontSize: "12px",
+            fontWeight: "600",
+            cursor: selectedComments.length > 0 ? "pointer" : "not-allowed",
+            transition: "all 0.2s ease",
+            marginTop: "4px"
+          }}
+          onMouseEnter={(e) => {
+            if (selectedComments.length > 0) {
+              e.target.style.backgroundColor = "#0056b3";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (selectedComments.length > 0) {
+              e.target.style.backgroundColor = "#007bff";
+            }
+          }}
+        >
+          Add to Slide
+        </button>
+      </div>
+
+      {/* Comment Builder Popup */}
+      <CommentBuilderPopup
+        isOpen={isPopupOpen}
+        onClose={() => setIsPopupOpen(false)}
+        initialText={compiledText}
+        onSave={handleSaveComment}
+        title="Edit Compiled Comment"
+      />
+    </>
   );
 };
 
@@ -618,23 +796,10 @@ const Sidebar = ({
       {(() => {
         const currentSlideData = slides.find(s => s.id === currentSlide);
         if (currentSlideData && currentSlideData.type === 'comments') {
-          const commentOptions = [
-            { key: 'fireHydrantWithin', label: 'Hydrant Within', text: 'The nearest fire hydrant is within the premise.' },
-            { key: 'fireHydrantAway', label: 'Hydrant Away', text: 'The nearest fire hydrant is (distance) away from the premise.' },
-            { key: 'matureTree', label: 'Mature Tree', text: 'There is a mature tree beside the premise.' },
-            { key: 'handrailsStairs', label: 'Handrails Stairs', text: 'The premise has handrails for stairs.' },
-            { key: 'guardRailsBalcony', label: 'Guard Rails Balcony', text: 'The premise has guard rails for the balcony.' },
-            { key: 'handrailsGuardRails', label: 'Handrails & Guard Rails', text: 'The premise has handrails for stairs and guard rails for the balcony.' },
-            { key: 'pwdProvisions', label: 'PWD Provisions', text: 'The premise has PWD provisions' },
-            { key: 'cctvCameras', label: 'CCTV Cameras', text: 'There are CCTV cameras present on the property.' },
-            { key: 'poolGateFence', label: 'Pool Gate & Fence', text: 'There is a gate and fence around the pool.' },
-            { key: 'vandalism', label: 'Vandalism', text: 'Vandalism is present on the premise.' }
-          ];
-
           return (
             <div className="mb-3">
               <div className="d-flex justify-content-between align-items-center mb-2">
-                <label className="form-label small fw-bold mb-0">Comments Options</label>
+                <label className="form-label small fw-bold mb-0">Comment Builder</label>
                 <button
                   onClick={() => setShowCustomCommentInput(!showCustomCommentInput)}
                   style={{
@@ -666,128 +831,62 @@ const Sidebar = ({
                   +
                 </button>
               </div>
-              
-              <div 
-                style={{
-                  height: "120px",
-                  width: "320px",
-                  overflowY: "auto",
-                  padding: "8px 4px",
-                  background: "linear-gradient(180deg, rgba(248,249,250,0) 0%, rgba(248,249,250,1) 10%, rgba(248,249,250,1) 90%, rgba(248,249,250,0) 100%)",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(0,0,0,0.1)",
-                  position: "relative"
-                }}
-              >
-                <div 
+
+              {/* Multi-Select Comment Builder */}
+              <CommentMultiSelect
+                updateSlideFormData={updateSlideFormData}
+                currentSlide={currentSlide}
+                getSlideData={getSlideData}
+              />
+
+              {/* Interior View Builder Button - Separate Section */}
+              <div style={{ marginTop: "12px" }}>
+                <button
+                  onClick={() => {
+                    setIsInteriorBuilderVisible(!isInteriorBuilderVisible);
+                  }}
                   style={{
-                    display: "flex",
-                    gap: "6px",
-                    flexWrap: "wrap",
-                    alignContent: "flex-start",
-                    width: "100%"
+                    width: "100%",
+                    background: "linear-gradient(145deg, #fff3e0, #ffcc02)",
+                    border: "1px solid #ff9800",
+                    borderRadius: "6px",
+                    padding: "10px 16px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    color: "#e65100",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-1px)";
+                    e.target.style.boxShadow = "0 2px 6px rgba(255,152,0,0.25)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
                   }}
                 >
-                  {commentOptions.map((option) => (
-                    <button
-                      key={option.key}
-                      onClick={() => {
-                        const currentFormData = getSlideData(currentSlide).formData;
-                        updateSlideFormData(currentSlide, {
-                          ...currentFormData,
-                          [option.key]: currentFormData[option.key] || option.text
-                        });
-                      }}
-                      style={{
-                        background: "linear-gradient(145deg, #ffffff, #f8f9fa)",
-                        border: "1px solid #e9ecef",
-                        borderRadius: "20px",
-                        padding: "6px 10px",
-                        fontSize: "10px",
-                        fontWeight: "500",
-                        color: "#495057",
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                        whiteSpace: "nowrap",
-                        minHeight: "28px",
-                        maxWidth: "180px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flex: "0 1 auto"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = "translateY(-1px)";
-                        e.target.style.boxShadow = "0 2px 6px rgba(0,0,0,0.15)";
-                        e.target.style.background = "linear-gradient(145deg, #e3f2fd, #bbdefb)";
-                        e.target.style.borderColor = "#2196f3";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = "translateY(0)";
-                        e.target.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-                        e.target.style.background = "linear-gradient(145deg, #ffffff, #f8f9fa)";
-                        e.target.style.borderColor = "#e9ecef";
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                  
-                  {/* Interior View Builder Button */}
-                  <button
-                    onClick={() => {
-                      setIsInteriorBuilderVisible(!isInteriorBuilderVisible);
-                    }}
-                    style={{
-                      background: "linear-gradient(145deg, #fff3e0, #ffcc02)",
-                      border: "1px solid #ff9800",
-                      borderRadius: "20px",
-                      padding: "6px 10px",
-                      fontSize: "10px",
-                      fontWeight: "600",
-                      color: "#e65100",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                      whiteSpace: "nowrap",
-                      minHeight: "28px",
-                      maxWidth: "180px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flex: "0 1 auto"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.transform = "translateY(-1px)";
-                      e.target.style.boxShadow = "0 2px 6px rgba(255,152,0,0.25)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.transform = "translateY(0)";
-                      e.target.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-                    }}
-                  >
-                    Interior Builder
-                  </button>
-                </div>
+                  Interior Builder
+                </button>
               </div>
-              
+
               {/* Interior View Builder Options */}
               {isInteriorBuilderVisible && (
-                <div 
-                  style={{ 
-                    marginTop: "10px", 
-                    padding: "12px", 
-                    backgroundColor: "#fff3e0", 
-                    borderRadius: "8px", 
-                    border: "1px solid #ff9800" 
+                <div
+                  style={{
+                    marginTop: "10px",
+                    padding: "12px",
+                    backgroundColor: "#fff3e0",
+                    borderRadius: "8px",
+                    border: "1px solid #ff9800"
                   }}
                 >
                   <div style={{ fontSize: "11px", fontWeight: "600", marginBottom: "8px", color: "#e65100" }}>
                     Interior View Builder
                   </div>
-                  
-                  <div 
+
+                  <div
                     style={{
                       maxHeight: "200px",
                       overflowY: "auto",
@@ -797,14 +896,14 @@ const Sidebar = ({
                       border: "1px solid rgba(255,152,0,0.2)"
                     }}
                   >
-                    <InteriorBuilderForm 
-                      updateSlideFormData={updateSlideFormData} 
-                      currentSlide={currentSlide} 
+                    <InteriorBuilderForm
+                      updateSlideFormData={updateSlideFormData}
+                      currentSlide={currentSlide}
                       getSlideData={getSlideData}
                       setIsInteriorBuilderVisible={setIsInteriorBuilderVisible}
                     />
                   </div>
-                  
+
                   <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
                     <button
                       onClick={() => setIsInteriorBuilderVisible(false)}
@@ -826,22 +925,22 @@ const Sidebar = ({
                   </div>
                 </div>
               )}
-              
+
               {/* Custom Comment Input */}
               {showCustomCommentInput && (
-                <div 
-                  style={{ 
-                    marginTop: "10px", 
-                    padding: "12px", 
-                    backgroundColor: "#f8f9fa", 
-                    borderRadius: "8px", 
-                    border: "1px solid #e9ecef" 
+                <div
+                  style={{
+                    marginTop: "10px",
+                    padding: "12px",
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "8px",
+                    border: "1px solid #e9ecef"
                   }}
                 >
                   <div style={{ fontSize: "11px", fontWeight: "600", marginBottom: "8px", color: "#495057" }}>
                     Add Custom Comment
                   </div>
-                  
+
                   <textarea
                     value={customCommentText}
                     onChange={(e) => setCustomCommentText(e.target.value)}
@@ -858,7 +957,7 @@ const Sidebar = ({
                       marginBottom: "8px"
                     }}
                   />
-                  
+
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button
                       onClick={() => {
@@ -889,7 +988,7 @@ const Sidebar = ({
                     >
                       Add Comment
                     </button>
-                    
+
                     <button
                       onClick={() => {
                         setCustomCommentText('');

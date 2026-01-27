@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import MultiImageComponent from "../../components/MultiImageComponent";
 import slideApiService from "../../services/slideApiService";
+import CommentBuilderPopup from "../../components/CommentBuilderPopup";
 
 const Comments = forwardRef(({
   formData,
@@ -25,7 +26,10 @@ const Comments = forwardRef(({
   const [resizingField, setResizingField] = useState(null);
   const [resizeMode, setResizeMode] = useState('');
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
-  
+  const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
+  const [editingField, setEditingField] = useState(null);
+  const [editingText, setEditingText] = useState('');
+
   const stablePositionsRef = useRef({});
   const containerRef = useRef(null); // For container reference instead of imageHandler
 
@@ -356,6 +360,30 @@ const Comments = forwardRef(({
     setResizeMode('');
   };
 
+  // Handle right-click to edit compiled comments
+  const handleContextMenu = (e, field) => {
+    // Only allow right-click editing for compiled, custom, and interior comments
+    if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditingField(field);
+      setEditingText(formData?.[field] || '');
+      setIsEditPopupOpen(true);
+    }
+  };
+
+  // Save edited text from popup
+  const handleSaveEdit = (editedText) => {
+    if (editingField && setFormData) {
+      setFormData({
+        ...formData,
+        [editingField]: editedText
+      });
+    }
+    setEditingField(null);
+    setEditingText('');
+  };
+
   // Document event listeners for dragging and resizing (mouse and touch)
   useEffect(() => {
     const handleDocumentMouseMove = (e) => {
@@ -518,6 +546,7 @@ const Comments = forwardRef(({
               }
             }}
             onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => handleContextMenu(e, field)}
             onMouseMove={(e) => {
               if (selectedField === field) {
                 const rect = e.target.getBoundingClientRect();
@@ -822,7 +851,12 @@ const Comments = forwardRef(({
       {formData && Object.keys(formData).filter(key => key.startsWith('custom_')).map((key) => (
         renderBulletTextField(key, formData[key], 300)
       ))}
-      
+
+      {/* Dynamic Compiled Comment textboxes */}
+      {formData && Object.keys(formData).filter(key => key.startsWith('compiled_')).map((key) => (
+        renderBulletTextField(key, formData[key], 300)
+      ))}
+
       {/* Image Component for paste functionality */}
       <MultiImageComponent
         images={slideData?.images || []}
@@ -838,6 +872,19 @@ const Comments = forwardRef(({
       {/* Location and Website at bottom right */}
       {renderField('premiseLocation', 'Premise Location')}
       {renderField('websiteInfo', 'www.(source).com/(source) — (mm/yyyy)')}
+
+      {/* Edit Comment Popup */}
+      <CommentBuilderPopup
+        isOpen={isEditPopupOpen}
+        onClose={() => {
+          setIsEditPopupOpen(false);
+          setEditingField(null);
+          setEditingText('');
+        }}
+        initialText={editingText}
+        onSave={handleSaveEdit}
+        title="Edit Comment"
+      />
     </div>
   );
 });
