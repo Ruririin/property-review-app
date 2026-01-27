@@ -163,10 +163,7 @@ const Comments = forwardRef(({
       try {
         await slideApiService.updateComments(currentProjectId, 'comments_slide', formData);
       } catch (error) {
-        // Silently ignore errors for draft projects
-        if (currentProjectId) {
-          console.warn('Failed to save comments content to backend:', error);
-        }
+        // Silently ignore all errors (likely draft projects)
       }
     };
 
