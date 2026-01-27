@@ -1,212 +1,20 @@
 import React, { useState } from 'react';
 import CommentBuilderPopup from './CommentBuilderPopup';
 
-// Interior Builder Form Component
-const InteriorBuilderForm = ({ updateSlideFormData, currentSlide, getSlideData, setIsInteriorBuilderVisible }) => {
-  const [interiorFeatures, setInteriorFeatures] = useState({
-    emergencyExits: false,
-    windowGuards: false,
-    smokeDetectors: false,
-    fireExtinguishers: false,
-    waterStains: null // null = not selected, true = has water stains, false = no water stains
-  });
-  
-  const generateInteriorText = (features) => {
-    const items = [];
-    if (features.emergencyExits) items.push('emergency exits');
-    if (features.windowGuards) items.push('window guards');
-    if (features.smokeDetectors) items.push('smoke detectors');
-    if (features.fireExtinguishers) items.push('fire extinguishers');
-    
-    if (items.length === 0) return '';
-    
-    let baseText = 'Interior view shows ';
-    if (items.length === 1) {
-      baseText += items[0];
-    } else if (items.length === 2) {
-      baseText += items.join(' and ');
-    } else {
-      baseText += items.slice(0, -1).join(', ') + ', and ' + items[items.length - 1];
-    }
-    
-    // Add water stains condition
-    if (features.waterStains === true) {
-      baseText += ' with water stains on the roof';
-    } else if (features.waterStains === false) {
-      baseText += ' without water stains on the roof';
-    }
-    
-    return baseText;
-  };
-  
-  const handleAddInteriorView = () => {
-    const items = [];
-    if (interiorFeatures.emergencyExits) items.push('emergency exits');
-    if (interiorFeatures.windowGuards) items.push('window guards');
-    if (interiorFeatures.smokeDetectors) items.push('smoke detectors');
-    if (interiorFeatures.fireExtinguishers) items.push('fire extinguishers');
-    
-    if (items.length > 0) {
-      let baseText = 'Interior view shows ';
-      if (items.length === 1) {
-        baseText += items[0];
-      } else if (items.length === 2) {
-        baseText += items.join(' and ');
-      } else {
-        baseText += items.slice(0, -1).join(', ') + ', and ' + items[items.length - 1];
-      }
-      
-      if (interiorFeatures.waterStains === true) {
-        baseText += ' with water stains on the roof';
-      } else if (interiorFeatures.waterStains === false) {
-        baseText += ' without water stains on the roof';
-      }
-      
-      const currentFormData = getSlideData(currentSlide).formData;
-      const newKey = `interiorView_${Date.now()}`;
-      updateSlideFormData(currentSlide, {
-        ...currentFormData,
-        [newKey]: baseText
-      });
-      
-      setIsInteriorBuilderVisible(false);
-      console.log('Added interior view:', baseText);
-    } else {
-      alert('Please select at least one interior feature.');
-    }
-  };
-
-  const previewText = generateInteriorText(interiorFeatures);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      {/* Feature Checkboxes */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-        <label style={{ fontSize: "10px", color: "#e65100", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-          <input 
-            type="checkbox" 
-            checked={interiorFeatures.emergencyExits}
-            onChange={(e) => setInteriorFeatures(prev => ({ ...prev, emergencyExits: e.target.checked }))}
-            style={{ width: "14px", height: "14px" }}
-          />
-          Emergency Exits
-        </label>
-        
-        <label style={{ fontSize: "10px", color: "#e65100", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-          <input 
-            type="checkbox" 
-            checked={interiorFeatures.windowGuards}
-            onChange={(e) => setInteriorFeatures(prev => ({ ...prev, windowGuards: e.target.checked }))}
-            style={{ width: "14px", height: "14px" }}
-          />
-          Window Guards
-        </label>
-        
-        <label style={{ fontSize: "10px", color: "#e65100", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-          <input 
-            type="checkbox" 
-            checked={interiorFeatures.smokeDetectors}
-            onChange={(e) => setInteriorFeatures(prev => ({ ...prev, smokeDetectors: e.target.checked }))}
-            style={{ width: "14px", height: "14px" }}
-          />
-          Smoke Detectors
-        </label>
-        
-        <label style={{ fontSize: "10px", color: "#e65100", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-          <input 
-            type="checkbox" 
-            checked={interiorFeatures.fireExtinguishers}
-            onChange={(e) => setInteriorFeatures(prev => ({ ...prev, fireExtinguishers: e.target.checked }))}
-            style={{ width: "14px", height: "14px" }}
-          />
-          Fire Extinguishers
-        </label>
-      </div>
-      
-      {/* Water Stains Radio Buttons */}
-      <div style={{ borderTop: "1px solid rgba(255,152,0,0.3)", paddingTop: "8px", marginTop: "4px" }}>
-        <div style={{ fontSize: "10px", fontWeight: "600", color: "#e65100", marginBottom: "4px" }}>
-          Water Stains on Roof:
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <label style={{ fontSize: "9px", color: "#e65100", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-            <input 
-              type="radio" 
-              name="waterStains"
-              checked={interiorFeatures.waterStains === true}
-              onChange={() => setInteriorFeatures(prev => ({ ...prev, waterStains: true }))}
-              style={{ width: "12px", height: "12px" }}
-            />
-            Has Water Stains
-          </label>
-          
-          <label style={{ fontSize: "9px", color: "#e65100", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-            <input 
-              type="radio" 
-              name="waterStains"
-              checked={interiorFeatures.waterStains === false}
-              onChange={() => setInteriorFeatures(prev => ({ ...prev, waterStains: false }))}
-              style={{ width: "12px", height: "12px" }}
-            />
-            No Water Stains
-          </label>
-          
-          <label style={{ fontSize: "9px", color: "#e65100", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-            <input 
-              type="radio" 
-              name="waterStains"
-              checked={interiorFeatures.waterStains === null}
-              onChange={() => setInteriorFeatures(prev => ({ ...prev, waterStains: null }))}
-              style={{ width: "12px", height: "12px" }}
-            />
-            Not Applicable
-          </label>
-        </div>
-      </div>
-      
-      {/* Preview Text */}
-      {previewText && (
-        <div style={{ 
-          marginTop: "8px", 
-          padding: "6px", 
-          backgroundColor: "rgba(255,152,0,0.1)", 
-          borderRadius: "4px",
-          fontSize: "9px",
-          color: "#e65100",
-          fontStyle: "italic",
-          border: "1px dashed rgba(255,152,0,0.3)"
-        }}>
-          Preview: "{previewText}"
-        </div>
-      )}
-      
-      {/* Add Interior View Button */}
-      <button
-        onClick={handleAddInteriorView}
-        style={{
-          backgroundColor: "#ff9800",
-          color: "white",
-          border: "none",
-          borderRadius: "4px",
-          padding: "8px 12px",
-          fontSize: "10px",
-          fontWeight: "500",
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-          marginTop: "8px"
-        }}
-      >
-        Add Interior View
-      </button>
-    </div>
-  );
-};
-
 // Comment Multi-Select Component
 const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData }) => {
   const [selectedComments, setSelectedComments] = useState([]);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [compiledText, setCompiledText] = useState('');
+
+  // Interior builder state
+  const [interiorFeatures, setInteriorFeatures] = useState({
+    emergencyExits: false,
+    windowGuards: false,
+    smokeDetectors: false,
+    fireExtinguishers: false,
+    waterStains: null
+  });
 
   const commentOptions = [
     { key: 'fireHydrantWithin', label: 'Hydrant Within', text: 'The nearest fire hydrant is within the premise.' },
@@ -229,20 +37,59 @@ const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData })
     );
   };
 
+  const generateInteriorText = () => {
+    const items = [];
+    if (interiorFeatures.emergencyExits) items.push('emergency exits');
+    if (interiorFeatures.windowGuards) items.push('window guards');
+    if (interiorFeatures.smokeDetectors) items.push('smoke detectors');
+    if (interiorFeatures.fireExtinguishers) items.push('fire extinguishers');
+
+    if (items.length === 0) return '';
+
+    let baseText = 'Interior view shows ';
+    if (items.length === 1) {
+      baseText += items[0];
+    } else if (items.length === 2) {
+      baseText += items.join(' and ');
+    } else {
+      baseText += items.slice(0, -1).join(', ') + ', and ' + items[items.length - 1];
+    }
+
+    if (interiorFeatures.waterStains === true) {
+      baseText += ' with water stains on the roof';
+    } else if (interiorFeatures.waterStains === false) {
+      baseText += ' without water stains on the roof';
+    }
+
+    return baseText;
+  };
+
   const getPreviewText = () => {
-    if (selectedComments.length === 0) return '';
-    return selectedComments
-      .map(key => {
-        const option = commentOptions.find(opt => opt.key === key);
-        return option ? `• ${option.text}` : '';
-      })
-      .filter(Boolean)
-      .join('\n');
+    const texts = [];
+
+    // Add selected standard comments
+    selectedComments.forEach(key => {
+      const option = commentOptions.find(opt => opt.key === key);
+      if (option) texts.push(`• ${option.text}`);
+    });
+
+    // Add interior view if any features selected
+    const interiorText = generateInteriorText();
+    if (interiorText) {
+      texts.push(`• ${interiorText}`);
+    }
+
+    return texts.join('\n');
   };
 
   const handleAddToSlide = () => {
-    if (selectedComments.length === 0) {
-      alert('Please select at least one comment.');
+    const hasInteriorFeatures = interiorFeatures.emergencyExits ||
+                                 interiorFeatures.windowGuards ||
+                                 interiorFeatures.smokeDetectors ||
+                                 interiorFeatures.fireExtinguishers;
+
+    if (selectedComments.length === 0 && !hasInteriorFeatures) {
+      alert('Please select at least one comment or interior feature.');
       return;
     }
     const preview = getPreviewText();
@@ -260,10 +107,25 @@ const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData })
 
     // Reset selection after adding
     setSelectedComments([]);
+    setInteriorFeatures({
+      emergencyExits: false,
+      windowGuards: false,
+      smokeDetectors: false,
+      fireExtinguishers: false,
+      waterStains: null
+    });
     console.log('Added compiled comment to slide:', editedText);
   };
 
   const previewText = getPreviewText();
+
+  const hasInteriorFeaturesSelected = interiorFeatures.emergencyExits ||
+                                       interiorFeatures.windowGuards ||
+                                       interiorFeatures.smokeDetectors ||
+                                       interiorFeatures.fireExtinguishers;
+
+  const totalSelected = selectedComments.length + (hasInteriorFeaturesSelected ? 1 : 0);
+  const hasAnySelection = selectedComments.length > 0 || hasInteriorFeaturesSelected;
 
   return (
     <>
@@ -313,6 +175,298 @@ const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData })
               </span>
             </label>
           ))}
+
+          {/* Divider */}
+          <div style={{
+            borderTop: "2px solid rgba(0, 123, 255, 0.3)",
+            margin: "12px 0 8px 0"
+          }}></div>
+
+          {/* Interior Builder Section */}
+          <div style={{
+            fontSize: "11px",
+            fontWeight: "700",
+            color: "#007bff",
+            marginBottom: "8px",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px"
+          }}>
+            Interior Features
+          </div>
+
+          {/* Interior Feature Checkboxes */}
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px",
+              cursor: "pointer",
+              borderRadius: "4px",
+              transition: "background 0.2s",
+              fontSize: "11px",
+              marginBottom: "4px"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0, 123, 255, 0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={interiorFeatures.emergencyExits}
+              onChange={(e) => setInteriorFeatures(prev => ({
+                ...prev,
+                emergencyExits: e.target.checked
+              }))}
+              style={{
+                width: "16px",
+                height: "16px",
+                cursor: "pointer"
+              }}
+            />
+            <span style={{ color: "#495057", fontWeight: "500" }}>
+              Emergency Exits
+            </span>
+          </label>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px",
+              cursor: "pointer",
+              borderRadius: "4px",
+              transition: "background 0.2s",
+              fontSize: "11px",
+              marginBottom: "4px"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0, 123, 255, 0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={interiorFeatures.windowGuards}
+              onChange={(e) => setInteriorFeatures(prev => ({
+                ...prev,
+                windowGuards: e.target.checked
+              }))}
+              style={{
+                width: "16px",
+                height: "16px",
+                cursor: "pointer"
+              }}
+            />
+            <span style={{ color: "#495057", fontWeight: "500" }}>
+              Window Guards
+            </span>
+          </label>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px",
+              cursor: "pointer",
+              borderRadius: "4px",
+              transition: "background 0.2s",
+              fontSize: "11px",
+              marginBottom: "4px"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0, 123, 255, 0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={interiorFeatures.smokeDetectors}
+              onChange={(e) => setInteriorFeatures(prev => ({
+                ...prev,
+                smokeDetectors: e.target.checked
+              }))}
+              style={{
+                width: "16px",
+                height: "16px",
+                cursor: "pointer"
+              }}
+            />
+            <span style={{ color: "#495057", fontWeight: "500" }}>
+              Smoke Detectors
+            </span>
+          </label>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px",
+              cursor: "pointer",
+              borderRadius: "4px",
+              transition: "background 0.2s",
+              fontSize: "11px",
+              marginBottom: "4px"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0, 123, 255, 0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={interiorFeatures.fireExtinguishers}
+              onChange={(e) => setInteriorFeatures(prev => ({
+                ...prev,
+                fireExtinguishers: e.target.checked
+              }))}
+              style={{
+                width: "16px",
+                height: "16px",
+                cursor: "pointer"
+              }}
+            />
+            <span style={{ color: "#495057", fontWeight: "500" }}>
+              Fire Extinguishers
+            </span>
+          </label>
+
+          {/* Water Stains Section */}
+          <div style={{
+            fontSize: "10px",
+            fontWeight: "600",
+            color: "#6c757d",
+            marginTop: "8px",
+            marginBottom: "4px"
+          }}>
+            Water Stains on Roof:
+          </div>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "4px 6px",
+              cursor: "pointer",
+              borderRadius: "4px",
+              transition: "background 0.2s",
+              fontSize: "11px",
+              marginBottom: "2px"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0, 123, 255, 0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <input
+              type="radio"
+              name="waterStains"
+              checked={interiorFeatures.waterStains === true}
+              onChange={() => setInteriorFeatures(prev => ({
+                ...prev,
+                waterStains: true
+              }))}
+              style={{
+                width: "14px",
+                height: "14px",
+                cursor: "pointer"
+              }}
+            />
+            <span style={{ color: "#495057", fontWeight: "500" }}>
+              Has Water Stains
+            </span>
+          </label>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "4px 6px",
+              cursor: "pointer",
+              borderRadius: "4px",
+              transition: "background 0.2s",
+              fontSize: "11px",
+              marginBottom: "2px"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0, 123, 255, 0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <input
+              type="radio"
+              name="waterStains"
+              checked={interiorFeatures.waterStains === false}
+              onChange={() => setInteriorFeatures(prev => ({
+                ...prev,
+                waterStains: false
+              }))}
+              style={{
+                width: "14px",
+                height: "14px",
+                cursor: "pointer"
+              }}
+            />
+            <span style={{ color: "#495057", fontWeight: "500" }}>
+              No Water Stains
+            </span>
+          </label>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "4px 6px",
+              cursor: "pointer",
+              borderRadius: "4px",
+              transition: "background 0.2s",
+              fontSize: "11px",
+              marginBottom: "4px"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0, 123, 255, 0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <input
+              type="radio"
+              name="waterStains"
+              checked={interiorFeatures.waterStains === null}
+              onChange={() => setInteriorFeatures(prev => ({
+                ...prev,
+                waterStains: null
+              }))}
+              style={{
+                width: "14px",
+                height: "14px",
+                cursor: "pointer"
+              }}
+            />
+            <span style={{ color: "#495057", fontWeight: "500" }}>
+              Not Applicable
+            </span>
+          </label>
         </div>
 
         {/* Live Preview */}
@@ -330,7 +484,7 @@ const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData })
             lineHeight: "1.5"
           }}>
             <div style={{ fontWeight: "600", marginBottom: "6px", color: "#007bff" }}>
-              Preview ({selectedComments.length} selected):
+              Preview ({totalSelected} selected):
             </div>
             {previewText}
           </div>
@@ -339,26 +493,26 @@ const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData })
         {/* Add to Slide Button */}
         <button
           onClick={handleAddToSlide}
-          disabled={selectedComments.length === 0}
+          disabled={!hasAnySelection}
           style={{
-            backgroundColor: selectedComments.length > 0 ? "#007bff" : "#ccc",
+            backgroundColor: hasAnySelection ? "#007bff" : "#ccc",
             color: "white",
             border: "none",
             borderRadius: "4px",
             padding: "10px 16px",
             fontSize: "12px",
             fontWeight: "600",
-            cursor: selectedComments.length > 0 ? "pointer" : "not-allowed",
+            cursor: hasAnySelection ? "pointer" : "not-allowed",
             transition: "all 0.2s ease",
             marginTop: "4px"
           }}
           onMouseEnter={(e) => {
-            if (selectedComments.length > 0) {
+            if (hasAnySelection) {
               e.target.style.backgroundColor = "#0056b3";
             }
           }}
           onMouseLeave={(e) => {
-            if (selectedComments.length > 0) {
+            if (hasAnySelection) {
               e.target.style.backgroundColor = "#007bff";
             }
           }}
@@ -412,8 +566,6 @@ const Sidebar = ({
   setShowCustomCommentInput,
   customCommentText,
   setCustomCommentText,
-  isInteriorBuilderVisible,
-  setIsInteriorBuilderVisible,
   // Drawing and text alignment props
   textAlignments,
   setTextAlignments,
@@ -838,93 +990,6 @@ const Sidebar = ({
                 currentSlide={currentSlide}
                 getSlideData={getSlideData}
               />
-
-              {/* Interior View Builder Button - Separate Section */}
-              <div style={{ marginTop: "12px" }}>
-                <button
-                  onClick={() => {
-                    setIsInteriorBuilderVisible(!isInteriorBuilderVisible);
-                  }}
-                  style={{
-                    width: "100%",
-                    background: "linear-gradient(145deg, #fff3e0, #ffcc02)",
-                    border: "1px solid #ff9800",
-                    borderRadius: "6px",
-                    padding: "10px 16px",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "#e65100",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = "translateY(-1px)";
-                    e.target.style.boxShadow = "0 2px 6px rgba(255,152,0,0.25)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-                  }}
-                >
-                  Interior Builder
-                </button>
-              </div>
-
-              {/* Interior View Builder Options */}
-              {isInteriorBuilderVisible && (
-                <div
-                  style={{
-                    marginTop: "10px",
-                    padding: "12px",
-                    backgroundColor: "#fff3e0",
-                    borderRadius: "8px",
-                    border: "1px solid #ff9800"
-                  }}
-                >
-                  <div style={{ fontSize: "11px", fontWeight: "600", marginBottom: "8px", color: "#e65100" }}>
-                    Interior View Builder
-                  </div>
-
-                  <div
-                    style={{
-                      maxHeight: "200px",
-                      overflowY: "auto",
-                      padding: "8px",
-                      background: "rgba(255,255,255,0.5)",
-                      borderRadius: "6px",
-                      border: "1px solid rgba(255,152,0,0.2)"
-                    }}
-                  >
-                    <InteriorBuilderForm
-                      updateSlideFormData={updateSlideFormData}
-                      currentSlide={currentSlide}
-                      getSlideData={getSlideData}
-                      setIsInteriorBuilderVisible={setIsInteriorBuilderVisible}
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-                    <button
-                      onClick={() => setIsInteriorBuilderVisible(false)}
-                      style={{
-                        backgroundColor: "#6c757d",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        padding: "6px 12px",
-                        fontSize: "11px",
-                        fontWeight: "500",
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        flex: 1
-                      }}
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* Custom Comment Input */}
               {showCustomCommentInput && (
