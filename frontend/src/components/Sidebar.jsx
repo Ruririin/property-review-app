@@ -593,7 +593,7 @@ const Sidebar = ({
           className="form-control form-control-sm"
           min="10"
           max="100"
-          value={selectedField ? fontSizes[selectedField] : ""}
+          value={selectedField && fontSizes[selectedField] !== undefined ? fontSizes[selectedField] : ""}
           onChange={handleFontSizeChange}
           disabled={!selectedField}
           placeholder="Select field"
