@@ -55,12 +55,6 @@ const Comments = forwardRef(({
   // Load slide data from backend when component mounts or projectId changes
   useEffect(() => {
     const loadSlideData = async () => {
-      if (!currentProjectId) {
-        // Only warn if currentProjectId is explicitly null after initial load
-        // This prevents warnings during normal project loading
-        return;
-      }
-
       // Skip backend fetch for draft projects
       if (!currentProjectId) {
         return;
@@ -68,7 +62,7 @@ const Comments = forwardRef(({
 
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, 'comments_slide');
-        
+
         // Load field positions if they exist
         if (result.field_positions && Object.keys(result.field_positions).length > 0) {
           // Update both the state and the stable ref with defensive checks
@@ -92,7 +86,7 @@ const Comments = forwardRef(({
                 });
               }, 50);
             } catch (error) {
-              console.warn('Failed to update field positions:', error);
+              // Silently ignore
             }
           }
         }
@@ -112,12 +106,12 @@ const Comments = forwardRef(({
               });
             }, 100);
           } catch (error) {
-            console.warn('Failed to update form data:', error);
+            // Silently ignore
           }
         }
 
       } catch (error) {
-        console.warn('Failed to load slide data from backend:', error);
+        // Silently ignore - likely a draft project or project not found
       }
     };
 
