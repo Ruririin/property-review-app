@@ -1666,10 +1666,9 @@ export default function Editor() {
             ...prev,
             [slideId]: {
               ...prev[slideId],
-              formData: {
-                ...prev[slideId]?.formData,
-                ...slideSpecificFields
-              }
+              // Replace formData entirely with slideSpecificFields
+              // This allows deletion of fields by simply not including them
+              formData: slideSpecificFields
             }
           }));
         }
