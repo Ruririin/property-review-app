@@ -566,33 +566,52 @@ const Comments = forwardRef(({
 
             {/* Delete Button */}
             <button
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
-                if (setFormData) {
-                  // For dynamic fields (compiled, custom, interiorView), remove the key entirely
-                  if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
+
+                // First deselect
+                onSelect(null);
+
+                // For dynamic fields (compiled, custom, interiorView), remove the key entirely
+                if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
+                  // Remove from formData
+                  if (setFormData && formData) {
                     const updatedFormData = { ...formData };
                     delete updatedFormData[field];
                     setFormData(updatedFormData);
-                  } else {
-                    // For standard fields, just empty the value
+
+                    // Immediately save to backend
+                    try {
+                      await slideApiService.updateComments(currentProjectId, 'comments_slide', updatedFormData);
+                    } catch (error) {
+                      console.warn('Failed to delete comment from backend:', error);
+                    }
+                  }
+
+                  // Remove from fieldPositions
+                  if (setFieldPositions && fieldPositions) {
+                    const updatedPositions = { ...fieldPositions };
+                    delete updatedPositions[field];
+                    setFieldPositions(updatedPositions);
+
+                    // Immediately save positions to backend
+                    try {
+                      await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', updatedPositions);
+                    } catch (error) {
+                      console.warn('Failed to delete field position from backend:', error);
+                    }
+                  }
+
+                  // Remove from stablePositionsRef
+                  if (stablePositionsRef.current[field]) {
+                    delete stablePositionsRef.current[field];
+                  }
+                } else {
+                  // For standard fields, just empty the value
+                  if (setFormData) {
                     setFormData({ ...formData, [field]: "" });
                   }
                 }
-
-                // Remove from fieldPositions
-                if (setFieldPositions) {
-                  const updatedPositions = { ...(fieldPositions || {}) };
-                  delete updatedPositions[field];
-                  setFieldPositions(updatedPositions);
-                }
-
-                // Also remove from stablePositionsRef
-                if (stablePositionsRef.current[field]) {
-                  delete stablePositionsRef.current[field];
-                }
-
-                onSelect(null);
               }}
               style={{
                 width: "28px",
