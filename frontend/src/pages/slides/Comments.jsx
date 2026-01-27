@@ -568,71 +568,79 @@ const Comments = forwardRef(({
 
             {/* Delete Button */}
             <button
-              onClick={async (e) => {
+              onMouseDown={(e) => {
                 e.stopPropagation();
-                console.log(`🗑️ DELETE clicked for field: ${field}`);
-                console.log(`🗑️ Field type check - compiled: ${field.startsWith('compiled_')}, custom: ${field.startsWith('custom_')}, interior: ${field.startsWith('interiorView_')}`);
+                e.preventDefault();
+                console.log(`🗑️ DELETE MOUSEDOWN for field: ${field}`);
 
-                // For dynamic fields (compiled, custom, interiorView), remove the key entirely
-                if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
-                  console.log(`🗑️ Deleting dynamic field: ${field}`);
+                // Perform delete operation
+                const performDelete = async () => {
+                  console.log(`🗑️ DELETE clicked for field: ${field}`);
+                  console.log(`🗑️ Field type check - compiled: ${field.startsWith('compiled_')}, custom: ${field.startsWith('custom_')}, interior: ${field.startsWith('interiorView_')}`);
 
-                  // Remove from formData
-                  if (setFormData && formData) {
-                    const updatedFormData = { ...formData };
-                    delete updatedFormData[field];
-                    console.log(`🗑️ FormData keys before: ${Object.keys(formData).length}, after: ${Object.keys(updatedFormData).length}`);
-                    console.log(`🗑️ Calling setFormData with updated data`);
-                    setFormData(updatedFormData);
+                  // For dynamic fields (compiled, custom, interiorView), remove the key entirely
+                  if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
+                    console.log(`🗑️ Deleting dynamic field: ${field}`);
 
-                    // Immediately save to backend if project exists
-                    if (currentProjectId) {
-                      try {
-                        await slideApiService.updateComments(currentProjectId, 'comments_slide', updatedFormData);
-                        console.log(`✅ Deleted ${field} from backend`);
-                      } catch (error) {
-                        console.warn('Failed to delete comment from backend:', error);
+                    // Remove from formData
+                    if (setFormData && formData) {
+                      const updatedFormData = { ...formData };
+                      delete updatedFormData[field];
+                      console.log(`🗑️ FormData keys before: ${Object.keys(formData).length}, after: ${Object.keys(updatedFormData).length}`);
+                      console.log(`🗑️ Calling setFormData with updated data`);
+                      setFormData(updatedFormData);
+
+                      // Immediately save to backend if project exists
+                      if (currentProjectId) {
+                        try {
+                          await slideApiService.updateComments(currentProjectId, 'comments_slide', updatedFormData);
+                          console.log(`✅ Deleted ${field} from backend`);
+                        } catch (error) {
+                          console.warn('Failed to delete comment from backend:', error);
+                        }
+                      } else {
+                        console.log(`📝 Skipping backend save (draft project)`);
                       }
-                    } else {
-                      console.log(`📝 Skipping backend save (draft project)`);
+                    }
+
+                    // Remove from fieldPositions
+                    if (setFieldPositions && fieldPositions) {
+                      const updatedPositions = { ...fieldPositions };
+                      delete updatedPositions[field];
+                      console.log(`🗑️ FieldPositions keys before: ${Object.keys(fieldPositions).length}, after: ${Object.keys(updatedPositions).length}`);
+                      setFieldPositions(updatedPositions);
+
+                      // Immediately save positions to backend if project exists
+                      if (currentProjectId) {
+                        try {
+                          await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', updatedPositions);
+                          console.log(`✅ Deleted ${field} position from backend`);
+                        } catch (error) {
+                          console.warn('Failed to delete field position from backend:', error);
+                        }
+                      }
+                    }
+
+                    // Remove from stablePositionsRef
+                    if (stablePositionsRef.current[field]) {
+                      delete stablePositionsRef.current[field];
+                      console.log(`🗑️ Removed ${field} from stablePositionsRef`);
+                    }
+
+                    console.log(`✅ Delete complete for ${field}`);
+                  } else {
+                    console.log(`🗑️ Emptying standard field: ${field}`);
+                    // For standard fields, just empty the value
+                    if (setFormData) {
+                      setFormData({ ...formData, [field]: "" });
                     }
                   }
 
-                  // Remove from fieldPositions
-                  if (setFieldPositions && fieldPositions) {
-                    const updatedPositions = { ...fieldPositions };
-                    delete updatedPositions[field];
-                    console.log(`🗑️ FieldPositions keys before: ${Object.keys(fieldPositions).length}, after: ${Object.keys(updatedPositions).length}`);
-                    setFieldPositions(updatedPositions);
+                  // Deselect after deletion
+                  onSelect(null);
+                };
 
-                    // Immediately save positions to backend if project exists
-                    if (currentProjectId) {
-                      try {
-                        await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', updatedPositions);
-                        console.log(`✅ Deleted ${field} position from backend`);
-                      } catch (error) {
-                        console.warn('Failed to delete field position from backend:', error);
-                      }
-                    }
-                  }
-
-                  // Remove from stablePositionsRef
-                  if (stablePositionsRef.current[field]) {
-                    delete stablePositionsRef.current[field];
-                    console.log(`🗑️ Removed ${field} from stablePositionsRef`);
-                  }
-
-                  console.log(`✅ Delete complete for ${field}`);
-                } else {
-                  console.log(`🗑️ Emptying standard field: ${field}`);
-                  // For standard fields, just empty the value
-                  if (setFormData) {
-                    setFormData({ ...formData, [field]: "" });
-                  }
-                }
-
-                // Deselect after deletion
-                onSelect(null);
+                performDelete();
               }}
               style={{
                 width: "28px",
