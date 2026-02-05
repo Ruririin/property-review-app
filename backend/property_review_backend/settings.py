@@ -32,7 +32,8 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
 # Only allow specific hosts - no wildcards!
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
+# Split ALLOWED_HOSTS and filter out empty strings
+ALLOWED_HOSTS = [host.strip() for host in config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',') if host.strip()]
 
 # Require HTTPS in production
 SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)
