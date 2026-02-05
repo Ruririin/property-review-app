@@ -93,8 +93,8 @@ class SlideApiService {
       const data = await response.json();
       return data;
     } catch (error) {
-      // Only log non-404 errors (404s are expected for draft projects)
-      if (!error.message || !error.message.includes('404')) {
+      // Suppress 404 and 500 errors for draft projects (expected errors)
+      if (!error.message || (!error.message.includes('404') && !error.message.includes('500'))) {
         console.error(`Slide API Error: ${config.method || 'GET'} ${endpoint}`, error);
       }
       throw error;

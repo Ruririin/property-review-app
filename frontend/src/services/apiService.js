@@ -70,9 +70,9 @@ class ApiService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        // Handle 404 errors gracefully for disabled endpoints
-        if (response.status === 404) {
-          console.warn(`Endpoint not found: ${config.method || 'GET'} ${endpoint} (404)`);
+        // Handle 404/500 errors gracefully for draft projects
+        if (response.status === 404 || response.status === 500) {
+          // Silently return null for draft project errors
           return null;
         }
         const errorText = await response.text();
@@ -94,7 +94,10 @@ class ApiService {
       }
       return data;
     } catch (error) {
-      console.error(`API Error: ${config.method || 'GET'} ${endpoint}`, error);
+      // Suppress 404 and 500 errors for draft projects
+      if (!error.message || (!error.message.includes('404') && !error.message.includes('500'))) {
+        console.error(`API Error: ${config.method || 'GET'} ${endpoint}`, error);
+      }
       throw error;
     }
   }
