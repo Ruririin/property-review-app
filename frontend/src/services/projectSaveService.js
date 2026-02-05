@@ -12,22 +12,27 @@ class ProjectSaveService {
     this.useDatabase = true; // Try database first
     this.isOnline = true;
     this.savingProjects = new Set(); // Track projects currently being saved to prevent race conditions
-    
-    this.init();
+    this.initialized = false; // Track if service has been initialized
+
+    // Don't auto-init - wait for explicit initialization after auth check
   }
 
   async init() {
+    if (this.initialized) return; // Prevent double initialization
+
+    this.initialized = true;
+
     // Check if backend is available
     this.isOnline = await apiService.healthCheck();
     console.log(`🌐 Backend status: ${this.isOnline ? 'ONLINE (Database)' : 'OFFLINE (localStorage fallback)'}`);
-    
+
     // Load projects from appropriate source
     if (this.isOnline) {
       await this.loadProjectsFromDatabase();
     } else {
       this.loadProjectsFromLocalStorage();
     }
-    
+
     this.loadCurrentProject();
   }
 

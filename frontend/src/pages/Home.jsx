@@ -60,9 +60,12 @@ export default function Home() {
   };
 
   useEffect(() => {
-    // Load projects when sessionUser is available  
+    // Load projects when sessionUser is available
     if (sessionUser) {
-      refreshProjects(true); // Show loading on session user change
+      // Initialize projectSaveService after authentication
+      projectSaveService.init().then(() => {
+        refreshProjects(true); // Show loading on session user change
+      });
       updateActiveUser(sessionUser, 'join');
     } else {
       setProjects([]);

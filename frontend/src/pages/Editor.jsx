@@ -458,9 +458,12 @@ export default function Editor() {
   // Initialize project when sessionUser changes
   useEffect(() => {
     const initializeProject = async () => {
+      // Initialize projectSaveService after authentication
+      await projectSaveService.init();
+
       // First check if we already have a project ID
       let projectId = currentProjectId || urlProjectId;
-      
+
     if (sessionUser) {
 
       // If we have a project ID from URL, try to load it
