@@ -428,10 +428,13 @@ class ApiService {
    */
   async healthCheck() {
     try {
-      const response = await fetch(`${this.baseURL}/projects/?limit=1`);
+      const response = await fetch(`${this.baseURL}/projects/?limit=1`, {
+        credentials: 'include', // Include session cookies
+        headers: this.headers
+      });
       return response.ok;
     } catch (error) {
-      console.warn('Backend health check failed:', error);
+      // Silently fail - health check errors are not critical
       return false;
     }
   }
