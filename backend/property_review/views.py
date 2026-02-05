@@ -211,17 +211,17 @@ class PropertySlideViewSet(viewsets.ModelViewSet):
             formData=formData,
             fieldPositions=fieldPositions,
             content=data.get('content', {}),
-            field_dimensions=data.get('field_dimensions', {})
+            field_positions=data.get('field_positions', {})
         )
     
     def perform_update(self, serializer):
         # Update all fields including formData and fieldPositions
         data = self.request.data
-        instance = serializer.save(
+        serializer.save(
             formData=data.get('formData', serializer.instance.formData),
             fieldPositions=data.get('fieldPositions', serializer.instance.fieldPositions),
             content=data.get('content', serializer.instance.content),
-            field_dimensions=data.get('field_dimensions', serializer.instance.field_dimensions)
+            field_positions=data.get('field_positions', serializer.instance.field_positions)
         )
 
 class TemplateViewSet(viewsets.ModelViewSet):
@@ -404,28 +404,28 @@ def save_textbox_dimensions_view(request):
     """
     try:
         slide_id = request.data.get('slide_id')
-        field_dimensions = request.data.get('field_dimensions', {})
-        
+        field_positions = request.data.get('field_positions', {})
+
         if not slide_id:
             return Response({'error': 'slide_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Find the slide and update its field_dimensions - SECURED: Check ownership
+
+        # Find the slide and update its field_positions - SECURED: Check ownership
         try:
             slide = PropertySlide.objects.get(id=slide_id, project__owner=request.user)
         except PropertySlide.DoesNotExist:
             return Response({'error': 'Slide not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Update the slide's field_dimensions
-        slide.field_dimensions = field_dimensions
+
+        # Update the slide's field_positions
+        slide.field_positions = field_positions
         slide.save()
-        
-        print(f"SAVED textbox dimensions for slide {slide_id}: {field_dimensions}")
-        
+
+        print(f"SAVED textbox positions for slide {slide_id}: {field_positions}")
+
         return Response({
             'status': 'success',
-            'message': 'Textbox dimensions saved',
+            'message': 'Textbox positions saved',
             'slide_id': slide_id,
-            'field_dimensions': field_dimensions
+            'field_positions': field_positions
         })
         
     except Exception as e:
