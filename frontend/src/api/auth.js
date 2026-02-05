@@ -49,7 +49,14 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Don't auto-redirect on 401 - let the AuthContext handle it
+    // Suppress console errors for 403/401 (expected when logged out)
+    if (error.response?.status === 403 || error.response?.status === 401) {
+      // Create a silent error that doesn't log to console
+      const silentError = new Error(error.message);
+      silentError.response = error.response;
+      silentError.config = error.config;
+      return Promise.reject(silentError);
+    }
     return Promise.reject(error);
   }
 );
@@ -100,6 +107,10 @@ export const authApi = {
       }
       throw new Error('Not authenticated');
     } catch (error) {
+      // Silently handle 403 errors (user not logged in)
+      if (error.response?.status === 403 || error.response?.status === 401) {
+        throw new Error('Not authenticated');
+      }
       throw error;
     }
   }
