@@ -26,7 +26,10 @@ const HeaderToolbar = ({
   // State
   isExporting = false,
   isPreviewing = false,
-  isSaving = false
+  isSaving = false,
+
+  // Role
+  isAdmin = false
 }) => {
   return (
     <nav 
@@ -123,33 +126,43 @@ const HeaderToolbar = ({
             Mark Status
           </button>
           <ul className="dropdown-menu" aria-labelledby="statusDropdownHeader">
-            <li>
-              <button 
-                className="dropdown-item d-flex align-items-center" 
-                onClick={() => onUpdateProjectStatus('approved')}
-              >
-                <i className="bi bi-check-circle me-2 text-success"></i>
-                Mark Approved
-              </button>
-            </li>
-            <li>
-              <button 
-                className="dropdown-item d-flex align-items-center" 
-                onClick={() => onUpdateProjectStatus('denied')}
-              >
-                <i className="bi bi-x-circle me-2 text-danger"></i>
-                Mark Denied
-              </button>
-            </li>
-            <li>
-              <button 
-                className="dropdown-item d-flex align-items-center" 
-                onClick={() => onUpdateProjectStatus('conditional')}
-              >
-                <i className="bi bi-exclamation-triangle me-2 text-warning"></i>
-                Mark Conditional
-              </button>
-            </li>
+            {isAdmin ? (
+              <>
+                <li>
+                  <button className="dropdown-item d-flex align-items-center"
+                    onClick={() => onUpdateProjectStatus('approved')}>
+                    <i className="bi bi-check-circle me-2 text-success"></i>Mark Approved
+                  </button>
+                </li>
+                <li>
+                  <button className="dropdown-item d-flex align-items-center"
+                    onClick={() => onUpdateProjectStatus('denied')}>
+                    <i className="bi bi-x-circle me-2 text-danger"></i>Mark Denied
+                  </button>
+                </li>
+                <li>
+                  <button className="dropdown-item d-flex align-items-center"
+                    onClick={() => onUpdateProjectStatus('conditional')}>
+                    <i className="bi bi-exclamation-triangle me-2 text-warning"></i>Mark Conditional
+                  </button>
+                </li>
+              </>
+            ) : (
+              <>
+                <li>
+                  <button className="dropdown-item d-flex align-items-center"
+                    onClick={() => onUpdateProjectStatus('global_draft')}>
+                    <i className="bi bi-globe2 me-2 text-primary"></i>Push to Global
+                  </button>
+                </li>
+                <li>
+                  <button className="dropdown-item d-flex align-items-center"
+                    onClick={() => onUpdateProjectStatus('for_review')}>
+                    <i className="bi bi-send me-2 text-info"></i>Submit for Review
+                  </button>
+                </li>
+              </>
+            )}
           </ul>
         </div>
         

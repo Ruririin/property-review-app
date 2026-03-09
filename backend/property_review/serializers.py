@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, PropertySlide, Template, ProjectLocation
+from .models import Project, PropertySlide, Template, ProjectLocation, ExportedPDF
 
 class PropertySlideSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,27 +31,35 @@ class ProjectLocationSerializer(serializers.ModelSerializer):
 # Lightweight serializer for project lists (excludes heavy slideData)
 class LightProjectSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='name')  # Map 'name' to 'title' for frontend compatibility
-    status = serializers.CharField(required=False, default='editing')
-    # Only include lightweight formData fields for listing
+    status = serializers.CharField(required=False, default='personal_draft')
     insuredName = serializers.SerializerMethodField()
     premiseLocation = serializers.SerializerMethodField()
     slideCount = serializers.SerializerMethodField()
+    ownerName = serializers.SerializerMethodField()
+    exported_at = serializers.DateTimeField(read_only=True)
+    slidePreview = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = ['id', 'title', 'description', 'created_at', 'updated_at', 'legacy_id',
-                 'status', 'insuredName', 'premiseLocation', 'owner', 'slideCount']
+                 'status', 'insuredName', 'premiseLocation', 'owner', 'slideCount',
+                 'ownerName', 'exported_at', 'slidePreview']
         read_only_fields = ('created_at', 'updated_at')
         extra_kwargs = {
             'owner': {'required': False}
         }
-    
+
+    def get_ownerName(self, obj):
+        if obj.owner:
+            return obj.owner.username
+        return 'Unknown'
+
     def get_insuredName(self, obj):
         return obj.formData.get('insuredName', '') if obj.formData else ''
-    
+
     def get_premiseLocation(self, obj):
         return obj.formData.get('premiseLocation', '') if obj.formData else ''
-    
+
     def get_slideCount(self, obj):
         """Calculate the number of slides in this project"""
         if obj.slideData and '_slides' in obj.slideData:
@@ -60,10 +68,50 @@ class LightProjectSerializer(serializers.ModelSerializer):
                 return len(slides)
         return 1  # Default to 1 slide if no slide data found
 
+    def get_slidePreview(self, obj):
+        """Return first 3 slides for thumbnail preview with their actual data"""
+        if not obj.slideData:
+            return []
+
+        slides = obj.slideData.get('_slides', [])
+        if not isinstance(slides, list):
+            return []
+
+        # Return first 3 slides with their actual data for preview rendering
+        preview_slides = []
+        for slide in slides[:3]:
+            slide_id = slide.get('id')
+            slide_type = slide.get('type', '')
+
+            # Get slide-specific data (formData, fieldPositions, drawings, etc.)
+            # Try both string and integer keys since JSONField can store either
+            slide_data = obj.slideData.get(str(slide_id), {}) or obj.slideData.get(slide_id, {})
+
+            # Check if slide has images - drawings can be a list or dict with frames
+            drawings = slide_data.get('drawings', [])
+            has_images = False
+            if isinstance(drawings, dict):
+                has_images = bool(drawings.get('frames', {}))
+            elif isinstance(drawings, list):
+                has_images = len(drawings) > 0
+
+            preview_slides.append({
+                'id': slide_id,
+                'type': slide_type,
+                'title': slide.get('title', ''),
+                'hasImages': has_images,
+                'formData': slide_data.get('formData', {}),  # Include actual form data
+                'fieldPositions': slide_data.get('fieldPositions', {}),
+                'drawings': drawings,
+            })
+
+        return preview_slides
+
 # Full serializer for individual project details (includes all data)
 class ProjectSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='name')  # Map 'name' to 'title' for frontend compatibility
-    status = serializers.CharField(required=False, default='editing')
+    status = serializers.CharField(required=False, default='personal_draft')
+    exported_at = serializers.DateTimeField(read_only=True)
     formData = serializers.JSONField(required=False, default=dict)
     slideData = serializers.JSONField(required=False, default=dict)
     multipleLocationsMode = serializers.BooleanField(required=False, default=False)
@@ -73,7 +121,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'title', 'description', 'created_at', 'updated_at', 'legacy_id',
-                 'status', 'formData', 'slideData', 'multipleLocationsMode',
+                 'status', 'exported_at', 'formData', 'slideData', 'multipleLocationsMode',
                  'selectedLocationIndex', 'locations', 'owner']
         read_only_fields = ('created_at', 'updated_at')
         extra_kwargs = {
@@ -89,3 +137,24 @@ class TemplateSerializer(serializers.ModelSerializer):
         model = Template
         fields = '__all__'
         read_only_fields = ('created_at', 'updated_at')
+
+class ExportedPDFSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExportedPDF
+        fields = ['id', 'project', 'owner', 'owner_name', 'filename', 'project_name', 'file_path',
+                  'file_size', 'export_date', 'url']
+        read_only_fields = ('export_date', 'owner')
+
+    def get_url(self, obj):
+        if obj.file_path:
+            return f'/api/exported-pdfs/{obj.id}/serve/'
+        return None
+
+    def get_owner_name(self, obj):
+        """Return owner's username or email for display"""
+        if obj.owner:
+            return obj.owner.username or obj.owner.email
+        return 'Unknown'

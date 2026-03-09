@@ -1,8 +1,10 @@
 import axios from 'axios';
 
 // Create axios instance with default config
+// Use relative URL to leverage Vite proxy - requests to /api/* will be proxied to localhost:8000/api/*
+// This ensures cookies work properly since everything appears to come from the same origin
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: '/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -100,17 +102,25 @@ export const authApi = {
   // Check authentication status
   checkAuth: async () => {
     try {
+      // NOTE: We cannot check for sessionid cookie in document.cookie because it's HttpOnly
+      // HttpOnly cookies are not accessible to JavaScript (security feature)
+      // Instead, we just make the API request - the browser will send the cookie automatically
+      console.log('🔐 Checking authentication with backend...');
+
       // SECURITY FIX: Use secure check-auth endpoint instead of removed session/status
       const response = await apiClient.get('/auth/check-auth/');
       if (response.data.authenticated) {
+        console.log('✅ User is authenticated:', response.data.user.username);
         return response.data.user;
       }
       throw new Error('Not authenticated');
     } catch (error) {
-      // Silently handle 403 errors (user not logged in)
+      // Silently handle 403/401 errors (user not logged in)
       if (error.response?.status === 403 || error.response?.status === 401) {
+        console.log('❌ Not authenticated (401/403)');
         throw new Error('Not authenticated');
       }
+      console.error('❌ Auth check error:', error);
       throw error;
     }
   }

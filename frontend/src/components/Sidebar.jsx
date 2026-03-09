@@ -612,16 +612,23 @@ const Sidebar = ({
               try {
                 const newShowWebsite = !showWebsite;
                 setShowWebsite(newShowWebsite);
-                
+
                 // Save to backend if we have a current project
                 if (currentProjectId) {
-                  await apiService.updateAppState(currentProjectId, { showWebsite: newShowWebsite });
-                  console.log('Website visibility saved to backend:', newShowWebsite);
+                  const result = await apiService.updateAppState(currentProjectId, { showWebsite: newShowWebsite });
+                  if (result) {
+                    console.log('Website visibility saved to backend:', newShowWebsite);
+                  } else {
+                    console.warn('Project not found - website visibility only updated locally');
+                  }
                 }
               } catch (error) {
-                console.error('Failed to save website visibility:', error);
-                // Revert on error
-                setShowWebsite(!showWebsite);
+                // Only revert and show error if it's not a 404
+                if (!error.message?.includes('404') && !error.message?.includes('DoesNotExist')) {
+                  console.error('Failed to save website visibility:', error);
+                  // Revert on error
+                  setShowWebsite(!showWebsite);
+                }
               }
             }}
           />

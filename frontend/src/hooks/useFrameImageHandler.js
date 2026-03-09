@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import apiService from '../services/apiService';
 
 /**
  * Frame Image Handler Hook
@@ -17,6 +18,8 @@ export const useFrameImageHandler = (projectId, slideId) => {
       return null;
     }
 
+    console.log(`📤 Uploading frame ${frameId} for project:`, projectId, 'slide:', slideId);
+
     setUploadingFrames(prev => ({ ...prev, [frameId]: true }));
     setErrors(prev => {
       const newErrors = { ...prev };
@@ -25,35 +28,23 @@ export const useFrameImageHandler = (projectId, slideId) => {
     });
 
     try {
-      const response = await fetch('http://127.0.0.1:8080/api/slides/upload-frame-image/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          slide_id: slideId,
-          frame_id: frameId,
-          image_data: base64Data
-        })
+      const result = await apiService.post('/slides/upload-image/', {
+        project_id: projectId,
+        slide_id: slideId,
+        frame_id: frameId,
+        image_data: base64Data
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Upload failed: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`Frame ${frameId} uploaded successfully:`, result);
+      console.log(`✅ Frame ${frameId} uploaded successfully:`, result);
 
       return {
         success: true,
         frameId,
         filePath: result.file_path,
-        url: result.url,
-        width: result.width,
-        height: result.height,
-        aspectRatio: result.aspect_ratio
+        url: result.image_data?.src || result.url || `/media/${result.file_path}`,
+        width: result.image_data?.width || result.width,
+        height: result.image_data?.height || result.height,
+        aspectRatio: result.image_data?.aspectRatio || result.aspect_ratio
       };
 
     } catch (error) {
@@ -83,23 +74,11 @@ export const useFrameImageHandler = (projectId, slideId) => {
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8080/api/slides/${projectId}/${slideId}/delete-frame-image/`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          frame_id: frameId,
-          file_path: filePath
-        })
+      await apiService.delete(`/slides/${projectId}/${slideId}/delete-image/`, {
+        frame_id: frameId,
+        file_path: filePath
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Delete failed: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
       console.log(`Frame ${frameId} deleted successfully`);
       return true;
 

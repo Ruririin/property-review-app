@@ -118,58 +118,8 @@ const Comments = forwardRef(({
     loadSlideData();
   }, [currentProjectId]); // Add dependency array
 
-  // Save field positions to backend when they change
-  useEffect(() => {
-    const saveDimensions = async () => {
-      if (!fieldPositions || Object.keys(fieldPositions).length === 0 || !currentProjectId) {
-        return;
-      }
-
-      const dimensionsToSave = {};
-      Object.entries(fieldPositions).forEach(([field, data]) => {
-        // Save if there's any positioning data (not just width/height)
-        if (data && (data.top !== undefined || data.left !== undefined || data.width || data.height)) {
-          dimensionsToSave[field] = {
-            ...(data.width !== undefined && { width: data.width }),
-            ...(data.height !== undefined && { height: data.height }),
-            ...(data.x !== undefined && { x: data.x }),
-            ...(data.y !== undefined && { y: data.y }),
-            ...(data.top !== undefined && { top: data.top }),
-            ...(data.left !== undefined && { left: data.left })
-          };
-        }
-      });
-
-      if (Object.keys(dimensionsToSave).length > 0 && currentProjectId) {
-        try {
-          await slideApiService.updateFieldPositions(currentProjectId, 'comments_slide', 'comments', dimensionsToSave);
-        } catch (error) {
-          // Silently ignore - likely a draft project
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(saveDimensions, 2000);
-    return () => clearTimeout(timeoutId);
-  }, [fieldPositions, slideId, currentProjectId]);
-
-  // Save comments content to backend when formData changes
-  useEffect(() => {
-    const saveComments = async () => {
-      if (!formData || !currentProjectId) {
-        return;
-      }
-
-      try {
-        await slideApiService.updateComments(currentProjectId, 'comments_slide', formData);
-      } catch (error) {
-        // Silently ignore all errors (likely draft projects)
-      }
-    };
-
-    const timeoutId = setTimeout(saveComments, 5000); // Longer delay for content to prevent ERR_INSUFFICIENT_RESOURCES
-    return () => clearTimeout(timeoutId);
-  }, [formData, slideId, currentProjectId]);
+  // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
+  // This eliminates redundant API calls and prevents rate limiting issues
 
   const handleChange = (field, value) => {
     if (setFormData) {
@@ -911,7 +861,9 @@ const Comments = forwardRef(({
         handleMouseUp(e);
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        // Deselect unless clicking on an interactive element (textarea, input, button)
+        const tag = e.target.tagName?.toLowerCase();
+        if (tag !== 'textarea' && tag !== 'input' && tag !== 'button' && !e.target.closest('.no-deselect')) {
           onSelect(null);
         }
       }}

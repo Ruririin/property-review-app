@@ -138,12 +138,17 @@ const MultiImageComponent = ({
     e.stopPropagation();
     setSelectedImageId(imageId);
     setIsDragging(true);
-    
+
     const image = localImages.find(img => img.id === imageId);
     if (image) {
+      // Calculate offset relative to the container, not viewport
+      const containerRect = containerDivRef.current?.getBoundingClientRect();
+      const zoomFactor = (zoomLevel || 100) / 100;
+      const offsetX = containerRect ? (e.clientX - containerRect.left) / zoomFactor : e.clientX;
+      const offsetY = containerRect ? (e.clientY - containerRect.top) / zoomFactor : e.clientY;
       setDragStart({
-        x: e.clientX - image.position.left,
-        y: e.clientY - image.position.top
+        x: offsetX - image.position.left,
+        y: offsetY - image.position.top
       });
     }
   };
@@ -155,9 +160,15 @@ const MultiImageComponent = ({
   const handleMouseMove = (e) => {
     if (!isDragging || !selectedImageId) return;
 
+    // Calculate position relative to the container, not viewport
+    const containerRect = containerDivRef.current?.getBoundingClientRect();
+    const zoomFactor = (zoomLevel || 100) / 100;
+    const mouseX = containerRect ? (e.clientX - containerRect.left) / zoomFactor : e.clientX;
+    const mouseY = containerRect ? (e.clientY - containerRect.top) / zoomFactor : e.clientY;
+
     const newPosition = {
-      left: e.clientX - dragStart.x,
-      top: e.clientY - dragStart.y
+      left: mouseX - dragStart.x,
+      top: mouseY - dragStart.y
     };
 
     // Update local drag position for visual feedback
@@ -208,14 +219,16 @@ const MultiImageComponent = ({
   const handleResizeMouseDown = (e, imageId) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const image = localImages.find(img => img.id === imageId);
     if (image) {
+      const containerRect = containerDivRef.current?.getBoundingClientRect();
+      const zoomFactor = (zoomLevel || 100) / 100;
       setIsResizing(true);
       setSelectedImageId(imageId);
       setResizeStart({
-        x: e.clientX,
-        y: e.clientY,
+        x: containerRect ? (e.clientX - containerRect.left) / zoomFactor : e.clientX,
+        y: containerRect ? (e.clientY - containerRect.top) / zoomFactor : e.clientY,
         width: parseInt(image.width) || 200,
         height: parseInt(image.height) || 150
       });
@@ -228,9 +241,14 @@ const MultiImageComponent = ({
   // Handle resize mouse move
   const handleResizeMouseMove = (e) => {
     if (!isResizing || !selectedImageId) return;
-    
-    const deltaX = e.clientX - resizeStart.x;
-    const deltaY = e.clientY - resizeStart.y;
+
+    const containerRect = containerDivRef.current?.getBoundingClientRect();
+    const zoomFactor = (zoomLevel || 100) / 100;
+    const mouseX = containerRect ? (e.clientX - containerRect.left) / zoomFactor : e.clientX;
+    const mouseY = containerRect ? (e.clientY - containerRect.top) / zoomFactor : e.clientY;
+
+    const deltaX = mouseX - resizeStart.x;
+    const deltaY = mouseY - resizeStart.y;
     
     // Use the larger delta to maintain aspect ratio (uniform resize)
     const delta = Math.max(deltaX, deltaY);

@@ -48,16 +48,28 @@ SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 
 # Session security
-SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_AGE = 86400  # 24 hours
 SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keep session alive across browser restarts
+
+# Session cookie settings for cross-origin authentication
+if DEBUG:
+    # For localhost development with different ports (5173 frontend, 8000 backend)
+    SESSION_COOKIE_DOMAIN = None  # Default - cookie set for localhost:8000
+    SESSION_COOKIE_PATH = '/'  # Cookie available for all paths
+    SESSION_COOKIE_SAMESITE = 'Lax'  # Allow cross-port requests on same domain
+    SESSION_COOKIE_SECURE = False  # http:// is OK for localhost with Lax
+else:
+    # Production settings
+    SESSION_COOKIE_DOMAIN = None
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = True
 
 # CSRF Protection - ENABLED!
 CSRF_COOKIE_SECURE = not DEBUG  # HTTPS only in production
 CSRF_COOKIE_HTTPONLY = False  # Must be False so JavaScript can read the token
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'  # Lax works for both dev and prod
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
@@ -244,6 +256,11 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# Allow browser to read Set-Cookie header in CORS responses
+CORS_EXPOSE_HEADERS = [
+    'Set-Cookie',
+]
+
 
 # Django REST Framework - SECURE AUTHENTICATION!
 # ===============================================
@@ -266,7 +283,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',  # Anonymous users: 100 requests per hour
-        'user': '1000/hour',  # Authenticated users: 1000 requests per hour
+        'user': '10000/hour' if DEBUG else '1000/hour',  # Dev: 10000/hour, Prod: 1000/hour
     },
     # Pagination
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',

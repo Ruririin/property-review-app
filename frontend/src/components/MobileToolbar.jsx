@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 
-const MobileToolbar = ({ 
-  currentSlide, 
-  totalSlides, 
-  onSlideChange, 
-  onSave, 
-  onExport, 
+const MobileToolbar = ({
+  currentSlide,
+  totalSlides,
+  onSlideChange,
+  onSave,
+  onExport,
   onBack,
   onUpdateProjectStatus,
   currentProjectStatus = 'editing',
   getStatusDisplay,
   onToggleSidebar,
   isSaving = false,
-  hasUnsavedChanges = false 
+  hasUnsavedChanges = false,
+  isAdmin = false
 }) => {
   const [showStatusModal, setShowStatusModal] = useState(false);
 
@@ -390,79 +391,80 @@ const MobileToolbar = ({
             </h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <button
-                onClick={() => handleStatusSelect('approved')}
-                style={{
-                  padding: '16px 20px',
-                  background: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  justifyContent: 'flex-start'
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 12l2 2 4-4"/>
-                  <circle cx="12" cy="12" r="9"/>
-                </svg>
-                Mark Approved
-              </button>
-              
-              <button
-                onClick={() => handleStatusSelect('denied')}
-                style={{
-                  padding: '16px 20px',
-                  background: '#ef4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  justifyContent: 'flex-start'
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                  <circle cx="12" cy="12" r="9"/>
-                </svg>
-                Mark Denied
-              </button>
-              
-              <button
-                onClick={() => handleStatusSelect('conditional')}
-                style={{
-                  padding: '16px 20px',
-                  background: '#f59e0b',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  justifyContent: 'flex-start'
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 8v4"/>
-                  <path d="M12 16h.01"/>
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                </svg>
-                Mark Conditional
-              </button>
+              {isAdmin ? (
+                <>
+                  <button
+                    onClick={() => handleStatusSelect('approved')}
+                    style={{
+                      padding: '16px 20px', background: '#10b981', color: 'white',
+                      border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '500',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/>
+                    </svg>
+                    Mark Approved
+                  </button>
+                  <button
+                    onClick={() => handleStatusSelect('denied')}
+                    style={{
+                      padding: '16px 20px', background: '#ef4444', color: 'white',
+                      border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '500',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      <circle cx="12" cy="12" r="9"/>
+                    </svg>
+                    Mark Denied
+                  </button>
+                  <button
+                    onClick={() => handleStatusSelect('conditional')}
+                    style={{
+                      padding: '16px 20px', background: '#f59e0b', color: 'white',
+                      border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '500',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 8v4"/><path d="M12 16h.01"/>
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    </svg>
+                    Mark Conditional
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleStatusSelect('global_draft')}
+                    style={{
+                      padding: '16px 20px', background: '#3b82f6', color: 'white',
+                      border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '500',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                    Push to Global
+                  </button>
+                  <button
+                    onClick={() => handleStatusSelect('for_review')}
+                    style={{
+                      padding: '16px 20px', background: '#06b6d4', color: 'white',
+                      border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '500',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px'
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                    Submit for Review
+                  </button>
+                </>
+              )}
             </div>
             
             <button

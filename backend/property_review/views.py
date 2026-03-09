@@ -21,8 +21,8 @@ import io
 
 logger = logging.getLogger(__name__)
 
-from .models import Project, PropertySlide, Template, ProjectLocation
-from .serializers import ProjectSerializer, LightProjectSerializer, PropertySlideSerializer, TemplateSerializer, ProjectLocationSerializer
+from .models import Project, PropertySlide, Template, ProjectLocation, ExportedPDF
+from .serializers import ProjectSerializer, LightProjectSerializer, PropertySlideSerializer, TemplateSerializer, ProjectLocationSerializer, ExportedPDFSerializer
 from .pdf_service import pdf_exporter
 
 # PPTX Template extraction (equivalent to Express route)
@@ -105,24 +105,118 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return Project.objects.filter(owner=self.request.user)
     
     def get_object(self):
+        from rest_framework.exceptions import NotFound, PermissionDenied
+
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
         lookup = self.kwargs[lookup_url_kwarg]
 
-        # Try getting by UUID first - SECURED: Filter by owner
+        # Try getting by UUID first
         try:
-            return Project.objects.get(id=lookup, owner=self.request.user)
+            project = Project.objects.get(id=lookup)
         except (ValidationError, Project.DoesNotExist):
-            # If it's a numeric ID, try looking up by legacy_id - SECURED: Filter by owner
+            # If it's a numeric ID, try looking up by legacy_id
             if lookup.isdigit():
-                project = Project.objects.filter(legacy_id=int(lookup), owner=self.request.user).first()
-                if project:
-                    return project
-            raise
+                project = Project.objects.filter(legacy_id=int(lookup)).first()
+                if not project:
+                    raise NotFound(f"Project with id '{lookup}' does not exist.")
+            else:
+                raise NotFound(f"Project with id '{lookup}' does not exist.")
+
+        # For write operations, require ownership (admin can change status on any project)
+        if self.action in ['update', 'partial_update', 'destroy']:
+            if project.owner != self.request.user and not self.request.user.is_staff:
+                raise PermissionDenied("You can only modify your own projects.")
+
+        # For read operations on personal drafts, only the owner can view
+        if project.status == 'personal_draft' and project.owner != self.request.user:
+            raise PermissionDenied("This project is not accessible.")
+
+        return project
     
     def perform_create(self, serializer):
         # Set the owner to the current user
         serializer.save(owner=self.request.user)
-    
+
+    def perform_update(self, serializer):
+        """Validate status transitions based on user role"""
+        new_status = serializer.validated_data.get('status')
+        if new_status:
+            admin_only_statuses = ['approved', 'denied', 'conditional']
+            user_only_statuses = ['personal_draft', 'global_draft', 'for_review']
+
+            if new_status in admin_only_statuses and not self.request.user.is_staff:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("Only admins can set this status.")
+
+            if new_status in user_only_statuses and self.request.user.is_staff:
+                # Admin can also use these if they own the project
+                project = serializer.instance
+                if project.owner != self.request.user:
+                    pass  # Allow admin to view but not change to user statuses on others' projects
+
+        serializer.save()
+
+    # ---- Tab-based project listing endpoints ----
+
+    @action(detail=False, methods=['get'], url_path='global-drafts')
+    def global_drafts(self, request):
+        """All projects in global_draft, denied, or conditional status — visible to ALL users"""
+        projects = Project.objects.filter(
+            status__in=['global_draft', 'denied', 'conditional']
+        ).select_related('owner').order_by(
+            models.Case(
+                models.When(status='denied', then=0),
+                models.When(status='conditional', then=1),
+                models.When(status='global_draft', then=2),
+                output_field=models.IntegerField(),
+            ),
+            '-updated_at'
+        )
+        serializer = LightProjectSerializer(projects, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='personal-drafts')
+    def personal_drafts(self, request):
+        """Only current user's personal draft projects"""
+        projects = Project.objects.filter(
+            owner=request.user,
+            status__in=['personal_draft', 'editing', 'draft']  # Include legacy statuses
+        ).order_by('-updated_at')
+        serializer = LightProjectSerializer(projects, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='for-review')
+    def for_review(self, request):
+        """All projects submitted for review — visible to ALL users"""
+        projects = Project.objects.filter(
+            status='for_review'
+        ).select_related('owner').order_by('-updated_at')
+        serializer = LightProjectSerializer(projects, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='approved-list')
+    def approved_list(self, request):
+        """All approved projects — auto-cleans expired ones (exported_at + 7 days)"""
+        from django.utils import timezone as tz
+        from datetime import timedelta
+
+        # Auto-delete expired projects (exported > 7 days ago)
+        expired = Project.objects.filter(
+            status='approved',
+            exported_at__isnull=False,
+            exported_at__lt=tz.now() - timedelta(days=7)
+        )
+        expired_count = expired.count()
+        if expired_count > 0:
+            expired.delete()
+            logger.info(f"Auto-deleted {expired_count} expired approved projects")
+
+        projects = Project.objects.filter(
+            status='approved'
+        ).select_related('owner').order_by('-updated_at')
+        serializer = LightProjectSerializer(projects, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'])
     def toggle_multiple_locations(self, request, pk=None):
         """Toggle multiple locations mode for a project"""
@@ -201,28 +295,14 @@ class PropertySlideViewSet(viewsets.ModelViewSet):
         return PropertySlide.objects.filter(project__owner=self.request.user)
     
     def perform_create(self, serializer):
-        # Ensure formData and fieldPositions are included
-        data = self.request.data
-        formData = data.get('formData', {})
-        fieldPositions = data.get('fieldPositions', {})
-        
-        # Save the slide with all its data
-        serializer.save(
-            formData=formData,
-            fieldPositions=fieldPositions,
-            content=data.get('content', {}),
-            field_positions=data.get('field_positions', {})
-        )
-    
+        # PropertySlide model only has 'content' and 'field_positions' fields
+        # The serializer already handles validation, just save
+        serializer.save()
+
     def perform_update(self, serializer):
-        # Update all fields including formData and fieldPositions
-        data = self.request.data
-        serializer.save(
-            formData=data.get('formData', serializer.instance.formData),
-            fieldPositions=data.get('fieldPositions', serializer.instance.fieldPositions),
-            content=data.get('content', serializer.instance.content),
-            field_positions=data.get('field_positions', serializer.instance.field_positions)
-        )
+        # PropertySlide model only has 'content' and 'field_positions' fields
+        # The serializer already handles validation, just save
+        serializer.save()
 
 class TemplateViewSet(viewsets.ModelViewSet):
     serializer_class = TemplateSerializer
@@ -930,8 +1010,133 @@ def get_slide_content_view(request, project_id, slide_id):
             'field_positions': slide_content.get('fieldPositions', {}),
             'slide_data': slide_content
         }, status=status.HTTP_200_OK)
-        
+
     except Exception as e:
         return Response({
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ============================================================
+# Exported PDF endpoints
+# ============================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_exported_pdfs_view(request):
+    """List all exported PDFs for the current user (or all exports if admin)"""
+    # Admin can see all exports, regular users see only their own
+    if request.user.is_staff:
+        exports = ExportedPDF.objects.all()
+    else:
+        exports = ExportedPDF.objects.filter(owner=request.user)
+
+    serializer = ExportedPDFSerializer(exports, many=True, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def upload_exported_pdf_view(request):
+    """Upload an exported PDF file and save metadata"""
+    try:
+        pdf_file = request.FILES.get('pdf_file')
+        filename = request.data.get('filename', 'Property_Review.pdf')
+        project_name = request.data.get('project_name', 'Untitled Project')
+        project_id = request.data.get('project_id')
+
+        if not pdf_file:
+            return Response({'error': 'pdf_file is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate it's a PDF
+        if not pdf_file.content_type == 'application/pdf':
+            return Response({'error': 'File must be a PDF'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Max 20MB for exported PDFs
+        if pdf_file.size > 20 * 1024 * 1024:
+            return Response({'error': 'PDF file too large (max 20MB)'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Save file to media storage
+        safe_filename = f"exported_pdfs/{request.user.id}/{uuid.uuid4().hex}.pdf"
+        file_path = default_storage.save(safe_filename, ContentFile(pdf_file.read()))
+
+        # Look up project if ID provided
+        project = None
+        if project_id:
+            try:
+                project = Project.objects.get(id=project_id, owner=request.user)
+            except Project.DoesNotExist:
+                pass
+
+        exported_pdf = ExportedPDF.objects.create(
+            owner=request.user,
+            project=project,
+            filename=filename,
+            project_name=project_name,
+            file_path=file_path,
+            file_size=pdf_file.size
+        )
+
+        # Set exported_at on the project for the 1-week auto-delete countdown
+        if project:
+            from django.utils import timezone as tz
+            project.exported_at = tz.now()
+            project.save(update_fields=['exported_at'])
+
+        serializer = ExportedPDFSerializer(exported_pdf, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        logger.error(f"Error uploading exported PDF: {str(e)}")
+        return Response({'error': 'Failed to upload PDF'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_exported_pdf_view(request, export_id):
+    """Delete an exported PDF (owner or admin)"""
+    try:
+        # Admin can delete any export, regular users can only delete their own
+        if request.user.is_staff:
+            exported_pdf = ExportedPDF.objects.get(id=export_id)
+        else:
+            exported_pdf = ExportedPDF.objects.get(id=export_id, owner=request.user)
+
+        # Delete the file from storage
+        if exported_pdf.file_path and default_storage.exists(exported_pdf.file_path):
+            default_storage.delete(exported_pdf.file_path)
+
+        exported_pdf.delete()
+        return Response({'success': True}, status=status.HTTP_200_OK)
+
+    except ExportedPDF.DoesNotExist:
+        return Response({'error': 'Export not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error deleting exported PDF: {str(e)}")
+        return Response({'error': 'Failed to delete export'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+from django.views.decorators.clickjacking import xframe_options_sameorigin
+
+@xframe_options_sameorigin
+def serve_exported_pdf_view(request, export_id):
+    """Serve an exported PDF file — plain Django view (not DRF) to avoid auth redirects in iframes"""
+    if not request.user.is_authenticated:
+        return HttpResponse('Unauthorized', status=401, content_type='text/plain')
+
+    try:
+        exported_pdf = ExportedPDF.objects.get(id=export_id, owner=request.user)
+
+        if not exported_pdf.file_path or not default_storage.exists(exported_pdf.file_path):
+            return HttpResponse('File not found', status=404, content_type='text/plain')
+
+        file_content = default_storage.open(exported_pdf.file_path).read()
+        response = HttpResponse(file_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{exported_pdf.filename}"'
+        return response
+
+    except ExportedPDF.DoesNotExist:
+        return HttpResponse('Not found', status=404, content_type='text/plain')
+    except Exception as e:
+        logger.error(f"Error serving exported PDF: {str(e)}")
+        return HttpResponse('Server error', status=500, content_type='text/plain')

@@ -10,23 +10,21 @@ import SlideThree from "./slides/SlideThree";
 import StreetView from "./slides/StreetView";
 import Interior from "./slides/Interior";
 import OnlinePresence from "./slides/OnlinePresence";
-import License from "./slides/License";
+import Inspection from "./slides/Inspection";
 import Comments from "./slides/Comments";
 import FireHazard from "./slides/FireHazard";
 import CrimeRate from "./slides/CrimeRate";
 import NearestFireStation from "./slides/NearestFireStation";
 import Website from "./slides/Website";
 import Ratings from "./slides/Ratings";
+import AerialView from "./slides/AerialView";
 import { exportToPDF } from "../utils/pdfExport";
 import exportedItemsService from "../services/exportedItemsService";
-import lroDataService from "../services/lroDataService";
-import { loadIsoCodes, findBestMatch } from "../services/isoCodeService";
 import userActivityService from "../services/userActivityService";
 import fieldActivityService from "../services/fieldActivityService";
 import apiService from "../services/apiService";
 import editorApiService from "../services/editorApiService";
 import projectSaveService from "../services/projectSaveService";
-import FieldEditorTag from "../components/FieldEditorTag";
 import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
 import PDFPreviewModal from "../components/PDFPreviewModal";
@@ -227,6 +225,7 @@ export default function Editor() {
   const device = useDevice();
   const { user } = useAuth();
   const sessionUser = user?.username || user?.email;
+  const isAdmin = user?.is_staff === true;
   const { projectId: urlProjectId } = useParams();
   const [slides, setSlides] = useState([{ id: 1, type: 'cover', title: 'Cover Page' }]);
   const [currentSlide, setCurrentSlide] = useState(1);
@@ -369,6 +368,8 @@ export default function Editor() {
   // Slide-specific data (everything except premiseLocation)
   const [slideData, setSlideData] = useState({
     1: {
+      type: 'cover',  // CRITICAL: Include type for renderSlide
+      title: 'Cover Page',
       formData: {
         insuredName: "",
         website: "",
@@ -412,13 +413,6 @@ export default function Editor() {
   
   // Project status state
   const [currentProjectStatus, setCurrentProjectStatus] = useState('draft');
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  
-  // LRO form selection states
-  const [isLroDropdownOpen, setIsLroDropdownOpen] = useState(false);
-  const [lroForms, setLroForms] = useState([]);
-  const [lroSearchTerm, setLroSearchTerm] = useState('');
-  const [isLoadingLroForms, setIsLoadingLroForms] = useState(false);
   
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
@@ -447,13 +441,6 @@ export default function Editor() {
   const slideComponentRefs = useRef({});
   const slidesContainerRef = useRef(null);
   const navigate = useNavigate();
-
-  // Load LRO forms and check for existing project on component mount
-  useEffect(() => {
-    loadLroForms();
-    
-    // URL project loading is handled in the next useEffect to avoid race conditions
-  }, [sessionUser]);
 
   // Initialize project when sessionUser changes
   useEffect(() => {
@@ -648,171 +635,11 @@ export default function Editor() {
     };
   }, []);
 
-  // Load LRO forms
-  const loadLroForms = async () => {
-    try {
-      setIsLoadingLroForms(true);
-      const forms = await lroDataService.getAllForms();
-      setLroForms(forms);
-    } catch (error) {
-      console.error('Error loading LRO forms:', error);
-    } finally {
-      setIsLoadingLroForms(false);
-    }
-  };
-
-  // Function to find ISO code in the CSV file by exact code number
-  const findIsoCodeByNumber = async (isoCode) => {
-    try {
-      // Load all ISO codes from CSV file to ensure they're available
-      const allIsoCodes = await loadIsoCodes();
-      // console.log('Loaded', allIsoCodes?.length || 0, 'ISO codes from CSV, searching for:', isoCode);
-      
-      // Use findBestMatch which will first try exact code match, then description search
-      const bestMatch = findBestMatch(isoCode);
-      
-      if (bestMatch) {
-        // console.log('Found CSV match for code', isoCode, ':', bestMatch);
-        return bestMatch; // Return the match directly
-      }
-      
-      // console.log('No match found in CSV for code:', isoCode);
-      return null;
-    } catch (error) {
-      console.error('Error searching CSV ISO codes:', error);
-      return null;
-    }
-  };
-
   // Current form being edited (for field tracking)
   const [currentFormId, setCurrentFormId] = useState(null);
   const [fieldHeartbeatInterval, setFieldHeartbeatInterval] = useState(null);
 
   // Handle LRO form selection
-  const handleLroFormSelect = async (formId) => {
-    try {
-      const apiResponse = await lroDataService.getFormDataForPropertyReview(formId);
-      
-      // Set the current form ID for field tracking
-      setCurrentFormId(formId);
-      
-      // Store the original LRO form ID in the project data for future reference
-      const currentData = getSlideData(1)?.formData || {};
-      if (!currentData.originalLroFormId) {
-        updateSlideFormData(1, { originalLroFormId: formId });
-      }
-      
-      // Search for full ISO description if we have an ISO code from database
-      let fullIsoDescription = apiResponse.description || '';
-      if (apiResponse.isoClass && apiResponse.isoClass.trim()) {
-        // console.log('Searching for ISO code:', apiResponse.isoClass);
-        
-        try {
-          // Search for the ISO code in the CSV file system
-          const match = await findIsoCodeByNumber(apiResponse.isoClass.trim());
-          
-          if (match && match.full_text) {
-            // Use the full "code - description" format from CSV
-            fullIsoDescription = match.full_text;
-            // console.log('Using CSV ISO description:', fullIsoDescription);
-          } else {
-            // console.log('No CSV match found for code:', apiResponse.isoClass);
-            fullIsoDescription = apiResponse.isoClass || '';
-          }
-        } catch (error) {
-          console.error('Error searching CSV ISO codes:', error);
-          fullIsoDescription = apiResponse.isoClass || '';
-        }
-      }
-      
-      // Auto-fill the property review fields for the first slide (cover page)
-      const lroFormData = {
-        insuredName: apiResponse.insuredName || '',
-        premiseLocation: apiResponse.premiseLocation || '',
-        description: fullIsoDescription,
-        website: apiResponse.website || '',
-        isoClass: apiResponse.isoClass || '',
-      };
-
-      // Debug output removed to reduce console clutter
-
-      // Update both location service and slide data
-      if (multipleLocationsMode && selectedLocationIndex !== undefined) {
-        // In multiple locations mode, update the current location's data
-        Object.entries(lroFormData).forEach(([field, value]) => {
-          locationDataService.updateLocationData(selectedLocationIndex, field, value);
-        });
-        // Updated location data
-      }
-
-      // Always update slide form data (this will handle location-aware routing)
-      updateSlideFormData(1, lroFormData);
-      
-      // Also update global location data to ensure consistency
-      setGlobalLocationData(prev => {
-        const updatedData = {
-          ...prev,
-          ...lroFormData
-        };
-        // Updated global location data
-        return updatedData;
-      });
-      
-      // LRO form loading completed
-      
-      // Update user activity to show which specific application they're working on
-      if (sessionUser && apiResponse.insuredName) {
-        const projectId = `property-review-${formId}`; // Use the actual form ID
-        const projectName = `${apiResponse.insuredName} - ${apiResponse.premiseLocation || 'Property Review'}`;
-        
-        userActivityService.startWorking(sessionUser, projectId, projectName);
-        
-        // Also trigger field-level editing activity immediately when selecting from dropdown
-        fieldActivityService.startEditingField(sessionUser, `insuredName-${formId}`, 'Insured Name');
-        
-        // Track form-level editing activity for dropdown display
-        // console.log('Tracking form-level activity: form-${formId} for user ${sessionUser}`);
-        fieldActivityService.startEditingField(
-          sessionUser, 
-          `form-${formId}`, 
-          `Form: ${apiResponse.insuredName || 'N/A'}`
-        );
-        
-        // Clear any existing heartbeat
-        if (fieldHeartbeatInterval) {
-          clearInterval(fieldHeartbeatInterval);
-        }
-        
-        // Set up heartbeat to keep field activity alive while working on this form
-        const heartbeat = setInterval(() => {
-          if (sessionUser && formId) {
-            fieldActivityService.updateFieldHeartbeat(sessionUser, `insuredName-${formId}`);
-          }
-        }, 30000); // Update every 30 seconds
-        
-        setFieldHeartbeatInterval(heartbeat);
-      }
-      
-      // Handle website visibility based on backend flag
-      if (typeof apiResponse.showWebsite !== 'undefined') {
-        // console.log('Setting website visibility to:', apiResponse.showWebsite);
-        setShowWebsite(apiResponse.showWebsite);
-      }
-      
-      // Handle multiple locations based on backend flag
-      if (typeof apiResponse.hasMultipleLocations !== 'undefined') {
-        // console.log('Setting multiple locations mode to:', apiResponse.hasMultipleLocations);
-        setMultipleLocationsMode(apiResponse.hasMultipleLocations);
-      }
-      
-      setIsLroDropdownOpen(false);
-      setLroSearchTerm('');
-    } catch (error) {
-      console.error('Error loading form data:', error);
-      alert('Error loading form data. Please try again.');
-    }
-  };
-
   // Add document event listeners for canvas dragging
   useEffect(() => {
     const handleDocumentMouseMove = (e) => {
@@ -906,18 +733,6 @@ export default function Editor() {
     return () => clearInterval(interval);
   }, [sessionUser, currentProjectId, hasUnsavedChanges]); // Re-run when these change
 
-  // Close status dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showStatusDropdown && !event.target.closest('.dropdown')) {
-        setShowStatusDropdown(false);
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [showStatusDropdown]);
-
   // Handle page refresh/close - save before unload
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -944,10 +759,105 @@ export default function Editor() {
     };
   }, [hasUnsavedChanges, sessionUser, currentProjectId]);
 
+  // Track if user made actual changes after project loaded
+  const userMadeChanges = useRef(false);
+
   // Track changes to mark as unsaved
   useEffect(() => {
-    setHasUnsavedChanges(true);
-  }, [slideData, globalLocationData, slides, fontSizes, showWebsite, multipleLocationsMode]);
+    // Only mark as unsaved if project is fully loaded
+    if (!isLoadingProject && currentProjectId) {
+      setHasUnsavedChanges(true);
+      userMadeChanges.current = true;
+    }
+  }, [slideData, globalLocationData, slides, fontSizes, showWebsite, multipleLocationsMode, isLoadingProject, currentProjectId]);
+
+  // Reset userMadeChanges when loading a new project
+  useEffect(() => {
+    if (isLoadingProject) {
+      userMadeChanges.current = false;
+    }
+  }, [isLoadingProject, currentProjectId]);
+
+  // Save immediately when navigating away (component unmount)
+  // Use refs to capture latest values without recreating cleanup function
+  const saveOnUnmountRef = useRef({
+    sessionUser,
+    currentProjectId,
+    slideData,
+    globalLocationData,
+    slides,
+    hasUnsavedChanges,
+    isLoadingProject,
+    userMadeChanges: userMadeChanges.current
+  });
+
+  useEffect(() => {
+    saveOnUnmountRef.current = {
+      sessionUser,
+      currentProjectId,
+      slideData,
+      globalLocationData,
+      slides,
+      hasUnsavedChanges,
+      isLoadingProject,
+      userMadeChanges: userMadeChanges.current
+    };
+  }, [sessionUser, currentProjectId, slideData, globalLocationData, slides, hasUnsavedChanges, isLoadingProject]);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup: Save before unmounting if there are changes
+      const { sessionUser, currentProjectId, slideData, globalLocationData, slides, hasUnsavedChanges, isLoadingProject, userMadeChanges } = saveOnUnmountRef.current;
+
+      // Don't save if project is still loading
+      if (isLoadingProject) {
+        console.log('⚠️ Project still loading - skipping save on unmount');
+        return;
+      }
+
+      // Don't save if user didn't make any changes after project loaded
+      if (!userMadeChanges) {
+        console.log('⚠️ No user changes after load - skipping save on unmount');
+        return;
+      }
+
+      // Check if project still exists before saving (don't recreate deleted projects)
+      const projectStillExists = projectSaveService.projects.has(currentProjectId);
+
+      // Only save if:
+      // 1. User made actual changes after project loaded
+      // 2. We have unsaved changes
+      // 3. We have a real project with actual content (slides exist and have data)
+      // 4. The project still exists in the service (hasn't been deleted)
+      // 5. The project is fully loaded
+      const hasActualContent = slides && slides.length > 0 && Object.keys(slideData || {}).length > 1; // More than just _appState
+
+      if (sessionUser && currentProjectId && projectStillExists && hasUnsavedChanges && hasActualContent) {
+        console.log('💾 Component unmounting - saving project:', currentProjectId);
+        // Use projectSaveService directly with the captured projectId from ref
+        // This prevents creating new projects if currentProjectId state was cleared
+        const projectData = {
+          sessionUser,
+          slides,
+          slideData,
+          formData: globalLocationData,
+          fieldPositions: {},
+          fontSizes: {},
+          _savedToDatabase: true,
+          databaseId: currentProjectId
+        };
+        projectSaveService.saveProject(currentProjectId, projectData)
+          .catch(err => console.error('Failed to save on unmount:', err));
+      } else if (currentProjectId && !projectStillExists) {
+        console.log('⚠️ Project was deleted - skipping save on unmount');
+      } else if (!hasUnsavedChanges) {
+        console.log('⚠️ No unsaved changes - skipping save on unmount');
+      } else if (!hasActualContent) {
+        console.log('⚠️ No actual content - skipping save on unmount');
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - cleanup function never changes, always uses latest values from ref
 
   // Automatically check for businesses when premise location changes
   useEffect(() => {
@@ -970,7 +880,7 @@ export default function Editor() {
   }, [multipleLocationsMode, globalLocationData]);
 
   const slideOptions = [
-    'Aerial View - Google', 'Aerial View - Bing', 'Street View', 'Interior', 'Online Presence', 'License',
+    'Aerial View - Google', 'Aerial View - Bing', 'Aerial View - Apple', 'Street View', 'Interior', 'Online Presence', 'Inspection',
     'Comments', 'Nearest Fire Station', 'Fire Hazard', 'Crime Rate', 'Ratings', 'Website'
   ];
 
@@ -1933,51 +1843,7 @@ export default function Editor() {
     }
   };
 
-  // Helper function to get status display text
-  const getStatusDisplay = (status) => {
-    switch (status) {
-      case 'approved': return 'Mark Approved';
-      case 'denied': return 'Mark Denied';
-      case 'conditional': return 'Mark Conditional';
-      default: return 'Mark Status';
-    }
-  };
 
-  // Update project status
-  const updateProjectStatus = async (newStatus) => {
-    if (currentProjectId) {
-      try {
-        // Get current project data first
-        const project = await apiService.getProject(currentProjectId);
-        if (project) {
-          // Update project status
-          await apiService.updateProject(currentProjectId, {
-            ...project,
-            status: newStatus
-          });
-          
-          // Update local state
-          setCurrentProjectStatus(newStatus);
-          setShowStatusDropdown(false);
-          
-          // Clean up field activity tracking when project is completed
-          if (currentFormId) {
-            fieldActivityService.stopEditingField(sessionUser, `form-${currentFormId}`);
-          }
-          fieldActivityService.stopEditingField(sessionUser, `project-${currentProjectId}`);
-          
-          const statusText = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
-          alert(`Project marked as ${statusText}!`);
-          
-          // Navigate back to home after marking status
-          navigate('/');
-        }
-      } catch (error) {
-        console.error('Error updating project status:', error);
-        alert('Failed to update project status');
-      }
-    }
-  };
 
   // Manual save function
   const saveProject = async (isAutoSave = false) => {
@@ -2069,9 +1935,17 @@ export default function Editor() {
       // console.log('SAVE DEBUG - Project data:', projectData);
 
       try {
+        // CRITICAL: Get existing project to preserve _savedToDatabase flag
+        const existingProject = projectSaveService.projects.get(currentProjectId);
+
         // IMPORTANT: Use projectSaveService instead of apiService to enable localStorage fallback
         const result = await projectSaveService.saveProject(currentProjectId, {
           ...projectData,
+          // Preserve critical database flags from existing project to prevent duplicate creation
+          ...(existingProject?._savedToDatabase && {
+            _savedToDatabase: existingProject._savedToDatabase,
+            databaseId: existingProject.databaseId
+          }),
           sessionUser: sessionUser,
           slides: slides,
           multipleLocationsMode: multipleLocationsMode,
@@ -2208,6 +2082,8 @@ export default function Editor() {
     setSlideData(prev => ({
       ...prev,
       [newSlide.id]: {
+        type: actualSlideType,  // CRITICAL: Include type for renderSlide
+        title: slideTitle,
         formData: initialFormData,
         imageData: null,
         imagePosition: { top: 300, left: 400 },
@@ -2318,19 +2194,21 @@ export default function Editor() {
         button.disabled = true;
       }
 
-      await exportToPDF(slideElements, filename);
+      const pdfBlob = await exportToPDF(slideElements, filename);
 
-      // PDF exported successfully - save to exported items
-      try {
-        const exportedItem = exportedItemsService.addExportedItem({
-          filename: filename,
-          project_name: currentProjectName || 'Untitled Project',
-          file_size: null, // File size not available from browser export
-          file_path: filename
-        });
-        console.log('Exported item saved:', exportedItem);
-      } catch (error) {
-        console.error('Failed to save exported item metadata:', error);
+      // PDF exported successfully - upload to backend for the exported items panel
+      if (pdfBlob) {
+        try {
+          const exportedItem = await exportedItemsService.addExportedItem({
+            pdfBlob: pdfBlob,
+            filename: filename,
+            project_name: insuredName || 'Untitled Project',
+            project_id: currentProjectId || null
+          });
+          console.log('Exported item saved to backend:', exportedItem);
+        } catch (error) {
+          console.error('Failed to save exported item:', error);
+        }
       }
 
       // Show success message
@@ -2413,7 +2291,17 @@ export default function Editor() {
 
   const renderSlide = (slideId) => {
     const slideData = slides.find(s => s.id === slideId);
-    if (!slideData) return null;
+    if (!slideData) {
+      console.error(`❌ No slide found with id ${slideId}. Available slides:`, slides);
+      return null;
+    }
+
+    // Safety check: ensure slideData has a type
+    if (!slideData.type) {
+      console.error(`❌ Slide ${slideId} missing type:`, slideData);
+      console.error(`❌ All slides:`, slides);
+      return null;
+    }
 
     const slideSpecificData = getSlideData(slideId);
 
@@ -2485,7 +2373,12 @@ export default function Editor() {
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'aerial_view_-_bing':
-        return <SlideThree 
+        return <SlideThree
+          {...slideProps}
+          ref={(el) => { slideComponentRefs.current[slideId] = el; }}
+        />;
+      case 'aerial_view_-_apple':
+        return <AerialView
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
@@ -2499,8 +2392,8 @@ export default function Editor() {
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
-      case 'license':
-        return <License
+      case 'inspection':
+        return <Inspection
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
@@ -2674,116 +2567,6 @@ export default function Editor() {
         
         {/* Right - Actions Toolbar */}
         <div className="d-flex align-items-center" style={{ gap: "4px" }}>
-          {/* LRO Database Dropdown - DISABLED FOR SECURITY */}
-          <div className="position-relative">
-            <button
-              className="btn btn-outline-secondary btn-sm d-flex align-items-center"
-              onClick={(e) => e.preventDefault()}
-              disabled={true}
-              title="Database loading disabled for security"
-              style={{
-                height: "36px",
-                fontSize: "13px",
-                fontWeight: "500",
-                borderRadius: "6px",
-                padding: "0 12px",
-                opacity: "0.6",
-                cursor: "not-allowed",
-                pointerEvents: "none"
-              }}
-            >
-              <i className="bi bi-database me-1" style={{ fontSize: "12px", color: "#6c757d" }}></i>
-              <span className="d-none d-md-inline">Load from Database (Disabled)</span>
-              <span className="d-md-none">DB</span>
-            </button>
-            
-            {isLroDropdownOpen && (
-              <div 
-                className="position-absolute bg-white border rounded shadow-lg"
-                style={{
-                  top: '100%',
-                  right: '0',
-                  width: '380px',
-                  maxHeight: '420px',
-                  overflowY: 'auto',
-                  zIndex: 5000,
-                  marginTop: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid #e9ecef'
-                }}
-              >
-                <div className="p-3">
-                  <input
-                    type="text"
-                    className="form-control form-control-sm mb-3"
-                    placeholder="Search forms by company name..."
-                    style={{ 
-                      fontSize: "13px",
-                      borderRadius: "6px",
-                      border: "1px solid #ced4da"
-                    }}
-                    value={lroSearchTerm}
-                    onChange={(e) => setLroSearchTerm(e.target.value)}
-                  />
-                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                    {lroForms
-                      .filter(form => 
-                        !lroSearchTerm || 
-                        (form.appName && form.appName.toLowerCase().includes(lroSearchTerm.toLowerCase()))
-                      )
-                      .slice(0, 20)
-                      .map(form => (
-                        <div
-                          key={form.id}
-                          className="p-3 border-bottom cursor-pointer"
-                          style={{ 
-                            cursor: 'pointer', 
-                            fontSize: '13px',
-                            borderBottom: '1px solid #f1f3f4',
-                            transition: 'background-color 0.15s ease'
-                          }}
-                          onClick={() => {
-                            handleLroFormSelect(form.id);
-                          }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                        >
-                          <div className="fw-semibold text-dark mb-1" style={{ fontSize: "14px" }}>
-                            {form.appName || 'N/A'}
-                            <FieldEditorTag 
-                              fieldId={`form-${form.id}`} 
-                              fieldName={`Form: ${form.appName || 'N/A'}`}
-                            />
-                          </div>
-                          <div className="text-muted" style={{ fontSize: "12px", lineHeight: "1.3" }}>
-                            <i className="bi bi-geo-alt me-1" style={{ color: "#198754" }}></i>
-                            {form.locationA || 'No location'} 
-                            <span className="mx-2">•</span>
-                            <i className="bi bi-hash" style={{ color: "#198754" }}></i>
-                            {form.id}
-                          </div>
-                        </div>
-                      ))
-                    }
-                    {lroForms.filter(form => 
-                      !lroSearchTerm || 
-                      (form.appName && form.appName.toLowerCase().includes(lroSearchTerm.toLowerCase()))
-                    ).length === 0 && (
-                      <div className="p-4 text-center text-muted">
-                        <i className="bi bi-search mb-2 d-block" style={{ fontSize: "24px", opacity: "0.5", color: "#198754" }}></i>
-                        <div style={{ fontSize: "13px" }}>
-                          {lroSearchTerm ? 'No forms found matching your search' : 'No forms available'}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Divider */}
-          <div className="vr" style={{ height: "28px", opacity: "0.3" }}></div>
 
           {/* Preview Button */}
           <button
@@ -2826,94 +2609,6 @@ export default function Editor() {
             <span className="d-none d-md-inline">Export PDF</span>
             <span className="d-md-none">PDF</span>
           </button>
-          
-          {/* Status Dropdown */}
-          <div className="dropdown position-relative">
-            <button 
-              className="btn btn-outline-success btn-sm d-flex align-items-center" 
-              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-              title="Mark project status"
-              style={{ 
-                height: "36px",
-                fontSize: "13px",
-                fontWeight: "500",
-                borderRadius: "6px",
-                padding: "0 12px",
-                borderColor: "#198754",
-                color: "#198754"
-              }}
-            >
-              <i className="bi bi-check-circle me-1" style={{ fontSize: "12px" }}></i>
-              <span className="d-none d-md-inline">{getStatusDisplay(currentProjectStatus)}</span>
-              <span className="d-md-none">Status</span>
-              <i className="bi bi-chevron-down ms-2" style={{ fontSize: "10px" }}></i>
-            </button>
-            
-            {showStatusDropdown && (
-              <div 
-                className="dropdown-menu show position-absolute"
-                style={{ 
-                  top: '100%',
-                  left: 0,
-                  zIndex: 1000,
-                  minWidth: '160px',
-                  backgroundColor: 'white',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                }}
-              >
-                <button 
-                  className="dropdown-item"
-                  style={{ 
-                    padding: "8px 16px", 
-                    border: "none", 
-                    background: "none", 
-                    textAlign: "left",
-                    color: "#28a745"
-                  }}
-                  onClick={() => updateProjectStatus('approved')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  <i className="bi bi-check-circle me-2" style={{ color: "#28a745" }}></i>
-                  Mark Approved
-                </button>
-                <button 
-                  className="dropdown-item"
-                  style={{ 
-                    padding: "8px 16px", 
-                    border: "none", 
-                    background: "none", 
-                    textAlign: "left",
-                    color: "#dc3545"
-                  }}
-                  onClick={() => updateProjectStatus('denied')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  <i className="bi bi-x-circle me-2" style={{ color: "#dc3545" }}></i>
-                  Mark Denied
-                </button>
-                <button 
-                  className="dropdown-item"
-                  style={{ 
-                    padding: "8px 16px", 
-                    border: "none", 
-                    background: "none", 
-                    textAlign: "left",
-                    color: "#ffc107"
-                  }}
-                  onClick={() => updateProjectStatus('conditional')}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  <i className="bi bi-exclamation-triangle me-2" style={{ color: "#ffc107" }}></i>
-                  Mark Conditional
-                </button>
-              </div>
-            )}
-          </div>
           
           {/* Save Button */}
           <button 
@@ -3428,6 +3123,9 @@ export default function Editor() {
           if (!slideData) return null;
 
           const slideSpecificData = getSlideData(slide.id);
+          const slideSpecificType = slideData.type || slideSpecificData.type;
+          if (!slideSpecificType) return null;
+
           const slideProps = {
             formData: slideSpecificData.formData,
             setFormData: (updates) => updateSlideFormData(slide.id, updates),
@@ -3439,13 +3137,15 @@ export default function Editor() {
             multipleLocationsMode,
             selectedLocationIndex,
             slideId: slide.id,
-            sessionUser, // Add session user for field tracking
+            projectId: currentProjectId,
+            currentProjectId,
+            sessionUser,
             slideData: slideSpecificData,
             updateSlideData: (updates) => updateSlideData(slide.id, updates),
             fieldPositions: slideSpecificData.fieldPositions,
             setFieldPositions: (positions) => updateFieldPositions(slide.id, positions),
-            allSlideData: slideData, // Pass all slide data for cross-slide logic  
-            slides: slides, // Pass slides array to check slide types
+            allSlideData: slideData,
+            slides: slides,
           };
 
           return (
@@ -3466,50 +3166,53 @@ export default function Editor() {
               }}
             >
               {/* Render slide components directly without calling renderSlide to avoid ref conflicts */}
-              {slideData.type.startsWith('street_view') && (
+              {slideSpecificType.startsWith('street_view') && (
                 <StreetView {...slideProps} />
               )}
-              {slideData.type === 'cover' && (
+              {slideSpecificType === 'cover' && (
                 <SlideOne {...slideProps} />
               )}
-              {slideData.type === 'aerial_view_-_google' && (
+              {slideSpecificType === 'aerial_view_-_google' && (
                 <SlideTwo {...slideProps} />
               )}
-              {slideData.type === 'aerial_view_-_bing' && (
+              {slideSpecificType === 'aerial_view_-_bing' && (
                 <SlideThree {...slideProps} />
               )}
-              {slideData.type === 'interior' && (
+              {slideSpecificType === 'aerial_view_-_apple' && (
+                <AerialView {...slideProps} />
+              )}
+              {slideSpecificType === 'interior' && (
                 <Interior {...slideProps} />
               )}
-              {slideData.type === 'online_presence' && (
+              {slideSpecificType === 'online_presence' && (
                 <OnlinePresence {...slideProps} />
               )}
-              {slideData.type === 'license' && (
-                <License {...slideProps} />
+              {slideSpecificType === 'inspection' && (
+                <Inspection {...slideProps} />
               )}
-              {slideData.type === 'comments' && (
+              {slideSpecificType === 'comments' && (
                 <Comments {...slideProps} />
               )}
-              {slideData.type === 'fire_hazard' && (
+              {slideSpecificType === 'fire_hazard' && (
                 <FireHazard {...slideProps} />
               )}
-              {slideData.type === 'crime_rate' && (
+              {slideSpecificType === 'crime_rate' && (
                 <CrimeRate {...slideProps} />
               )}
-              {slideData.type === 'nearest_fire_station' && (
+              {slideSpecificType === 'nearest_fire_station' && (
                 <NearestFireStation {...slideProps} />
               )}
-              {slideData.type === 'website' && (
+              {slideSpecificType === 'website' && (
                 (() => {
                   const slide1FormData = getSlideData(1)?.formData || {};
                   const websiteInfo = slide1FormData.website || '';
-                  return <Website 
-                    {...slideProps} 
+                  return <Website
+                    {...slideProps}
                     websiteUrl={websiteInfo}
                   />
                 })()
               )}
-              {slideData.type === 'ratings' && (
+              {slideSpecificType === 'ratings' && (
                 <Ratings {...slideProps} />
               )}
               

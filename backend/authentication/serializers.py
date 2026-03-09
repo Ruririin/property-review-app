@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from datetime import timedelta
+from .models import UserProfile
 
 User = get_user_model()
 
@@ -90,5 +91,69 @@ class UserLoginSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'date_joined', 'is_staff')
+        read_only_fields = ('id', 'date_joined', 'is_staff')
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """
+    Serializer for user profile customization settings
+    """
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    avatar_url = serializers.SerializerMethodField()
+    header_image_url = serializers.SerializerMethodField()
+    background_image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserProfile
+        fields = (
+            'id',
+            'user',
+            'avatar',
+            'avatar_url',
+            'header_image',
+            'header_image_url',
+            'background_type',
+            'background_color',
+            'background_image',
+            'background_image_url',
+            'background_display',
+            'created_at',
+            'updated_at'
+        )
+        read_only_fields = ('id', 'user', 'created_at', 'updated_at')
+
+    def get_avatar_url(self, obj):
+        """Return full URL for avatar image"""
+        if obj.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar.url)
+        return None
+
+    def get_header_image_url(self, obj):
+        """Return full URL for header image"""
+        if obj.header_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.header_image.url)
+        return None
+
+    def get_background_image_url(self, obj):
+        """Return full URL for background image"""
+        if obj.background_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.background_image.url)
+        return None
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """
+    Serializer for admin user management
+    Allows admins to view and update user roles
+    """
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'is_active', 'date_joined')
         read_only_fields = ('id', 'date_joined')

@@ -109,6 +109,26 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
             el.style.display = 'none';
           });
 
+          // Fix objectFit: 'cover' images - html2canvas doesn't support objectFit
+          // Only stretch to 100% for images inside frame containers (ImageFrame)
+          // For freely-positioned images (MultiImageComponent), keep their explicit pixel dimensions
+          const images = clonedDoc.querySelectorAll('img');
+          images.forEach(img => {
+            if (img.style.objectFit === 'cover') {
+              img.style.objectFit = '';
+              // Check if image has explicit pixel dimensions (freely positioned images)
+              const hasPixelWidth = img.style.width && !img.style.width.includes('%');
+              const hasPixelHeight = img.style.height && !img.style.height.includes('%');
+              if (hasPixelWidth && hasPixelHeight) {
+                // Keep the explicit pixel dimensions - these are freely positioned images
+              } else {
+                // Frame images - stretch to fill their container
+                img.style.width = '100%';
+                img.style.height = '100%';
+              }
+            }
+          });
+
           // Convert all textareas to divs for better PDF rendering
           const textareas = clonedDoc.querySelectorAll('textarea');
           textareas.forEach(textarea => {
@@ -148,7 +168,8 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
         }
 
         // Convert canvas to image and add to PDF
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        // Quality 0.75 gives a good balance between file size and visual clarity
+        const imgData = canvas.toDataURL('image/jpeg', 0.75);
         
         // Check if image data is valid
         if (!imgData || imgData === 'data:,') {
@@ -175,11 +196,13 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
       }
     }
 
-    // Save the PDF
+    // Save the PDF (triggers browser download)
     pdf.save(filename);
     console.log(`PDF saved as: ${filename}`);
-    
-    return true;
+
+    // Return the PDF blob so the caller can store it for the exported items panel
+    const pdfBlob = pdf.output('blob');
+    return pdfBlob;
   } catch (error) {
     console.error('Error generating PDF:', error);
     throw error;

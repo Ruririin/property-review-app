@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "re
 import { loadIsoCodes, findBestMatch, findSimilarMatches } from "../../services/serviceFactory";
 import { useFieldActivity } from "../../hooks/useFieldActivity";
 import fieldActivityService from "../../services/fieldActivityService";
+import slideApiService from "../../services/slideApiService";
 
 const SlideOne = forwardRef(({
   formData,
@@ -19,6 +20,8 @@ const SlideOne = forwardRef(({
   zoomLevel,
   sessionUser,
   currentFormId,
+  slideId = '1',
+  currentProjectId,
 }, ref) => {
   // For SlideOne, use formData directly since Editor now passes globalLocationData correctly
   // This avoids conflicts with useLocationAwareData hook that can cause infinite loops
@@ -44,7 +47,9 @@ const SlideOne = forwardRef(({
   const [isDescriptionDropdownOpen, setIsDescriptionDropdownOpen] = useState(false);
   const [descriptionMatches, setDescriptionMatches] = useState([]);
   const [isUserEditingDescription, setIsUserEditingDescription] = useState(false);
-  
+  const [othersCleared, setOthersCleared] = useState(false); // Track if "Others" mode was just cleared
+  const hasTypedInOthersMode = useRef(false); // Track if user has typed anything in Others mode
+
   const containerRef = useRef(null);
 
   // Helper function to handle both mouse and touch events
@@ -103,27 +108,94 @@ const SlideOne = forwardRef(({
     }
   }, []); // Only run once on mount
 
+  // Load slide data from backend when component mounts
+  useEffect(() => {
+    const loadSlideData = async () => {
+      if (!currentProjectId || !slideId) {
+        return;
+      }
+
+      try {
+        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+
+        // Load field positions if they exist
+        if (result.field_positions && Object.keys(result.field_positions).length > 0 && setFieldPositions) {
+          setFieldPositions(prev => ({
+            ...prev,
+            ...result.field_positions
+          }));
+        }
+
+        // Load slide content if it exists
+        if (result.content && result.content.slideOneData && setFormData) {
+          const slideOneData = result.content.slideOneData;
+
+          // Only load if we have actual form data
+          const hasFormData = Object.keys(slideOneData).some(key =>
+            slideOneData[key] && slideOneData[key].toString().trim() !== ''
+          );
+
+          if (hasFormData) {
+            setFormData(prev => ({
+              ...prev,
+              ...slideOneData
+            }));
+          }
+        }
+      } catch (error) {
+        // Silently handle errors for draft projects
+      }
+    };
+
+    loadSlideData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideId, currentProjectId]);
+
+  // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
+  // This eliminates redundant API calls and prevents rate limiting issues
+
   // Auto-update ISO functionality when description changes
   useEffect(() => {
     const currentDescription = getFormValue('description');
+    const currentIsoClass = getFormValue('isoClass');
+
+    // Check if user is in "Others" mode - if so, skip all ISO matching
+    const isOthersMode = currentIsoClass === 'Others';
+
     if (!currentDescription) {
       setDescriptionMatches([]);
       setIsDescriptionDropdownOpen(false);
       setIsLineBusinessDropdownOpen(false);
-      // Clear ISO class when description is empty
-      const currentIsoClass = getFormValue('isoClass');
-      if (currentIsoClass) {
+
+      // Handle clearing: only reset "Others" mode on second clear (after typing)
+      if (currentIsoClass === 'Others' && !othersCleared) {
+        // First clear after clicking "Others" - stay in Others mode
+        setOthersCleared(true);
+        hasTypedInOthersMode.current = false;
+      } else if (currentIsoClass === 'Others' && othersCleared && hasTypedInOthersMode.current) {
+        // Second clear AFTER typing - reset everything including the flag
+        setFormValue('isoClass', '');
+        setOthersCleared(false);
+        hasTypedInOthersMode.current = false;
+      } else if (currentIsoClass && currentIsoClass !== 'Others') {
+        // Normal clear (not from Others mode)
         setFormValue('isoClass', '');
       }
+      // If currentIsoClass === 'Others' but hasn't typed yet, do nothing (stay in Others mode)
       return;
+    }
+
+    // Track that user has typed in Others mode
+    if (isOthersMode && currentDescription) {
+      hasTypedInOthersMode.current = true;
     }
 
     // Skip auto-matching if the description already contains an ISO code (format: "#### - description")
     const isAlreadyFormatted = /^\d{4}\s*-\s*.+/.test(currentDescription);
-    
-    if (currentDescription && !isAlreadyFormatted) {
+
+    if (currentDescription && !isAlreadyFormatted && !isOthersMode) {
       const similarMatches = findSimilarMatches(currentDescription);
-      
+
       if (similarMatches.length > 1) {
         // Multiple matches found - only show dropdown if user is actively editing
         setDescriptionMatches(similarMatches);
@@ -134,7 +206,7 @@ const SlideOne = forwardRef(({
         // Single match - auto-populate with full format from database
         const bestMatch = similarMatches[0];
         const fullDescription = bestMatch.full_text || bestMatch.description || '';
-        setFormValues({ 
+        setFormValues({
           description: fullDescription,
           isoClass: fullDescription // Keep both in sync for backwards compatibility
         });
@@ -144,20 +216,23 @@ const SlideOne = forwardRef(({
         // No matches - clear matches but keep description
         setDescriptionMatches([]);
         setIsDescriptionDropdownOpen(false);
-        // Update isoClass to match description for consistency
-        const currentIsoClass = getFormValue('isoClass');
-        if (currentIsoClass !== currentDescription) {
+        // Update isoClass to match description for consistency (unless in Others mode)
+        if (currentIsoClass !== currentDescription && !isOthersMode) {
           setFormValue('isoClass', currentDescription);
         }
       }
-    } else {
+    } else if (!isOthersMode) {
+      // Only sync isoClass with description if NOT in Others mode
       setDescriptionMatches([]);
       setIsDescriptionDropdownOpen(false);
       // Keep isoClass in sync with description
-      const currentIsoClass = getFormValue('isoClass');
       if (currentIsoClass !== currentDescription) {
         setFormValue('isoClass', currentDescription);
       }
+    } else {
+      // In Others mode - clear dropdown and don't sync isoClass
+      setDescriptionMatches([]);
+      setIsDescriptionDropdownOpen(false);
     }
   }, [formData?.description, isUserEditingDescription]);
 
@@ -741,7 +816,47 @@ const SlideOne = forwardRef(({
             <div style={{ padding: "8px", fontSize: "12px", color: "#666", borderBottom: "1px solid #eee" }}>
               Multiple ISO codes match your operation type. Select one:
             </div>
-            
+
+            {/* Others option - shown at top if user types "others" */}
+            {displayValue.toLowerCase().includes('other') && (
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setFormData({
+                    description: '',  // Clear description so user can type freely
+                    isoClass: 'Others'  // Mark as Others mode
+                  });
+                  setOthersCleared(true); // Mark as cleared since clicking Others clears the field
+                  setIsDescriptionDropdownOpen(false);
+                  setDescriptionMatches([]);
+                }}
+                style={{
+                  padding: "12px 15px",
+                  fontSize: "13px",
+                  fontFamily: "'Montserrat', sans-serif",
+                  color: "#333",
+                  cursor: "pointer",
+                  textAlign: "right",
+                  borderBottom: "1px solid #eee",
+                  border: "none",
+                  background: "#fffacd",  // Light yellow highlight
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#ffeb3b"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "#fffacd"}
+              >
+                <div style={{ fontWeight: "bold", marginBottom: "4px", fontStyle: "italic" }}>
+                  Others
+                </div>
+                <div style={{ fontSize: "11px", color: "#666" }}>
+                  Free-form text entry (no ISO code)
+                </div>
+              </button>
+            )}
+
             {descriptionMatches.map((isoCode, index) => (
               <button
                 key={`${isoCode.code}-${index}`}
@@ -775,6 +890,45 @@ const SlideOne = forwardRef(({
                 </div>
               </button>
             ))}
+
+            {/* Others option at bottom if not typing "others" */}
+            {!displayValue.toLowerCase().includes('other') && (
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setFormData({
+                    description: '',  // Clear description so user can type freely
+                    isoClass: 'Others'  // Mark as Others mode
+                  });
+                  setOthersCleared(true); // Mark as cleared since clicking Others clears the field
+                  setIsDescriptionDropdownOpen(false);
+                  setDescriptionMatches([]);
+                }}
+                style={{
+                  padding: "12px 15px",
+                  fontSize: "13px",
+                  fontFamily: "'Montserrat', sans-serif",
+                  color: "#333",
+                  cursor: "pointer",
+                  textAlign: "right",
+                  border: "none",
+                  background: "transparent",
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#f5f5f5"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                <div style={{ fontWeight: "bold", marginBottom: "4px", fontStyle: "italic" }}>
+                  Others
+                </div>
+                <div style={{ fontSize: "11px", color: "#666" }}>
+                  Free-form text entry (no ISO code)
+                </div>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -947,8 +1101,8 @@ const SlideOne = forwardRef(({
     >
 
       {renderField("insuredName", "Insured's Name", { fontWeight: "normal" })}
-      {renderField("premiseLocation", "Premise Location")}
-      {showWebsite && renderField("website", "Website")}
+      {renderField("premiseLocation", "123 Main St, City, State 12345")}
+      {showWebsite && renderField("website", "www.example.com")}
       {renderTypeOfOperationField()}
       {renderLineBusinessDropdown()}
     </div>

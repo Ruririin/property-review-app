@@ -5,8 +5,10 @@
 
 class ApiService {
   constructor() {
-    // LOCAL DEVELOPMENT: Use local server
-    this.baseURL = 'http://localhost:8000/api';
+    // LOCAL DEVELOPMENT: Use Vite proxy (relative URL)
+    // Vite will proxy /api/* to localhost:8000/api/* automatically
+    // This fixes cross-origin cookie issues
+    this.baseURL = '/api';
 
     // DEPLOYMENT: Use production URL
     // this.baseURL = 'https://pr-neitclem.gratusinc.org/api';
@@ -70,12 +72,8 @@ class ApiService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        // Handle 404/500 errors gracefully for draft projects
-        if (response.status === 404 || response.status === 500) {
-          // Silently return null for draft project errors
-          return null;
-        }
         const errorText = await response.text();
+        console.error(`API Error ${response.status}:`, errorText);
         throw new Error(`API Error ${response.status}: ${errorText}`);
       }
 
@@ -136,6 +134,11 @@ class ApiService {
         slideData: updatedSlideData
       });
     } catch (error) {
+      // Silently handle 404 errors (project doesn't exist)
+      if (error.message?.includes('404') || error.message?.includes('DoesNotExist')) {
+        console.warn('Project not found - skipping app state update:', projectId);
+        return null;
+      }
       console.error('Error updating app state:', error);
       throw error;
     }
@@ -190,7 +193,7 @@ class ApiService {
         title: projectData.title || projectData.name || projectData.insuredName || 'Untitled Project',
         name: projectData.name || projectData.title || projectData.insuredName || 'Untitled Project',
         description: projectData.description || `Property review for ${projectData.insuredName || 'Unknown'}`,
-        status: projectData.status || 'editing',
+        status: projectData.status || 'personal_draft',
         formData: projectData.formData || {},
         slideData: projectData.slideData || {},
         multipleLocationsMode: multipleLocationsMode,
@@ -215,7 +218,7 @@ class ApiService {
         title: projectData.title || projectData.name || projectData.insuredName || 'Untitled Project',
         name: projectData.name || projectData.title || projectData.insuredName || 'Untitled Project',
         description: projectData.description || `Property review for ${projectData.insuredName || 'Unknown'}`,
-        status: projectData.status || 'editing',
+        status: projectData.status || 'personal_draft',
         formData: projectData.formData || {},
         slideData: projectData.slideData || {},
         multipleLocationsMode: multipleLocationsMode
@@ -234,6 +237,30 @@ class ApiService {
     return this.request(`/projects/${queryString ? '?' + queryString : ''}`);
   }
 
+  // Tab-based project listing endpoints
+  async getGlobalDrafts() {
+    return this.request('/projects/global-drafts/');
+  }
+
+  async getPersonalDrafts() {
+    return this.request('/projects/personal-drafts/');
+  }
+
+  async getForReview() {
+    return this.request('/projects/for-review/');
+  }
+
+  async getApprovedList() {
+    return this.request('/projects/approved-list/');
+  }
+
+  async updateProjectStatus(projectId, newStatus) {
+    return this.request(`/projects/${projectId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus }),
+    });
+  }
+
   /**
    * Slide Management APIs
    */
@@ -243,10 +270,10 @@ class ApiService {
       body: JSON.stringify({
         project: projectId,
         slide_number: slideData.slideNumber,
+        slide_type: slideData.type || 'standard',
         title: slideData.title || '',
         content: slideData.content || {},
-        template_type: slideData.type || 'standard',
-        field_dimensions: slideData.fieldPositions || {},
+        field_positions: slideData.fieldPositions || {},  // Separate top-level field
       }),
     });
   }
@@ -259,9 +286,10 @@ class ApiService {
     return this.request(`/slides/${slideId}/`, {
       method: 'PATCH',
       body: JSON.stringify({
+        slide_type: slideData.type || 'standard',
         title: slideData.title,
         content: slideData.content || {},
-        field_dimensions: slideData.fieldPositions || {},
+        field_positions: slideData.fieldPositions || {},  // Separate top-level field
       }),
     });
   }
@@ -372,7 +400,7 @@ class ApiService {
       showWebsite: localStorageProject.showWebsite || false,
       multipleLocationsMode: localStorageProject.multipleLocationsMode || false,
       selectedLocationIndex: localStorageProject.selectedLocationIndex || 0,
-      status: localStorageProject.status || 'editing',
+      status: localStorageProject.status || 'personal_draft',
       currentSlide: localStorageProject.currentSlide || 1,
       totalSlides: localStorageProject.totalSlides || 1,
     };
@@ -437,6 +465,99 @@ class ApiService {
       // Silently fail - health check errors are not critical
       return false;
     }
+  }
+
+  /**
+   * Helper method for POST requests
+   */
+  async post(endpoint, data) {
+    return this.request(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  /**
+   * Helper method for DELETE requests
+   */
+  async delete(endpoint, data) {
+    return this.request(endpoint, {
+      method: 'DELETE',
+      body: data ? JSON.stringify(data) : undefined
+    });
+  }
+
+  /**
+   * User Profile Customization APIs
+   */
+  async getUserProfile() {
+    return this.request('/auth/user-profile/');
+  }
+
+  async updateUserProfile(profileData) {
+    return this.request('/auth/user-profile/', {
+      method: 'PATCH',
+      body: JSON.stringify(profileData)
+    });
+  }
+
+  async uploadAvatar(file) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    return this.request('/auth/user-profile/upload-avatar/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': this.getCookie('csrftoken')
+      },
+      body: formData
+    });
+  }
+
+  async uploadHeaderImage(file) {
+    const formData = new FormData();
+    formData.append('header_image', file);
+
+    return this.request('/auth/user-profile/upload-header/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': this.getCookie('csrftoken')
+      },
+      body: formData
+    });
+  }
+
+  async uploadBackgroundImage(file) {
+    const formData = new FormData();
+    formData.append('background_image', file);
+
+    return this.request('/auth/user-profile/upload-background/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': this.getCookie('csrftoken')
+      },
+      body: formData
+    });
+  }
+
+  /**
+   * Admin User Management APIs
+   */
+  async listAllUsers() {
+    return this.request('/auth/admin/users/');
+  }
+
+  async updateUserRole(userId, isStaff) {
+    return this.request(`/auth/admin/users/${userId}/role/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_staff: isStaff })
+    });
+  }
+
+  async deleteUser(userId) {
+    return this.request(`/auth/admin/users/${userId}/delete/`, {
+      method: 'DELETE'
+    });
   }
 }
 

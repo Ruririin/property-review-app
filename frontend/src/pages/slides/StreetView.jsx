@@ -1,7 +1,8 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from "react";
 import FrameLayout from "../../components/FrameLayout";
 import FrameSelector from "../../components/FrameSelector";
 import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
+import slideApiService from "../../services/slideApiService";
 
 const StreetView = forwardRef(({
   formData,
@@ -21,6 +22,7 @@ const StreetView = forwardRef(({
   currentProjectId,
 }, ref) => {
   const containerRef = useRef(null);
+  const slideDataRef = useRef(slideData);
 
   // Use projectId or currentProjectId (whichever is available)
   const activeProjectId = projectId || currentProjectId;
@@ -36,21 +38,36 @@ const StreetView = forwardRef(({
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {}; // Store backend file paths
 
+  // Keep ref updated with latest slideData
+  useEffect(() => {
+    slideDataRef.current = slideData;
+  }, [slideData]);
+
   const handleImageUpload = async (frameId, imageData, file) => {
+    // IMPORTANT: Use ref to get the LATEST slideData (not stale closure)
+    const currentFrameImages = slideDataRef.current?.frameImages || {};
+    const currentFrameMeta = slideDataRef.current?.frameMeta || {};
+
     // Store the base64 data immediately for display
+    const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
+
     updateSlideData({
-      frameImages: { ...frameImages, [frameId]: imageData }
+      frameImages: updatedFrameImages
     });
 
-    // Upload to backend if project ID is available
-    if (activeProjectId) {
+    // Only upload to backend if project has a database ID (not just a temp UUID)
+    // This prevents upload failures when project is newly created
+    const hasDatabaseId = slideData?._appState?.databaseId || false;
+
+    if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
 
       if (result && result.success) {
-        // Store backend metadata
+        // Store backend metadata and combine with frameImages
         updateSlideData({
+          frameImages: updatedFrameImages,
           frameMeta: {
-            ...frameMeta,
+            ...currentFrameMeta,
             [frameId]: {
               filePath: result.filePath,
               url: result.url,
@@ -64,6 +81,8 @@ const StreetView = forwardRef(({
       } else {
         console.error(`Failed to upload frame ${frameId} to backend`);
       }
+    } else {
+      console.warn('No database ID yet - image saved locally only');
     }
   };
 
@@ -101,6 +120,43 @@ const StreetView = forwardRef(({
       }
     }
   }));
+
+  // Load slide data from backend when component mounts
+  useEffect(() => {
+    const loadSlideData = async () => {
+      if (!currentProjectId || !slideId) {
+        return;
+      }
+
+      try {
+        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+
+        // Load slide content if it exists
+        if (result.content && result.content.streetViewData && setFormData) {
+          const streetViewData = result.content.streetViewData;
+
+          // Only load if we have actual form data
+          const hasFormData = Object.keys(streetViewData).some(key =>
+            streetViewData[key] && streetViewData[key].toString().trim() !== ''
+          );
+
+          if (hasFormData) {
+            setFormData(prev => ({
+              ...prev,
+              ...streetViewData
+            }));
+          }
+        }
+      } catch (error) {
+        // Silently handle errors for draft projects
+      }
+    };
+
+    loadSlideData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideId, currentProjectId]);
+
+  // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
 
   const renderField = (field, placeholder) => {
     const isActive = selectedField === field;

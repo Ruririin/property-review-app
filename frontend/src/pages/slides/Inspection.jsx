@@ -1,7 +1,9 @@
-import { useState, useRef, forwardRef, useImperativeHandle } from "react";
-import MultiImageComponent from "../../components/MultiImageComponent";
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react";
+import ImageFrame from "../../components/ImageFrame";
+import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
+import slideApiService from "../../services/slideApiService";
 
-const License = forwardRef(({
+const Inspection = forwardRef(({
   formData,
   setFormData,
   onSelect,
@@ -13,10 +15,68 @@ const License = forwardRef(({
   zoomLevel,
   isActiveSlide,
   fieldPositions,
-  setFieldPositions
+  setFieldPositions,
+  currentProjectId
 }, ref) => {
 
   const containerRef = useRef(null);
+  const slideDataRef = useRef(slideData);
+
+  const activeProjectId = currentProjectId;
+
+  // Frame image handler for backend upload/delete
+  const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
+    activeProjectId,
+    slideId
+  );
+
+  const frameImages = slideData?.frameImages || {};
+  const frameMeta = slideData?.frameMeta || {};
+
+  // Keep ref updated with latest slideData
+  useEffect(() => {
+    slideDataRef.current = slideData;
+  }, [slideData]);
+
+  const handleImageUpload = async (frameId, imageData) => {
+    const currentFrameImages = slideDataRef.current?.frameImages || {};
+    const currentFrameMeta = slideDataRef.current?.frameMeta || {};
+    const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
+
+    updateSlideData({ frameImages: updatedFrameImages });
+
+    const hasDatabaseId = slideData?._appState?.databaseId || false;
+    if (activeProjectId && hasDatabaseId) {
+      const result = await uploadFrameImage(frameId, imageData);
+      if (result && result.success) {
+        updateSlideData({
+          frameImages: updatedFrameImages,
+          frameMeta: {
+            ...currentFrameMeta,
+            [frameId]: {
+              filePath: result.filePath,
+              url: result.url,
+              width: result.width,
+              height: result.height,
+              aspectRatio: result.aspectRatio
+            }
+          }
+        });
+      }
+    }
+  };
+
+  const handleImageRemove = async (frameId) => {
+    const filePath = frameMeta[frameId]?.filePath;
+    if (filePath && activeProjectId) {
+      await deleteFrameImage(frameId, filePath);
+    }
+    const newFrameImages = { ...frameImages };
+    const newFrameMeta = { ...frameMeta };
+    delete newFrameImages[frameId];
+    delete newFrameMeta[frameId];
+    updateSlideData({ frameImages: newFrameImages, frameMeta: newFrameMeta });
+  };
 
   // Helper function to handle both mouse and touch events
   const getEventCoordinates = (e) => {
@@ -33,8 +93,46 @@ const License = forwardRef(({
     }
   }));
 
+  // Load slide data from backend when component mounts
+  useEffect(() => {
+    const loadSlideData = async () => {
+      if (!currentProjectId || !slideId) {
+        return;
+      }
+
+      try {
+        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+
+        // Load slide content if it exists
+        if (result.content && result.content.inspectionData && setFormData) {
+          const inspectionData = result.content.inspectionData;
+
+          // Only load if we have actual form data
+          const hasFormData = Object.keys(inspectionData).some(key =>
+            inspectionData[key] && inspectionData[key].toString().trim() !== ''
+          );
+
+          if (hasFormData) {
+            setFormData(prev => ({
+              ...prev,
+              ...inspectionData
+            }));
+          }
+        }
+      } catch (error) {
+        // Silently handle errors for draft projects
+      }
+    };
+
+    loadSlideData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideId, currentProjectId]);
+
+  // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
+
   const defaultFieldPositions = {
-    licenseInfo: { bottom: -11.4, right: 0.5 }, // Bottom right position like online presence
+    inspectionInfo: { bottom: -11.4, right: 0.5 }, // Bottom right position like online presence
+    premiseLocation: { top: 670, right: 1.2 }, // Same positioning as other slides
   };
 
   const handleFieldMouseDown = (e, field) => {
@@ -228,7 +326,7 @@ const License = forwardRef(({
         width: "1280px",
         height: "720px",
         position: "relative",
-        background: "url('/Template/Licenses.png') center/100% 100% no-repeat",
+        background: "url('/Template/Inspection Template.png') center/100% 100% no-repeat",
         margin: "0 auto",
         overflow: "hidden",
         userSelect: "none",
@@ -242,10 +340,11 @@ const License = forwardRef(({
         }
       }}
     >
-      {renderField("licenseInfo", "License #: 123456")}
+      {renderField("inspectionInfo", "Inspection #: 123456")}
+      {renderField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
 
       {/* Screenshot area - users can paste images here */}
-      {(slideData?.images || []).length === 0 && (
+      {!frameImages[1] && (
         <div
           style={{
             position: "absolute",
@@ -268,9 +367,9 @@ const License = forwardRef(({
         >
           <div style={{ textAlign: 'center' }}>
             <div style={{ marginBottom: '10px', fontSize: '20px' }}>📄</div>
-            <div style={{ fontWeight: 'bold', marginBottom: '12px' }}>License Documentation</div>
+            <div style={{ fontWeight: 'bold', marginBottom: '12px' }}>Inspection Documentation</div>
             <div style={{ fontSize: '13px', opacity: '0.9', textAlign: 'center', lineHeight: '1.5', maxWidth: '500px' }}>
-              Paste screenshot of license, permit, or certification here
+              Paste screenshot of inspection, permit, or certification here
             </div>
             <div style={{ textAlign: 'center', marginTop: '10px', fontStyle: 'italic', opacity: '0.7' }}>
               Paste here (Ctrl+V)
@@ -279,18 +378,27 @@ const License = forwardRef(({
         </div>
       )}
 
-      <MultiImageComponent
-        images={slideData?.images || []}
-        onUpdateImages={async (updatedImages) => {
-          if (updateSlideData) {
-            await updateSlideData({ images: updatedImages });
-          }
+      {/* Single image frame for inspection documents */}
+      <div
+        style={{
+          position: "absolute",
+          top: "108px",
+          left: "108px",
+          width: "1064px",
+          height: "504px",
         }}
-        zoomLevel={zoomLevel}
-      />
+      >
+        <ImageFrame
+          id={1}
+          image={frameImages[1]}
+          onImageUpload={handleImageUpload}
+          onImageRemove={handleImageRemove}
+          style={{ width: "1064px", height: "504px" }}
+        />
+      </div>
     </div>
   );
 });
 
-License.displayName = 'License';
-export default License;
+Inspection.displayName = 'Inspection';
+export default Inspection;

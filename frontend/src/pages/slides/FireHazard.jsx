@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
-import MultiImageComponent from "../../components/MultiImageComponent";
+import ImageFrame from "../../components/ImageFrame";
+import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
 import slideApiService from "../../services/slideApiService";
 
 const FireHazard = forwardRef(({
@@ -25,9 +26,77 @@ const FireHazard = forwardRef(({
   const [resizingField, setResizingField] = useState(null);
   const [resizeMode, setResizeMode] = useState('');
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
-  
+
   const stablePositionsRef = useRef({});
-  const containerRef = useRef(null); // For container reference instead of imageHandler
+  const containerRef = useRef(null);
+  const slideDataRef = useRef(slideData);
+
+  // Use projectId or currentProjectId (whichever is available)
+  const activeProjectId = currentProjectId;
+
+  // Frame image handler for backend upload/delete
+  const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
+    activeProjectId,
+    slideId
+  );
+
+  const frameImages = slideData?.frameImages || {};
+  const frameMeta = slideData?.frameMeta || {};
+
+  // Keep ref updated with latest slideData
+  useEffect(() => {
+    slideDataRef.current = slideData;
+  }, [slideData]);
+
+  // Update stable positions when fieldPositions prop changes
+  useEffect(() => {
+    if (fieldPositions) {
+      stablePositionsRef.current = {
+        ...stablePositionsRef.current,
+        ...fieldPositions
+      };
+    }
+  }, [fieldPositions]);
+
+  const handleImageUpload = async (frameId, imageData) => {
+    const currentFrameImages = slideDataRef.current?.frameImages || {};
+    const currentFrameMeta = slideDataRef.current?.frameMeta || {};
+    const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
+
+    updateSlideData({ frameImages: updatedFrameImages });
+
+    const hasDatabaseId = slideData?._appState?.databaseId || false;
+    if (activeProjectId && hasDatabaseId) {
+      const result = await uploadFrameImage(frameId, imageData);
+      if (result && result.success) {
+        updateSlideData({
+          frameImages: updatedFrameImages,
+          frameMeta: {
+            ...currentFrameMeta,
+            [frameId]: {
+              filePath: result.filePath,
+              url: result.url,
+              width: result.width,
+              height: result.height,
+              aspectRatio: result.aspectRatio
+            }
+          }
+        });
+      }
+    }
+  };
+
+  const handleImageRemove = async (frameId) => {
+    const filePath = frameMeta[frameId]?.filePath;
+    if (filePath && activeProjectId) {
+      await deleteFrameImage(frameId, filePath);
+    }
+    const newFrameImages = { ...frameImages };
+    const newFrameMeta = { ...frameMeta };
+    delete newFrameImages[frameId];
+    delete newFrameMeta[frameId];
+    updateSlideData({ frameImages: newFrameImages, frameMeta: newFrameMeta });
+  };
 
   // Helper function to handle both mouse and touch events
   const getEventCoordinates = (e) => {
@@ -120,63 +189,11 @@ const FireHazard = forwardRef(({
     };
 
     loadSlideData();
-  }, [slideId, currentProjectId, setFieldPositions, setFormData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideId, currentProjectId]);
 
-  // Save field positions to backend when they change
-  useEffect(() => {
-    const saveDimensions = async () => {
-      if (!fieldPositions || Object.keys(fieldPositions).length === 0 || !currentProjectId) {
-        return;
-      }
-
-      const dimensionsToSave = {};
-      Object.entries(fieldPositions).forEach(([field, data]) => {
-        // Save if there's any positioning data (not just width/height)
-        if (data && (data.top !== undefined || data.left !== undefined || data.width || data.height)) {
-          dimensionsToSave[field] = {
-            ...(data.width !== undefined && { width: data.width }),
-            ...(data.height !== undefined && { height: data.height }),
-            ...(data.x !== undefined && { x: data.x }),
-            ...(data.y !== undefined && { y: data.y }),
-            ...(data.top !== undefined && { top: data.top }),
-            ...(data.left !== undefined && { left: data.left })
-          };
-        }
-      });
-
-      if (Object.keys(dimensionsToSave).length > 0) {
-        try {
-          await slideApiService.updateFieldPositions(currentProjectId, slideId, 'fire_hazard', dimensionsToSave);
-          console.log('Saved fire hazard field positions to backend for slide:', slideId);
-        } catch (error) {
-          console.warn('Failed to save fire hazard field positions to backend:', error);
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(saveDimensions, 5000);
-    return () => clearTimeout(timeoutId);
-  }, [fieldPositions, slideId, currentProjectId]);
-
-  // Save fire hazard content to backend when formData changes
-  useEffect(() => {
-    const saveFireHazardContent = async () => {
-      if (!formData || !currentProjectId) {
-        return;
-      }
-
-      try {
-        console.log('💾 Saving fire hazard data:', formData);
-        await slideApiService.updateFireHazard(currentProjectId, slideId, formData);
-        console.log('Saved fire hazard content to backend for slide:', slideId);
-      } catch (error) {
-        console.error('Failed to save fire hazard content to backend:', error);
-      }
-    };
-
-    const timeoutId = setTimeout(saveFireHazardContent, 5000); // Longer delay for content to prevent ERR_INSUFFICIENT_RESOURCES
-    return () => clearTimeout(timeoutId);
-  }, [formData, slideId, currentProjectId]);
+  // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
+  // This eliminates redundant API calls and prevents rate limiting issues
 
   const handleChange = (field, value) => {
     if (setFormData) {
@@ -347,6 +364,43 @@ const FireHazard = forwardRef(({
     }
   }, [isDragging, isResizing, draggingField, resizingField, dragOffset, resizeStart, zoomLevel, fieldPositions, setFieldPositions]);
 
+  // Render simple text field for premise location (bottom right, like other slides)
+  const renderSimpleField = (field, placeholder) => {
+    const isActive = selectedField === field;
+    const defaultPosition = { top: 670, right: 1.2 };
+    const position = (fieldPositions && fieldPositions[field]) || defaultPosition;
+
+    const textContent = formData[field] || placeholder;
+    const estimatedWidth = Math.max(300, Math.min(900, textContent.length * 16 + 120));
+
+    return (
+      <textarea
+        key={field}
+        value={formData[field] || ""}
+        onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
+        onFocus={() => onSelect(field)}
+        placeholder={placeholder}
+        style={{
+          position: "absolute",
+          width: `${estimatedWidth}px`,
+          background: isActive ? "rgba(255,255,255,0.2)" : "transparent",
+          border: isActive ? "2px solid rgba(0,0,0,0.3)" : "2px solid transparent",
+          borderRadius: "4px",
+          fontSize: "28px",
+          fontFamily: "'Montserrat', sans-serif",
+          textAlign: "right",
+          resize: "none",
+          color: "#8B9A5B",
+          padding: "4px 0px 4px 8px",
+          outline: "none",
+          whiteSpace: "nowrap",
+          top: `${position.top}px`,
+          right: `${position.right}%`,
+        }}
+      />
+    );
+  };
+
   // Render bullet text field with Comments-style drag and resize
   const renderBulletTextbox = (field, content, defaultTop = 200) => {
     const isActive = selectedField === field;
@@ -399,43 +453,87 @@ const FireHazard = forwardRef(({
         >
           •
         </span>
-        
-        {/* Delete button - only show when active */}
+
+        {/* Toolbar - only show when active */}
         {isActive && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (setFormData) {
-                setFormData({ ...formData, [field]: "" });
-              }
-              if (setFieldPositions) {
-                const updatedPositions = { ...(fieldPositions || {}) };
-                delete updatedPositions[field];
-                setFieldPositions(updatedPositions);
-              }
-              onSelect(null);
-            }}
+          <div
             style={{
               position: "absolute",
-              top: "-8px",
-              right: "-8px",
-              width: "20px",
-              height: "20px",
-              borderRadius: "50%",
-              background: "#ff4444",
-              color: "white",
-              border: "none",
-              fontSize: "12px",
-              cursor: "pointer",
+              top: "-36px",
+              left: "50%",
+              transform: "translateX(-50%)",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
+              gap: "4px",
+              padding: "4px 8px",
+              background: "rgba(255, 255, 255, 0.95)",
+              border: "1px solid #ccc",
+              borderRadius: "20px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              zIndex: 1001,
             }}
-            title="Delete text field"
           >
-            ×
-          </button>
+            {/* Drag Handle Button */}
+            <button
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                handleFieldMouseDown(e, field);
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                handleFieldMouseDown(e, field);
+              }}
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "50%",
+                background: "#6c757d",
+                color: "white",
+                border: "none",
+                fontSize: "14px",
+                cursor: "move",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+              title="Drag to move"
+            >
+              ⋮⋮
+            </button>
+
+            {/* Delete Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (setFormData) {
+                  setFormData({ ...formData, [field]: "" });
+                }
+                if (setFieldPositions) {
+                  const updatedPositions = { ...(fieldPositions || {}) };
+                  delete updatedPositions[field];
+                  setFieldPositions(updatedPositions);
+                }
+                onSelect(null);
+              }}
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "50%",
+                background: "#dc3545",
+                color: "white",
+                border: "none",
+                fontSize: "14px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+              title="Delete"
+            >
+              ×
+            </button>
+          </div>
         )}
         
         {/* Text field container with resize handles */}
@@ -642,9 +740,9 @@ const FireHazard = forwardRef(({
         handleMouseUp(e);
       }}
       onClick={(e) => {
-        
-        // If clicking on empty area (not on text field or image), deselect
-        if (e.target === e.currentTarget) {
+        // Deselect unless clicking on an interactive element (textarea, input, button)
+        const tag = e.target.tagName?.toLowerCase();
+        if (tag !== 'textarea' && tag !== 'input' && tag !== 'button' && !e.target.closest('.no-deselect')) {
           onSelect(null);
         }
       }}
@@ -676,17 +774,27 @@ const FireHazard = forwardRef(({
         renderBulletTextbox(key, formData[key], 500)
       ))}
 
-      {/* Image Component for paste functionality */}
-      <MultiImageComponent
-        images={slideData?.images || []}
-        onUpdateImages={async (updatedImages) => {
-          if (updateSlideData) {
-            await updateSlideData({ images: updatedImages });
-          }
+      {/* Premise Location - bottom right */}
+      {renderSimpleField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
+
+      {/* Single image frame - positioned higher to leave space for text below */}
+      <div
+        style={{
+          position: "absolute",
+          top: "108px",
+          left: "108px",
+          width: "1064px",
+          height: "471px",
         }}
-        zoomLevel={zoomLevel}
-        isActiveSlide={isActiveSlide}
-      />
+      >
+        <ImageFrame
+          id={1}
+          image={frameImages[1]}
+          onImageUpload={handleImageUpload}
+          onImageRemove={handleImageRemove}
+          style={{ width: "1064px", height: "471px" }}
+        />
+      </div>
     </div>
   );
 });

@@ -38,3 +38,52 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+class UserProfile(models.Model):
+    """
+    User profile customization settings
+    Stores avatar, header, background preferences for profile page
+    """
+    BACKGROUND_TYPE_CHOICES = [
+        ('color', 'Solid Color'),
+        ('image', 'Image'),
+    ]
+
+    BACKGROUND_DISPLAY_CHOICES = [
+        ('pattern', 'Pattern (Repeated)'),
+        ('fit', 'Fit to Screen'),
+        ('fade-down', 'Fade Down'),
+        ('fade-up', 'Fade Up'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+
+    # Avatar (circle display on frontend)
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+
+    # Header image
+    header_image = models.ImageField(upload_to='headers/', null=True, blank=True)
+
+    # Background customization
+    background_type = models.CharField(
+        max_length=10,
+        choices=BACKGROUND_TYPE_CHOICES,
+        default='color'
+    )
+    background_color = models.CharField(max_length=7, default='#2a7a2a')  # Default green
+    background_image = models.ImageField(upload_to='backgrounds/', null=True, blank=True)
+    background_display = models.CharField(
+        max_length=10,
+        choices=BACKGROUND_DISPLAY_CHOICES,
+        default='fit'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_profiles'
+
+    def __str__(self):
+        return f"{self.user.email}'s profile"

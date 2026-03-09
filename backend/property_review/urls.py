@@ -32,6 +32,12 @@ urlpatterns = [
     path('textbox-dimensions/save/', views.save_textbox_dimensions_view, name='save_textbox_dimensions'),
     path('textbox-dimensions/<str:slide_id>/', views.get_textbox_dimensions_view, name='get_textbox_dimensions'),
     
+    # Exported PDF endpoints
+    path('exported-pdfs/', views.list_exported_pdfs_view, name='list_exported_pdfs'),
+    path('exported-pdfs/upload/', views.upload_exported_pdf_view, name='upload_exported_pdf'),
+    path('exported-pdfs/<uuid:export_id>/delete/', views.delete_exported_pdf_view, name='delete_exported_pdf'),
+    path('exported-pdfs/<uuid:export_id>/serve/', views.serve_exported_pdf_view, name='serve_exported_pdf'),
+
     # CSRF token endpoint
     path('auth/csrf-token/', views.get_csrf_token_view, name='get_csrf_token'),
 

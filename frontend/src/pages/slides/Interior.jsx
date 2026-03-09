@@ -1,7 +1,8 @@
-import { useRef, forwardRef, useImperativeHandle, useState } from "react";
+import { useRef, forwardRef, useImperativeHandle, useState, useEffect } from "react";
 import FrameLayout from "../../components/FrameLayout";
 import FrameSelector from "../../components/FrameSelector";
 import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
+import slideApiService from "../../services/slideApiService";
 
 const Interior = forwardRef(({
   formData,
@@ -22,6 +23,7 @@ const Interior = forwardRef(({
 }, ref) => {
 
   const containerRef = useRef(null);
+  const slideDataRef = useRef(slideData);
 
   // Use projectId or currentProjectId (whichever is available)
   const activeProjectId = projectId || currentProjectId;
@@ -37,17 +39,46 @@ const Interior = forwardRef(({
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
 
+  // Keep ref updated with latest slideData
+  useEffect(() => {
+    slideDataRef.current = slideData;
+  }, [slideData]);
+
   const handleImageUpload = async (frameId, imageData, file) => {
+    console.log('🔵 [Interior] handleImageUpload called for frameId:', frameId);
+    console.log('🔵 [Interior] Current slideData.frameImages:', slideData?.frameImages);
+    console.log('🔵 [Interior] Ref slideData.frameImages:', slideDataRef.current?.frameImages);
+
+    // IMPORTANT: Use ref to get the LATEST slideData (not stale closure)
+    const currentFrameImages = slideDataRef.current?.frameImages || {};
+    const currentFrameMeta = slideDataRef.current?.frameMeta || {};
+
+    console.log('🔵 [Interior] currentFrameImages:', currentFrameImages);
+    console.log('🔵 [Interior] Keys in currentFrameImages:', Object.keys(currentFrameImages));
+
+    // Update frameImages immediately for UI responsiveness
+    const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
+
+    console.log('🔵 [Interior] updatedFrameImages:', Object.keys(updatedFrameImages));
+
     updateSlideData({
-      frameImages: { ...frameImages, [frameId]: imageData }
+      frameImages: updatedFrameImages
     });
 
-    if (activeProjectId) {
+    console.log('🔵 [Interior] Called updateSlideData with updatedFrameImages');
+
+    // Only upload to backend if project has a database ID (not just a temp UUID)
+    // This prevents upload failures when project is newly created
+    const hasDatabaseId = slideData?._appState?.databaseId || false;
+
+    if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
       if (result && result.success) {
+        // Combine both frameImages and frameMeta in a single update
         updateSlideData({
+          frameImages: updatedFrameImages,
           frameMeta: {
-            ...frameMeta,
+            ...currentFrameMeta,
             [frameId]: {
               filePath: result.filePath,
               url: result.url,
@@ -57,7 +88,11 @@ const Interior = forwardRef(({
             }
           }
         });
+      } else if (result && !result.success) {
+        console.error('Failed to upload frame', frameId, 'to backend:', result.error);
       }
+    } else {
+      console.warn('No database ID yet - image saved locally only');
     }
   };
 
@@ -91,6 +126,43 @@ const Interior = forwardRef(({
       }
     }
   }));
+
+  // Load slide data from backend when component mounts
+  useEffect(() => {
+    const loadSlideData = async () => {
+      if (!currentProjectId || !slideId) {
+        return;
+      }
+
+      try {
+        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+
+        // Load slide content if it exists
+        if (result.content && result.content.interiorData && setFormData) {
+          const interiorData = result.content.interiorData;
+
+          // Only load if we have actual form data
+          const hasFormData = Object.keys(interiorData).some(key =>
+            interiorData[key] && interiorData[key].toString().trim() !== ''
+          );
+
+          if (hasFormData) {
+            setFormData(prev => ({
+              ...prev,
+              ...interiorData
+            }));
+          }
+        }
+      } catch (error) {
+        // Silently handle errors for draft projects
+      }
+    };
+
+    loadSlideData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideId, currentProjectId]);
+
+  // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
 
   const renderField = (field, placeholder) => {
     const isActive = selectedField === field;

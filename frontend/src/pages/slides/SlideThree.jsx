@@ -1,6 +1,7 @@
 import { useState, forwardRef, useImperativeHandle, useEffect, useRef } from "react";
 import FrameLayout from "../../components/FrameLayout";
 import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
+import slideApiService from "../../services/slideApiService";
 
 const SlideThree = forwardRef(({
   formData,
@@ -20,6 +21,7 @@ const SlideThree = forwardRef(({
   currentProjectId,
 }, ref) => {
   const containerRef = useRef(null);
+  const slideDataRef = useRef(slideData);
 
   // Use projectId or currentProjectId (whichever is available)
   const activeProjectId = projectId || currentProjectId;
@@ -34,17 +36,35 @@ const SlideThree = forwardRef(({
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
 
+  // Keep ref updated with latest slideData
+  useEffect(() => {
+    slideDataRef.current = slideData;
+  }, [slideData]);
+
   const handleImageUpload = async (frameId, imageData, file) => {
+    // IMPORTANT: Use ref to get the LATEST slideData (not stale closure)
+    const currentFrameImages = slideDataRef.current?.frameImages || {};
+    const currentFrameMeta = slideDataRef.current?.frameMeta || {};
+
+    // Store the base64 data immediately for display
+    const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
+
     updateSlideData({
-      frameImages: { ...frameImages, [frameId]: imageData }
+      frameImages: updatedFrameImages
     });
 
-    if (activeProjectId) {
+    // Only upload to backend if project has a database ID (not just a temp UUID)
+    // This prevents upload failures when project is newly created
+    const hasDatabaseId = slideData?._appState?.databaseId || false;
+
+    if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
       if (result && result.success) {
+        // Store backend metadata and combine with frameImages
         updateSlideData({
+          frameImages: updatedFrameImages,
           frameMeta: {
-            ...frameMeta,
+            ...currentFrameMeta,
             [frameId]: {
               filePath: result.filePath,
               url: result.url,
@@ -103,6 +123,44 @@ const SlideThree = forwardRef(({
       // No positioning sync needed (fixed positions)
     }
   }));
+
+  // Load slide data from backend when component mounts
+  useEffect(() => {
+    const loadSlideData = async () => {
+      if (!currentProjectId || !slideId) {
+        return;
+      }
+
+      try {
+        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+
+        // Load slide content if it exists
+        if (result.content && result.content.slideThreeData && setFormData) {
+          const slideThreeData = result.content.slideThreeData;
+
+          // Only load if we have actual form data
+          const hasFormData = Object.keys(slideThreeData).some(key =>
+            slideThreeData[key] && slideThreeData[key].toString().trim() !== ''
+          );
+
+          if (hasFormData) {
+            setFormData(prev => ({
+              ...prev,
+              ...slideThreeData
+            }));
+          }
+        }
+      } catch (error) {
+        // Silently handle errors for draft projects
+      }
+    };
+
+    loadSlideData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideId, currentProjectId]);
+
+  // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
+
   const renderField = (field, placeholder) => {
     const isActive = selectedField === field;
     const defaultPosition = {
@@ -182,7 +240,7 @@ const SlideThree = forwardRef(({
             position: "relative",
             width: "600px",
             height: "44px",
-            background: isActive ? "rgba(255,255,255,0.2)" : "transparent",
+            backgroundColor: isActive ? "rgba(255,255,255,0.2)" : "transparent",
             border: isActive ? "2px solid rgba(0,0,0,0.3)" : "2px solid transparent",
             borderRadius: "4px",
             fontSize: "28px",
@@ -194,10 +252,8 @@ const SlideThree = forwardRef(({
             boxSizing: "border-box",
             lineHeight: "44px",
             cursor: "pointer",
-            backgroundImage: "none",
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "8px center",
-            backgroundSize: "20px",
+            whiteSpace: "nowrap",
+            overflow: "visible",
           }}
         >
           {options.find(opt => opt.value === currentViewType)?.label || "www.(source).com/(source) – (mm/yyyy)"}
@@ -233,9 +289,10 @@ const SlideThree = forwardRef(({
                   cursor: "pointer",
                   textAlign: "left",
                   borderBottom: "1px solid #eee",
+                  whiteSpace: "nowrap",
                 }}
-                onMouseEnter={(e) => e.target.style.background = "#f5f5f5"}
-                onMouseLeave={(e) => e.target.style.background = "transparent"}
+                onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
+                onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
               >
                 {option.label}
               </div>

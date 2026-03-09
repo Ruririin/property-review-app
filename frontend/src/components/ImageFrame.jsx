@@ -91,7 +91,7 @@ const ImageFrame = ({
         backgroundColor: isDragging ? '#f5f7f0' : (image ? 'transparent' : 'white'),
         outline: isFocused && !image ? '2px solid #8B9A5B' : 'none',
         outlineOffset: '2px',
-        overflow: image ? 'visible' : 'hidden'
+        overflow: 'hidden'
       }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -108,52 +108,44 @@ const ImageFrame = ({
           <div
             className="w-full h-full"
             style={{
-              backgroundColor: 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px',
-              marginTop: '-20px',
-              position: 'relative'
+              position: 'relative',
+              width: '100%',
+              height: '100%',
             }}
           >
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <img
-                src={image}
-                alt={`Frame ${id}`}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  width: 'auto',
-                  height: 'auto',
-                  objectFit: 'contain',
-                  display: 'block',
-                  border: '4px solid black'
-                }}
-              />
-              <button
-                onClick={handleRemove}
-                className="no-export bg-red-600 hover:bg-red-700 text-white rounded-full shadow-lg transition-colors"
-                style={{
-                  position: 'absolute',
-                  top: '-10px',
-                  right: '-10px',
-                  width: '20px',
-                  height: '20px',
-                  padding: '0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: 'none',
-                  cursor: 'pointer',
-                  zIndex: 9999,
-                  backgroundColor: '#dc2626'
-                }}
-                title="Remove image"
-              >
-                <X size={12} strokeWidth={3} color="white" />
-              </button>
-            </div>
+            <img
+              src={image}
+              alt={`Frame ${id}`}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+                border: '4px solid black',
+              }}
+            />
+            <button
+              onClick={handleRemove}
+              className="no-export bg-red-600 hover:bg-red-700 text-white rounded-full shadow-lg transition-colors"
+              style={{
+                position: 'absolute',
+                top: '-10px',
+                right: '-10px',
+                width: '20px',
+                height: '20px',
+                padding: '0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                cursor: 'pointer',
+                zIndex: 9999,
+                backgroundColor: '#dc2626'
+              }}
+              title="Remove image"
+            >
+              <X size={12} strokeWidth={3} color="white" />
+            </button>
           </div>
         </>
       ) : (

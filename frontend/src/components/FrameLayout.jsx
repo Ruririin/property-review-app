@@ -8,194 +8,139 @@ const FrameLayout = ({
   onImageRemove,
   customLayout = null
 }) => {
-  const BORDER_INCHES = 1.5;
-  const SLIDE_WIDTH = 10;
-  const SLIDE_HEIGHT = 7.5;
-  const PIXELS_PER_INCH = 96;
-
-  const borderPx = BORDER_INCHES * PIXELS_PER_INCH;
-  const slideWidthPx = SLIDE_WIDTH * PIXELS_PER_INCH;
-  const slideHeightPx = SLIDE_HEIGHT * PIXELS_PER_INCH;
-
-  const contentWidth = slideWidthPx - (borderPx * 2);
-  const contentHeight = slideHeightPx - (borderPx * 2);
-
+  // Container dimensions match the parent (1064 x 504) set by each slide component
+  const containerWidth = 1064;
+  const containerHeight = 504;
   const gap = 16;
 
+  // Build explicit pixel-based layouts for reliable html2canvas PDF export
   const getLayoutFrames = () => {
     if (customLayout) {
-      return customLayout;
+      return { type: 'custom', frames: customLayout };
     }
+
+    const halfW = (containerWidth - gap) / 2;
+    const halfH = (containerHeight - gap) / 2;
+    const thirdW = (containerWidth - gap * 2) / 3;
 
     switch (layoutType) {
       case 1:
-        // 1 frame uses full content area
-        return [
-          {
-            id: 1,
-            style: {}
-          }
-        ];
+        return {
+          type: 'single',
+          frames: [
+            { id: 1, style: { width: `${containerWidth}px`, height: `${containerHeight}px` } }
+          ]
+        };
 
       case 2:
-        return [
-          { id: 1, style: { flex: 1 } },
-          { id: 2, style: { flex: 1 } }
-        ];
+        return {
+          type: 'row',
+          frames: [
+            { id: 1, style: { width: `${halfW}px`, height: `${containerHeight}px` } },
+            { id: 2, style: { width: `${halfW}px`, height: `${containerHeight}px` } }
+          ]
+        };
 
       case 3:
-        return [
-          { id: 1, style: {} },
-          { id: 2, style: {} },
-          { id: 3, style: {} }
-        ];
+        return {
+          type: 'top2-bottom1',
+          topFrames: [
+            { id: 1, style: { width: `${halfW}px`, height: `${halfH}px` } },
+            { id: 2, style: { width: `${halfW}px`, height: `${halfH}px` } }
+          ],
+          bottomFrames: [
+            { id: 3, style: { width: `${containerWidth}px`, height: `${halfH}px` } }
+          ]
+        };
 
       case 4:
-        return [
-          { id: 1, style: {} },
-          { id: 2, style: {} },
-          { id: 3, style: {} },
-          { id: 4, style: {} }
-        ];
+        return {
+          type: 'grid2x2',
+          topFrames: [
+            { id: 1, style: { width: `${halfW}px`, height: `${halfH}px` } },
+            { id: 2, style: { width: `${halfW}px`, height: `${halfH}px` } }
+          ],
+          bottomFrames: [
+            { id: 3, style: { width: `${halfW}px`, height: `${halfH}px` } },
+            { id: 4, style: { width: `${halfW}px`, height: `${halfH}px` } }
+          ]
+        };
 
       case 6:
-        return [
-          { id: 1, style: {} },
-          { id: 2, style: {} },
-          { id: 3, style: {} },
-          { id: 4, style: {} },
-          { id: 5, style: {} },
-          { id: 6, style: {} }
-        ];
+        return {
+          type: 'grid3x2',
+          topFrames: [
+            { id: 1, style: { width: `${thirdW}px`, height: `${halfH}px` } },
+            { id: 2, style: { width: `${thirdW}px`, height: `${halfH}px` } },
+            { id: 3, style: { width: `${thirdW}px`, height: `${halfH}px` } }
+          ],
+          bottomFrames: [
+            { id: 4, style: { width: `${thirdW}px`, height: `${halfH}px` } },
+            { id: 5, style: { width: `${thirdW}px`, height: `${halfH}px` } },
+            { id: 6, style: { width: `${thirdW}px`, height: `${halfH}px` } }
+          ]
+        };
 
       default:
-        return [];
+        return { type: 'single', frames: [] };
     }
   };
 
-  const frames = getLayoutFrames();
+  const layout = getLayoutFrames();
 
-  const getContainerStyle = () => {
-    // Custom layout (e.g., Crime Rate slide)
-    if (customLayout) {
-      return {
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%',
-        height: '100%',
-        padding: '0'
-      };
-    }
+  const renderFrame = (frame) => (
+    <ImageFrame
+      key={frame.id}
+      id={frame.id}
+      image={images[frame.id]}
+      onImageUpload={onImageUpload}
+      onImageRemove={onImageRemove}
+      style={frame.style}
+    />
+  );
 
-    if (layoutType === 3) {
-      return {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gridTemplateRows: 'auto auto',
-        gap: `${gap}px`,
-        width: '100%',
-        height: '100%',
-        padding: '0'
-      };
-    }
+  const rowStyle = { display: 'flex', gap: `${gap}px` };
 
-    if (layoutType === 4) {
-      return {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gridTemplateRows: 'repeat(2, 1fr)',
-        gap: `${gap}px`,
-        width: '100%',
-        height: '100%',
-        padding: '0'
-      };
-    }
-
-    if (layoutType === 6) {
-      return {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gridTemplateRows: 'repeat(2, 1fr)',
-        gap: `${gap}px`,
-        width: '100%',
-        height: '100%',
-        padding: '0'
-      };
-    }
-
-    // Default: layout type 1 or 2 (no grid)
-    if (layoutType === 1) {
-      return {
-        width: '100%',
-        height: '100%',
-        padding: '0',
-        position: 'relative'
-      };
-    }
-
-    return {
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100%',
-      height: '100%',
-      padding: '0',
-      gap: `${gap}px`
-    };
-  };
-
-  const getFrameStyle = (frame) => {
-    if (layoutType === 3 && frame.id === 3) {
-      return {
-        ...frame.style,
-        gridColumn: '1 / -1'
-      };
-    }
-
-    return frame.style;
-  };
-
-  // Custom rendering for custom layouts (e.g., Crime Rate)
-  if (customLayout) {
+  // Custom layout (e.g., Crime Rate: 1 top rectangle, 2 bottom squares)
+  if (layout.type === 'custom') {
+    const frames = layout.frames;
     return (
-      <div style={getContainerStyle()}>
-        {/* Top frame */}
-        <ImageFrame
-          key={frames[0].id}
-          id={frames[0].id}
-          image={images[frames[0].id]}
-          onImageUpload={onImageUpload}
-          onImageRemove={onImageRemove}
-          style={frames[0].style}
-        />
-        {/* Bottom row with 2 frames */}
-        <div style={{ display: 'flex', gap: `${gap}px` }}>
-          {frames.slice(1).map((frame) => (
-            <ImageFrame
-              key={frame.id}
-              id={frame.id}
-              image={images[frame.id]}
-              onImageUpload={onImageUpload}
-              onImageRemove={onImageRemove}
-              style={{ ...frame.style, marginRight: 0 }}
-            />
-          ))}
+      <div style={{ display: 'flex', flexDirection: 'column', width: `${containerWidth}px`, height: `${containerHeight}px` }}>
+        {renderFrame(frames[0])}
+        <div style={rowStyle}>
+          {frames.slice(1).map((frame) => renderFrame(frame))}
         </div>
       </div>
     );
   }
 
+  // Single frame
+  if (layout.type === 'single') {
+    return (
+      <div style={{ width: `${containerWidth}px`, height: `${containerHeight}px` }}>
+        {layout.frames.map(renderFrame)}
+      </div>
+    );
+  }
+
+  // Two frames side by side
+  if (layout.type === 'row') {
+    return (
+      <div style={{ ...rowStyle, width: `${containerWidth}px`, height: `${containerHeight}px` }}>
+        {layout.frames.map(renderFrame)}
+      </div>
+    );
+  }
+
+  // Layouts with top row + bottom row
   return (
-    <div style={getContainerStyle()}>
-      {frames.map((frame) => (
-        <ImageFrame
-          key={frame.id}
-          id={frame.id}
-          image={images[frame.id]}
-          onImageUpload={onImageUpload}
-          onImageRemove={onImageRemove}
-          style={getFrameStyle(frame)}
-        />
-      ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: `${gap}px`, width: `${containerWidth}px`, height: `${containerHeight}px` }}>
+      <div style={rowStyle}>
+        {layout.topFrames.map(renderFrame)}
+      </div>
+      <div style={rowStyle}>
+        {layout.bottomFrames.map(renderFrame)}
+      </div>
     </div>
   );
 };

@@ -22,9 +22,12 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
+      console.log('🔐 Checking auth status...');
       const userData = await authApi.checkAuth();
+      console.log('✅ Auth check successful:', userData);
       setUser(userData);
     } catch (error) {
+      console.log('❌ Auth check failed:', error.message);
       setUser(null);
     } finally {
       setLoading(false);

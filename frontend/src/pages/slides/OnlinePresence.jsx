@@ -1,7 +1,8 @@
-import { useState, useRef, forwardRef, useImperativeHandle } from "react";
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react";
 import FrameLayout from "../../components/FrameLayout";
 import FrameSelector from "../../components/FrameSelector";
 import { useFrameImageHandler } from "../../hooks/useFrameImageHandler";
+import slideApiService from "../../services/slideApiService";
 
 const OnlinePresence = forwardRef(({
   formData,
@@ -21,6 +22,7 @@ const OnlinePresence = forwardRef(({
 }, ref) => {
 
   const containerRef = useRef(null);
+  const slideDataRef = useRef(slideData);
 
   const activeProjectId = projectId || currentProjectId;
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(activeProjectId, slideId);
@@ -30,13 +32,32 @@ const OnlinePresence = forwardRef(({
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
 
+  // Keep ref updated with latest slideData
+  useEffect(() => {
+    slideDataRef.current = slideData;
+  }, [slideData]);
+
   const handleImageUpload = async (frameId, imageData, file) => {
-    updateSlideData({ frameImages: { ...frameImages, [frameId]: imageData } });
-    if (activeProjectId) {
+    // IMPORTANT: Use ref to get the LATEST slideData (not stale closure)
+    const currentFrameImages = slideDataRef.current?.frameImages || {};
+    const currentFrameMeta = slideDataRef.current?.frameMeta || {};
+
+    // Store the base64 data immediately for display
+    const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
+
+    updateSlideData({ frameImages: updatedFrameImages });
+
+    // Only upload to backend if project has a database ID (not just a temp UUID)
+    // This prevents upload failures when project is newly created
+    const hasDatabaseId = slideData?._appState?.databaseId || false;
+
+    if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
       if (result?.success) {
+        // Store backend metadata and combine with frameImages
         updateSlideData({
-          frameMeta: { ...frameMeta, [frameId]: { filePath: result.filePath, url: result.url, width: result.width, height: result.height, aspectRatio: result.aspectRatio } }
+          frameImages: updatedFrameImages,
+          frameMeta: { ...currentFrameMeta, [frameId]: { filePath: result.filePath, url: result.url, width: result.width, height: result.height, aspectRatio: result.aspectRatio } }
         });
       }
     }
@@ -72,8 +93,46 @@ const OnlinePresence = forwardRef(({
     }
   }));
 
+  // Load slide data from backend when component mounts
+  useEffect(() => {
+    const loadSlideData = async () => {
+      if (!currentProjectId || !slideId) {
+        return;
+      }
+
+      try {
+        const result = await slideApiService.getSlideContent(currentProjectId, slideId);
+
+        // Load slide content if it exists
+        if (result.content && result.content.onlinePresenceData && setFormData) {
+          const onlinePresenceData = result.content.onlinePresenceData;
+
+          // Only load if we have actual form data
+          const hasFormData = Object.keys(onlinePresenceData).some(key =>
+            onlinePresenceData[key] && onlinePresenceData[key].toString().trim() !== ''
+          );
+
+          if (hasFormData) {
+            setFormData(prev => ({
+              ...prev,
+              ...onlinePresenceData
+            }));
+          }
+        }
+      } catch (error) {
+        // Silently handle errors for draft projects
+      }
+    };
+
+    loadSlideData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideId, currentProjectId]);
+
+  // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
+
   const defaultFieldPositions = {
     websiteInfo: { bottom: -11.4, right: 0.5 }, // Bottom right position like street view
+    premiseLocation: { top: 670, right: 1.2 }, // Same positioning as other slides
   };
 
   const handleFieldMouseDown = (e, field) => {
@@ -282,6 +341,7 @@ const OnlinePresence = forwardRef(({
       }}
     >
       {renderField("websiteInfo", "www.(source).com/")}
+      {renderField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
 
       {/* Frame layout selector */}
       <FrameSelector

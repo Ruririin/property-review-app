@@ -12,7 +12,7 @@ import SlideThree from "../../pages/slides/SlideThree";
 import StreetView from "../../pages/slides/StreetView";
 import Interior from "../../pages/slides/Interior";
 import OnlinePresence from "../../pages/slides/OnlinePresence";
-import License from "../../pages/slides/License";
+import Inspection from "../../pages/slides/Inspection";
 import Comments from "../../pages/slides/Comments";
 import FireHazard from "../../pages/slides/FireHazard";
 import CrimeRate from "../../pages/slides/CrimeRate";
@@ -28,7 +28,7 @@ export const slideComponents = {
   street_view: StreetView,
   interior: Interior,
   online_presence: OnlinePresence,
-  license: License,
+  inspection: Inspection,
   comments: Comments,
   fire_hazard: FireHazard,
   crime_rate: CrimeRate,
@@ -137,7 +137,7 @@ export const slideTypeDisplayNames = {
   street_view: 'Street View',
   interior: 'Interior',
   online_presence: 'Online Presence',
-  license: 'License',
+  inspection: 'Inspection',
   comments: 'Comments',
   fire_hazard: 'Fire Hazard',
   crime_rate: 'Crime Rate',

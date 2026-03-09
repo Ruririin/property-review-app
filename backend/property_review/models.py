@@ -16,7 +16,8 @@ class Project(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     legacy_id = models.IntegerField(null=True, blank=True, db_index=True)  # For migrating old numeric IDs
-    status = models.CharField(max_length=20, default='editing')  # Match database varchar(20)
+    status = models.CharField(max_length=20, default='personal_draft')  # personal_draft, global_draft, for_review, approved, denied, conditional
+    exported_at = models.DateTimeField(null=True, blank=True)  # Set when PDF exported; triggers 1-week auto-delete
     formData = models.JSONField(default=dict, blank=True)
     slideData = models.JSONField(default=dict, blank=True)
     multipleLocationsMode = models.BooleanField(default=False)
@@ -101,6 +102,26 @@ class PropertyImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.slide}"
+
+class ExportedPDF(models.Model):
+    """
+    Exported PDF files from property review projects
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='exported_pdfs')
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='exported_pdfs')
+    filename = models.CharField(max_length=255)
+    project_name = models.CharField(max_length=255, blank=True)
+    file_path = models.CharField(max_length=500)  # Path in media storage
+    file_size = models.BigIntegerField(default=0)
+    export_date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'exported_pdfs'
+        ordering = ['-export_date']
+
+    def __str__(self):
+        return f"{self.filename} ({self.export_date})"
 
 class Template(models.Model):
     """

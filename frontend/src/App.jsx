@@ -3,6 +3,8 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Home from "./pages/Home";
 import AuthPage from "./pages/AuthPage";
 import Editor from "./pages/Editor.jsx";
+import Profile from "./pages/Profile.jsx";
+import Settings from "./pages/Settings.jsx";
 import PrivateRoute from "./components/PrivateRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt.jsx";
 import "./styles/pwa.css";
@@ -42,6 +44,22 @@ function App() {
           element={
             <PrivateRoute>
               <Editor />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <PrivateRoute>
+              <Settings />
             </PrivateRoute>
           }
         />
