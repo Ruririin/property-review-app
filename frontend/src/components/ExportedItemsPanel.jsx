@@ -68,9 +68,22 @@ export default function ExportedItemsPanel({ sessionUser }) {
         pdfUrl = URL.createObjectURL(await res.blob());
       }
       if (pdfUrl) {
+        // Add project creation date to filename if not already present
+        let filename = item.filename;
+
+        // Use project creation date, fallback to export date if not available
+        const dateToUse = item.project_created_at || item.export_date;
+        const createdDate = new Date(dateToUse);
+        const dateStr = `${createdDate.getMonth() + 1}-${createdDate.getDate()}-${createdDate.getFullYear()}`;
+
+        // Only add date if filename doesn't already contain a date pattern
+        if (!filename.match(/\d{1,2}-\d{1,2}-\d{4}/)) {
+          filename = filename.replace('.pdf', ` ${dateStr}.pdf`);
+        }
+
         const a = document.createElement('a');
         a.href = pdfUrl;
-        a.download = item.filename;
+        a.download = filename;
         a.click();
         // Clean up blob URL after download
         if (!item.isDemoItem) setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
@@ -311,7 +324,16 @@ export default function ExportedItemsPanel({ sessionUser }) {
               >Close</button>
               {selectedPDF.dataUrl && (
                 <button onClick={() => {
-                  const a = document.createElement('a'); a.href = selectedPDF.dataUrl; a.download = selectedPDF.filename; a.click();
+                  // Add project creation date to filename if not already present
+                  let filename = selectedPDF.filename;
+                  // Use project creation date, fallback to export date if not available
+                  const dateToUse = selectedPDF.project_created_at || selectedPDF.export_date;
+                  const createdDate = new Date(dateToUse);
+                  const dateStr = `${createdDate.getMonth() + 1}-${createdDate.getDate()}-${createdDate.getFullYear()}`;
+                  if (!filename.match(/\d{1,2}-\d{1,2}-\d{4}/)) {
+                    filename = filename.replace('.pdf', ` ${dateStr}.pdf`);
+                  }
+                  const a = document.createElement('a'); a.href = selectedPDF.dataUrl; a.download = filename; a.click();
                 }} style={{
                   background: `linear-gradient(135deg, ${G}, ${GD})`, color: '#fff', border: 'none',
                   borderRadius: 12, padding: '9px 20px', fontSize: 13, fontWeight: 600,

@@ -18,6 +18,7 @@ class Project(models.Model):
     legacy_id = models.IntegerField(null=True, blank=True, db_index=True)  # For migrating old numeric IDs
     status = models.CharField(max_length=20, default='personal_draft')  # personal_draft, global_draft, for_review, approved, denied, conditional
     exported_at = models.DateTimeField(null=True, blank=True)  # Set when PDF exported; triggers 1-week auto-delete
+    last_export_time = models.BigIntegerField(null=True, blank=True)  # Timestamp (milliseconds) of last PDF export for change detection
     formData = models.JSONField(default=dict, blank=True)
     slideData = models.JSONField(default=dict, blank=True)
     multipleLocationsMode = models.BooleanField(default=False)

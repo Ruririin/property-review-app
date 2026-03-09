@@ -112,6 +112,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     title = serializers.CharField(source='name')  # Map 'name' to 'title' for frontend compatibility
     status = serializers.CharField(required=False, default='personal_draft')
     exported_at = serializers.DateTimeField(read_only=True)
+    last_export_time = serializers.IntegerField(required=False, allow_null=True)
     formData = serializers.JSONField(required=False, default=dict)
     slideData = serializers.JSONField(required=False, default=dict)
     multipleLocationsMode = serializers.BooleanField(required=False, default=False)
@@ -121,7 +122,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'title', 'description', 'created_at', 'updated_at', 'legacy_id',
-                 'status', 'exported_at', 'formData', 'slideData', 'multipleLocationsMode',
+                 'status', 'exported_at', 'last_export_time', 'formData', 'slideData', 'multipleLocationsMode',
                  'selectedLocationIndex', 'locations', 'owner']
         read_only_fields = ('created_at', 'updated_at')
         extra_kwargs = {
@@ -141,11 +142,12 @@ class TemplateSerializer(serializers.ModelSerializer):
 class ExportedPDFSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
+    project_created_at = serializers.SerializerMethodField()
 
     class Meta:
         model = ExportedPDF
         fields = ['id', 'project', 'owner', 'owner_name', 'filename', 'project_name', 'file_path',
-                  'file_size', 'export_date', 'url']
+                  'file_size', 'export_date', 'url', 'project_created_at']
         read_only_fields = ('export_date', 'owner')
 
     def get_url(self, obj):
@@ -158,3 +160,9 @@ class ExportedPDFSerializer(serializers.ModelSerializer):
         if obj.owner:
             return obj.owner.username or obj.owner.email
         return 'Unknown'
+
+    def get_project_created_at(self, obj):
+        """Return the project's creation date"""
+        if obj.project:
+            return obj.project.created_at
+        return None

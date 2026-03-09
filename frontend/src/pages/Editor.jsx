@@ -434,6 +434,10 @@ export default function Editor() {
   const [lastSaveTime, setLastSaveTime] = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+
+  // Export tracking state
+  const [lastExportTime, setLastExportTime] = useState(null);
+  const [hasChangedSinceExport, setHasChangedSinceExport] = useState(true);
   
   const addButtonRef = useRef(null);
   const canvasRef = useRef(null);
@@ -1502,6 +1506,8 @@ export default function Editor() {
         ...updates
       }
     }));
+    // Mark as changed since last export
+    setHasChangedSinceExport(true);
   };
 
   const updateFieldPositions = (slideId, positions) => {
@@ -1512,15 +1518,20 @@ export default function Editor() {
         fieldPositions: positions
       }
     }));
+    // Mark as changed since last export
+    setHasChangedSinceExport(true);
   };
 
   const updateSlideFormData = (slideId, formUpdates) => {
+    // Mark as changed since last export
+    setHasChangedSinceExport(true);
+
     if (multipleLocationsMode && selectedLocationIndex !== undefined) {
       // In multiple locations mode, update the location-specific data
       Object.entries(formUpdates).forEach(([field, value]) => {
         locationDataService.updateLocationData(selectedLocationIndex, field, value);
       });
-      
+
       // Only update globalLocationData if premiseLocation changed to avoid infinite loops
       if ('premiseLocation' in formUpdates) {
         const allLocationData = locationDataService.getAllLocationData();
@@ -1768,7 +1779,20 @@ export default function Editor() {
       }
       
       setCurrentProjectId(projectId);
-      
+
+      // Initialize export tracking for loaded project
+      // If project has been exported before, check lastExportTime from saved data
+      console.log('🔍 LOAD DEBUG - savedProject.lastExportTime:', savedProject.lastExportTime);
+      console.log('🔍 LOAD DEBUG - savedProject keys:', Object.keys(savedProject));
+
+      if (savedProject.lastExportTime) {
+        setLastExportTime(savedProject.lastExportTime);
+        setHasChangedSinceExport(false); // Assume no changes since it was just loaded
+      } else {
+        setLastExportTime(null);
+        setHasChangedSinceExport(true); // Never exported, so mark as changed
+      }
+
       // Track project-level editing activity when project is loaded
       if (sessionUser) {
         // console.log('Tracking project-level activity: project-${projectId} for user ${sessionUser}`);
@@ -1952,7 +1976,8 @@ export default function Editor() {
           selectedLocationIndex: selectedLocationIndex,
           status: currentProjectStatus || 'editing',
           showWebsite: showWebsite,
-          fontSizes: fontSizes
+          fontSizes: fontSizes,
+          lastExportTime: lastExportTime
         });
 
         // Save completed successfully
@@ -1994,8 +2019,11 @@ export default function Editor() {
   };
 
   const addSlide = (slideType) => {
+    // Mark as changed since last export
+    setHasChangedSinceExport(true);
+
     const slideTypeKey = slideType.toLowerCase().replace(/\s+/g, '_');
-    
+
     // Check if this slide type has a maximum limit
     if (slideTypeKey === 'street_view') {
       if (slideTypeCounts.street_view >= 7) {
@@ -2128,6 +2156,9 @@ export default function Editor() {
   };
 
   const deleteSlide = (slideId) => {
+    // Mark as changed since last export
+    setHasChangedSinceExport(true);
+
     if (slides.length > 1) {
       const slideToDelete = slides.find(slide => slide.id === slideId);
       const updatedSlides = slides.filter(slide => slide.id !== slideId);
@@ -2157,11 +2188,21 @@ export default function Editor() {
 
   const handleExportToPDF = async () => {
     try {
+      // Check if there have been changes since last export
+      console.log('🔍 EXPORT CHECK - lastExportTime:', lastExportTime);
+      console.log('🔍 EXPORT CHECK - hasChangedSinceExport:', hasChangedSinceExport);
+
+      if (lastExportTime && !hasChangedSinceExport) {
+        console.log('⚠️ Blocking export - no changes detected');
+        alert('This project has not been modified since the last export. Please make changes before exporting again.');
+        return;
+      }
+
       // Get slide elements in order
       const slideElements = slides
         .map(slide => slideRefs.current[slide.id])
         .filter(Boolean);
-      
+
       if (slideElements.length === 0) {
         alert('No slides found to export. Please make sure slides are loaded.');
         return;
@@ -2178,11 +2219,18 @@ export default function Editor() {
       // Wait a moment for any state updates to apply to DOM
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Generate filename using insured name from first slide
+      // Generate filename using insured name and project creation date
       const insuredName = getSlideData(1)?.formData?.insuredName?.trim();
-      const filename = insuredName 
-        ? `Property Review ${insuredName}.pdf`
-        : 'Property Review.pdf';
+
+      // Get project creation date from projectSaveService
+      const project = currentProjectId ? projectSaveService.projects.get(currentProjectId) : null;
+
+      const createdDate = project?.created ? new Date(project.created) : new Date();
+      const dateStr = `${createdDate.getMonth() + 1}-${createdDate.getDate()}-${createdDate.getFullYear()}`;
+
+      const filename = insuredName
+        ? `Property Review ${insuredName} ${dateStr}.pdf`
+        : `Property Review ${dateStr}.pdf`;
 
       // console.log(`Exporting ${slideElements.length} slides to: ${filename}`);
       
@@ -2194,7 +2242,7 @@ export default function Editor() {
         button.disabled = true;
       }
 
-      const pdfBlob = await exportToPDF(slideElements, filename);
+      const pdfBlob = await exportToPDF(slideElements, slideData, filename);
 
       // PDF exported successfully - upload to backend for the exported items panel
       if (pdfBlob) {
@@ -2206,6 +2254,10 @@ export default function Editor() {
             project_id: currentProjectId || null
           });
           console.log('Exported item saved to backend:', exportedItem);
+
+          // Mark export timestamp and reset change flag
+          setLastExportTime(Date.now());
+          setHasChangedSinceExport(false);
         } catch (error) {
           console.error('Failed to save exported item:', error);
         }
