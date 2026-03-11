@@ -32,6 +32,7 @@ const Website = forwardRef(({
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
+  const imageTransforms = slideData?.imageTransforms || {};
 
   // Keep ref updated with latest slideData
   useEffect(() => {
@@ -77,6 +78,16 @@ const Website = forwardRef(({
   const handleFrameLayoutChange = (layout) => {
     setFrameLayout(layout);
     updateSlideData({ frameLayout: layout });
+  };
+
+  const handleImageTransform = (frameId, transform) => {
+    const currentTransforms = slideDataRef.current?.imageTransforms || {};
+    updateSlideData({
+      imageTransforms: {
+        ...currentTransforms,
+        [frameId]: transform
+      }
+    });
   };
 
   // Pre-populate websiteInfo field with websiteUrl from slide 1 when component mounts
@@ -335,8 +346,10 @@ const Website = forwardRef(({
         <FrameLayout
           layoutType={frameLayout}
           images={frameImages}
+          imageTransforms={imageTransforms}
           onImageUpload={handleImageUpload}
           onImageRemove={handleImageRemove}
+          onImageTransform={handleImageTransform}
         />
       </div>
     </div>

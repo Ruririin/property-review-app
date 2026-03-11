@@ -60,6 +60,11 @@ class ProjectSaveService {
     // CRITICAL: Get existing project to preserve database flags
     const existingProject = this.projects.get(projectId);
 
+    // Detect if content actually changed (compare slideData and formData)
+    const hasContentChanged = !existingProject ||
+      JSON.stringify(projectData.slideData || {}) !== JSON.stringify(existingProject.slideData || {}) ||
+      JSON.stringify(projectData.formData || {}) !== JSON.stringify(existingProject.formData || {});
+
     const saveData = {
       id: projectId,
       title: projectData.title || projectData.insuredName || 'Untitled Project',
@@ -84,7 +89,7 @@ class ProjectSaveService {
       originalLroFormId: projectData.originalLroFormId || existingProject?.originalLroFormId || null,
       completedBy: projectData.completedBy || null,
       completedAt: projectData.completedAt || null,
-      lastModified: Date.now(),
+      lastModified: hasContentChanged ? Date.now() : (existingProject?.lastModified || Date.now()),
       created: this.projects.has(projectId) ? existingProject.created : Date.now(),
       // CRITICAL: Preserve database flags to prevent duplicate creation
       _savedToDatabase: projectData._savedToDatabase || existingProject?._savedToDatabase || false,
@@ -695,19 +700,32 @@ class ProjectSaveService {
    * Delete project - from both database and localStorage
    */
   async deleteProject(projectId) {
-    const project = this.projects.get(projectId);
-    if (!project) return false;
+    console.log('🗑️ Deleting project:', projectId);
 
+    // Try to delete from backend first (whether or not it's in cache)
     try {
       if (this.isOnline && this.useDatabase) {
+        console.log('🌐 Sending DELETE request to backend...');
         await apiService.deleteProject(projectId);
+        console.log('✅ Backend delete successful');
       }
     } catch (error) {
-      console.warn('Database delete failed:', error);
+      console.error('❌ Database delete failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      throw error; // Re-throw to prevent frontend cache deletion if backend fails
     }
 
-    // Always remove from cache and localStorage
-    this.projects.delete(projectId);
+    // Remove from cache if it exists
+    if (this.projects.has(projectId)) {
+      this.projects.delete(projectId);
+      console.log('🗑️ Removed project from cache');
+    } else {
+      console.log('ℹ️ Project not in cache (likely loaded via tab endpoint)');
+    }
     
     try {
       const stored = localStorage.getItem('savedProjects');
@@ -715,12 +733,13 @@ class ProjectSaveService {
         const projects = JSON.parse(stored);
         delete projects[projectId];
         localStorage.setItem('savedProjects', JSON.stringify(projects));
+        console.log('🗑️ Removed project from localStorage');
       }
     } catch (error) {
       console.warn('localStorage delete failed:', error);
     }
 
-    console.log(`🗑️ Project deleted: ${project.title} (${projectId})`);
+    console.log(`✅ Project deleted successfully: ${projectId}`);
     return true;
   }
 
@@ -951,5 +970,10 @@ class ProjectSaveService {
 
 // Create singleton instance
 const projectSaveService = new ProjectSaveService();
+
+// Expose globally for debugging and cache invalidation
+if (typeof window !== 'undefined') {
+  window.projectSaveService = projectSaveService;
+}
 
 export default projectSaveService;

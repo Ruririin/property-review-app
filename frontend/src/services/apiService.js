@@ -254,11 +254,16 @@ class ApiService {
     return this.request('/projects/approved-list/');
   }
 
-  async updateProjectStatus(projectId, newStatus) {
-    return this.request(`/projects/${projectId}/`, {
+  async updateProjectStatus(projectId, newStatus, statusNote = '') {
+    console.log(`🔄 Updating project status: ${projectId} -> ${newStatus}`);
+    const data = { status: newStatus };
+    if (statusNote) data.status_note = statusNote;
+    const result = await this.request(`/projects/${projectId}/`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: newStatus }),
+      body: JSON.stringify(data),
     });
+    console.log(`✅ Status updated in database:`, result.status);
+    return result;
   }
 
   /**

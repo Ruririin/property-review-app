@@ -5,7 +5,6 @@ const FrameSelector = ({ currentLayout, onLayoutChange }) => {
   const layouts = [
     { value: 1, icon: Maximize, label: '1' },
     { value: 2, icon: LayoutGrid, label: '2' },
-    { value: 3, icon: Grid2X2, label: '3' },
     { value: 4, icon: Grid2X2, label: '4' },
     { value: 6, icon: Grid3X3, label: '6' },
   ];

@@ -1,5 +1,5 @@
 // Service to fetch LRO form data and integrate with property review
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = '/api';
 
 class LRODataService {
   // Search for LRO forms

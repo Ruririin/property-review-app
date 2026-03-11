@@ -43,6 +43,13 @@ const StreetView = forwardRef(({
     slideDataRef.current = slideData;
   }, [slideData]);
 
+  // Sync frameLayout state when slideData changes (e.g. switching between same-type slides)
+  useEffect(() => {
+    if (slideData?.frameLayout !== undefined && slideData.frameLayout !== frameLayout) {
+      setFrameLayout(slideData.frameLayout);
+    }
+  }, [slideData?.frameLayout]);
+
   const handleImageUpload = async (frameId, imageData, file) => {
     // IMPORTANT: Use ref to get the LATEST slideData (not stale closure)
     const currentFrameImages = slideDataRef.current?.frameImages || {};
@@ -111,6 +118,7 @@ const StreetView = forwardRef(({
     setFrameLayout(layout);
     updateSlideData({ frameLayout: layout });
   };
+
 
   // Expose method for PDF export
   useImperativeHandle(ref, () => ({

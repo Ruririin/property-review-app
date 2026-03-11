@@ -105,7 +105,7 @@ const FrameLayout = ({
   if (layout.type === 'custom') {
     const frames = layout.frames;
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', width: `${containerWidth}px`, height: `${containerHeight}px` }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${gap}px`, width: `${containerWidth}px`, height: `${containerHeight}px` }}>
         {renderFrame(frames[0])}
         <div style={rowStyle}>
           {frames.slice(1).map((frame) => renderFrame(frame))}

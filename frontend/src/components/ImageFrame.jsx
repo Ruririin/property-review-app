@@ -1,18 +1,26 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 const ImageFrame = ({
   id,
   image,
   onImageUpload,
   onImageRemove,
+  onImageDimensionsChange, // New callback for image dimensions
   style,
   className = ''
 }) => {
   const fileInputRef = useRef(null);
   const containerRef = useRef(null);
+  const imageRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState(null);
+
+  // Transform state for multi-frame repositioning
+  const [imageTransform, setImageTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
 
   const handleFileSelect = (event) => {
     const file = event.target.files?.[0];
@@ -24,7 +32,24 @@ const ImageFrame = ({
   const handleImageUpload = (file) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      onImageUpload(id, reader.result, file);
+      // Load image to get natural dimensions
+      const img = new Image();
+      img.onload = () => {
+        const dimensions = {
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          aspectRatio: img.naturalWidth / img.naturalHeight
+        };
+        setImageDimensions(dimensions);
+
+        // Notify parent component of new dimensions
+        if (onImageDimensionsChange) {
+          onImageDimensionsChange(id, dimensions);
+        }
+
+        onImageUpload(id, reader.result, file);
+      };
+      img.src = reader.result;
     };
     reader.readAsDataURL(file);
   };
@@ -66,8 +91,75 @@ const ImageFrame = ({
 
   const handleRemove = (e) => {
     e.stopPropagation();
+    setImageDimensions(null);
+    setImageTransform({ x: 0, y: 0, scale: 1 });
     onImageRemove(id);
   };
+
+  // Mouse handlers for dragging image within frame (multi-frame only)
+  const handleImageMouseDown = (e) => {
+    const isMultiFrame = style?.width !== '1064px' || style?.height !== '504px';
+    if (!isMultiFrame || !image) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingImage(true);
+    dragStartRef.current = {
+      x: e.clientX - imageTransform.x,
+      y: e.clientY - imageTransform.y
+    };
+  };
+
+  const handleImageMouseMove = (e) => {
+    if (!isDraggingImage) return;
+
+    const newX = e.clientX - dragStartRef.current.x;
+    const newY = e.clientY - dragStartRef.current.y;
+
+    setImageTransform(prev => ({
+      ...prev,
+      x: newX,
+      y: newY
+    }));
+  };
+
+  const handleImageMouseUp = () => {
+    setIsDraggingImage(false);
+  };
+
+  // Zoom handlers
+  const handleZoomIn = (e) => {
+    e.stopPropagation();
+    setImageTransform(prev => ({
+      ...prev,
+      scale: Math.min(3, prev.scale + 0.2)
+    }));
+  };
+
+  const handleZoomOut = (e) => {
+    e.stopPropagation();
+    setImageTransform(prev => ({
+      ...prev,
+      scale: Math.max(0.5, prev.scale - 0.2)
+    }));
+  };
+
+  const handleResetTransform = (e) => {
+    e.stopPropagation();
+    setImageTransform({ x: 0, y: 0, scale: 1 });
+  };
+
+  // Add global mouse event listeners
+  useEffect(() => {
+    if (isDraggingImage) {
+      window.addEventListener('mousemove', handleImageMouseMove);
+      window.addEventListener('mouseup', handleImageMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleImageMouseMove);
+        window.removeEventListener('mouseup', handleImageMouseUp);
+      };
+    }
+  }, [isDraggingImage, imageTransform.x, imageTransform.y]);
 
   // Add paste event listener
   useEffect(() => {
@@ -80,18 +172,63 @@ const ImageFrame = ({
     }
   }, []);
 
+  // Calculate container dimensions based on image for single frames
+  // Use fixed size for multi-frame layouts
+  const getContainerStyle = () => {
+    // If no image or no dimensions yet, use default style
+    if (!image || !imageDimensions) {
+      return style;
+    }
+
+    // Check if this is a single frame (full size: 1064x504)
+    const isSingleFrame = style?.width === '1064px' && style?.height === '504px';
+
+    // For single frames, dynamically adjust to image aspect ratio
+    if (isSingleFrame) {
+      const maxWidth = 1064;
+      const maxHeight = 504;
+
+      let width = imageDimensions.width;
+      let height = imageDimensions.height;
+
+      // Scale down if too large
+      if (width > maxWidth || height > maxHeight) {
+        const scale = Math.min(maxWidth / width, maxHeight / height);
+        width = width * scale;
+        height = height * scale;
+      }
+
+      return {
+        width: `${width}px`,
+        height: `${height}px`,
+      };
+    }
+
+    // For multi-frame layouts, use fixed frame size from layout props
+    return style;
+  };
+
+  const containerStyle = getContainerStyle();
+
+  const isMultiFrame = style?.width !== '1064px' || style?.height !== '504px';
+
   return (
     <div
       ref={containerRef}
       tabIndex={0}
       className={`relative transition-all ${className}`}
       style={{
-        ...style,
-        border: image ? 'none' : (isDragging ? '2px dashed #8B9A5B' : (isFocused ? '2px solid #8B9A5B' : '2px dashed #d1d5db')),
-        backgroundColor: isDragging ? '#f5f7f0' : (image ? 'transparent' : 'white'),
+        ...containerStyle,
+        border: image ? '4px solid #000' : (isDragging ? '2px dashed #8B9A5B' : (isFocused ? '2px solid #8B9A5B' : '2px dashed #d1d5db')),
+        backgroundColor: isDragging ? '#f5f7f0' : (image ? '#1a1a1a' : 'white'),
         outline: isFocused && !image ? '2px solid #8B9A5B' : 'none',
         outlineOffset: '2px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto', // Center horizontally in parent
+        cursor: isMultiFrame && image ? 'move' : 'default',
       }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -111,19 +248,29 @@ const ImageFrame = ({
               position: 'relative',
               width: '100%',
               height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             <img
+              ref={imageRef}
               src={image}
               alt={`Frame ${id}`}
+              draggable={false}
+              onMouseDown={handleImageMouseDown}
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: 'contain',
                 display: 'block',
-                border: '4px solid black',
+                transform: isMultiFrame ? `translate(${imageTransform.x}px, ${imageTransform.y}px) scale(${imageTransform.scale})` : 'none',
+                transition: isDraggingImage ? 'none' : 'transform 0.1s ease',
+                cursor: isMultiFrame ? 'move' : 'default',
               }}
             />
+
+            {/* Remove button */}
             <button
               onClick={handleRemove}
               className="no-export bg-red-600 hover:bg-red-700 text-white rounded-full shadow-lg transition-colors"
@@ -146,6 +293,73 @@ const ImageFrame = ({
             >
               <X size={12} strokeWidth={3} color="white" />
             </button>
+
+            {/* Zoom controls for multi-frame layouts */}
+            {isMultiFrame && (
+              <div
+                className="no-export"
+                style={{
+                  position: 'absolute',
+                  bottom: '8px',
+                  right: '8px',
+                  display: 'flex',
+                  gap: '4px',
+                  zIndex: 9999,
+                }}
+              >
+                <button
+                  onClick={handleZoomOut}
+                  className="bg-white hover:bg-gray-100 rounded shadow-md transition-colors"
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    padding: '0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid #ccc',
+                    cursor: 'pointer',
+                  }}
+                  title="Zoom out"
+                >
+                  <ZoomOut size={16} color="#333" />
+                </button>
+                <button
+                  onClick={handleResetTransform}
+                  className="bg-white hover:bg-gray-100 rounded shadow-md transition-colors"
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    padding: '0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid #ccc',
+                    cursor: 'pointer',
+                  }}
+                  title="Reset position and zoom"
+                >
+                  <Maximize2 size={16} color="#333" />
+                </button>
+                <button
+                  onClick={handleZoomIn}
+                  className="bg-white hover:bg-gray-100 rounded shadow-md transition-colors"
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    padding: '0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid #ccc',
+                    cursor: 'pointer',
+                  }}
+                  title="Zoom in"
+                >
+                  <ZoomIn size={16} color="#333" />
+                </button>
+              </div>
+            )}
           </div>
         </>
       ) : (

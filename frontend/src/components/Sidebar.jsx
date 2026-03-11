@@ -581,7 +581,10 @@ const Sidebar = ({
   BUTTON_STYLES,
   // Fire station props
   setFontSizes,
-  editorApiService
+  editorApiService,
+  // Undo props
+  onUndo,
+  canUndo
 }) => {
   return (
     <>
@@ -1594,6 +1597,25 @@ const Sidebar = ({
             </small>
           </div>
         )}
+      </div>
+
+      {/* Undo */}
+      <div className="mb-3">
+        <label className="form-label small fw-bold">History</label>
+        <button
+          className="btn btn-sm w-100"
+          style={{
+            backgroundColor: canUndo ? '#2d5016' : 'transparent',
+            borderColor: '#2d5016',
+            color: canUndo ? 'white' : '#999',
+            opacity: canUndo ? 1 : 0.5
+          }}
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+        >
+          ↩ Undo
+        </button>
       </div>
 
       {/* Arrow Toggle Button */}

@@ -154,6 +154,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 if project.owner != self.request.user:
                     pass  # Allow admin to view but not change to user statuses on others' projects
 
+            # Clear status_note when moving away from denied/conditional
+            if new_status not in ['denied', 'conditional']:
+                serializer.validated_data['status_note'] = ''
+
         serializer.save()
 
     # ---- Tab-based project listing endpoints ----

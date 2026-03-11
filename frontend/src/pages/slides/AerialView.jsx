@@ -354,22 +354,8 @@ const AerialView = forwardRef((
   };
 
   const renderAppleMapsField = () => {
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const isActive = selectedField === "websiteInfo";
     const defaultPosition = {
       websiteInfo: { bottom: 40, right: 1.2 },
-    };
-
-    const options = [
-      { value: "Satellite View", label: "www.apple.com/maps - Satellite View" },
-      { value: "Flyover View", label: "www.apple.com/maps - Flyover View" }
-    ];
-
-    const currentViewType = formData?.websiteInfo || "";
-
-    const handleOptionClick = (value) => {
-      setFormData({ ...formData, websiteInfo: value });
-      setIsDropdownOpen(false);
     };
 
     return (
@@ -378,19 +364,13 @@ const AerialView = forwardRef((
         bottom: `${defaultPosition.websiteInfo.bottom}px`,
         right: `${defaultPosition.websiteInfo.right}%`,
       }}>
-        {/* Main display field */}
         <div
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsDropdownOpen(!isDropdownOpen);
-            onSelect("websiteInfo");
-          }}
           style={{
             position: "relative",
             width: "600px",
             height: "44px",
-            backgroundColor: isActive ? "rgba(255,255,255,0.2)" : "transparent",
-            border: isActive ? "2px solid rgba(0,0,0,0.3)" : "2px solid transparent",
+            backgroundColor: "transparent",
+            border: "2px solid transparent",
             borderRadius: "4px",
             fontSize: "28px",
             fontFamily: "'Montserrat', sans-serif",
@@ -400,59 +380,12 @@ const AerialView = forwardRef((
             outline: "none",
             boxSizing: "border-box",
             lineHeight: "44px",
-            cursor: "pointer",
             whiteSpace: "nowrap",
             overflow: "visible",
           }}
         >
-          {options.find(opt => opt.value === currentViewType)?.label || "www.apple.com/maps - (source) – (mm/yyyy)"}
+          www.apple.com/maps - Hybrid View
         </div>
-
-        {/* Custom dropdown */}
-        {isDropdownOpen && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "44px",
-              left: "0",
-              width: "600px",
-              background: "#fff",
-              border: "2px solid rgba(0,0,0,0.3)",
-              borderRadius: "4px",
-              boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-              zIndex: 9999,
-            }}
-          >
-            {options.map((option) => (
-              <div
-                key={option.value}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOptionClick(option.value);
-                }}
-                style={{
-                  padding: "8px 12px",
-                  fontSize: "16px",
-                  fontFamily: "'Montserrat', sans-serif",
-                  color: "#8B9A5B",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  borderBottom: "1px solid #eee",
-                  backgroundColor: currentViewType === option.value ? "#f0f0f0" : "transparent",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f0f0f0";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = currentViewType === option.value ? "#f0f0f0" : "transparent";
-                }}
-              >
-                {option.label}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     );
   };

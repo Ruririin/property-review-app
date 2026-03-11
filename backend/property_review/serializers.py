@@ -42,7 +42,7 @@ class LightProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'title', 'description', 'created_at', 'updated_at', 'legacy_id',
-                 'status', 'insuredName', 'premiseLocation', 'owner', 'slideCount',
+                 'status', 'status_note', 'insuredName', 'premiseLocation', 'owner', 'slideCount',
                  'ownerName', 'exported_at', 'slidePreview']
         read_only_fields = ('created_at', 'updated_at')
         extra_kwargs = {
@@ -122,7 +122,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'title', 'description', 'created_at', 'updated_at', 'legacy_id',
-                 'status', 'exported_at', 'last_export_time', 'formData', 'slideData', 'multipleLocationsMode',
+                 'status', 'status_note', 'exported_at', 'last_export_time', 'formData', 'slideData', 'multipleLocationsMode',
                  'selectedLocationIndex', 'locations', 'owner']
         read_only_fields = ('created_at', 'updated_at')
         extra_kwargs = {

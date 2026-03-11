@@ -340,7 +340,7 @@ const Inspection = forwardRef(({
         }
       }}
     >
-      {renderField("inspectionInfo", "Inspection #: 123456")}
+      {renderField("inspectionInfo", "Inspection Date: MM/DD/YYYY")}
       {renderField("premiseLocation", "www.(source).com/maps(mm/yyyy)")}
 
       {/* Screenshot area - users can paste images here */}

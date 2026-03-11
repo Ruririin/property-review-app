@@ -5,7 +5,7 @@
 
 class SlideApiService {
   constructor() {
-    this.baseURL = 'http://localhost:8000/api';
+    this.baseURL = '/api';
     this.headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',

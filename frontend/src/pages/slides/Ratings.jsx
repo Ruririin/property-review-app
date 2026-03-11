@@ -32,6 +32,7 @@ const Ratings = forwardRef(({
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
+  const imageTransforms = slideData?.imageTransforms || {};
 
   // Keep ref updated with latest slideData
   useEffect(() => {
@@ -77,6 +78,16 @@ const Ratings = forwardRef(({
   const handleFrameLayoutChange = (layout) => {
     setFrameLayout(layout);
     updateSlideData({ frameLayout: layout });
+  };
+
+  const handleImageTransform = (frameId, transform) => {
+    const currentTransforms = slideDataRef.current?.imageTransforms || {};
+    updateSlideData({
+      imageTransforms: {
+        ...currentTransforms,
+        [frameId]: transform
+      }
+    });
   };
 
   // Expose method to sync current state positions to DOM for PDF export
@@ -210,8 +221,10 @@ const Ratings = forwardRef(({
         <FrameLayout
           layoutType={frameLayout}
           images={frameImages}
+          imageTransforms={imageTransforms}
           onImageUpload={handleImageUpload}
           onImageRemove={handleImageRemove}
+          onImageTransform={handleImageTransform}
         />
       </div>
     </div>

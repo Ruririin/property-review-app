@@ -35,6 +35,7 @@ const SlideThree = forwardRef(({
   // Image handling using FrameLayout (1 frame only for aerial views)
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
+  const imageTransforms = slideData?.imageTransforms || {};
 
   // Keep ref updated with latest slideData
   useEffect(() => {
@@ -92,6 +93,16 @@ const SlideThree = forwardRef(({
     updateSlideData({
       frameImages: newFrameImages,
       frameMeta: newFrameMeta
+    });
+  };
+
+  const handleImageTransform = (frameId, transform) => {
+    const currentTransforms = slideDataRef.current?.imageTransforms || {};
+    updateSlideData({
+      imageTransforms: {
+        ...currentTransforms,
+        [frameId]: transform
+      }
     });
   };
   const currentViewType = formData.websiteInfo || "Satellite View";
@@ -341,8 +352,10 @@ const SlideThree = forwardRef(({
         <FrameLayout
           layoutType={1}
           images={frameImages}
+          imageTransforms={imageTransforms}
           onImageUpload={handleImageUpload}
           onImageRemove={handleImageRemove}
+          onImageTransform={handleImageTransform}
         />
       </div>
     </div>

@@ -44,6 +44,7 @@ const NearestFireStation = forwardRef(({
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
+  const imageTransforms = slideData?.imageTransforms || {};
 
   // Keep ref updated with latest slideData
   useEffect(() => {
@@ -93,6 +94,16 @@ const NearestFireStation = forwardRef(({
   const handleFrameLayoutChange = (layout) => {
     setFrameLayout(layout);
     updateSlideData({ frameLayout: layout });
+  };
+
+  const handleImageTransform = (frameId, transform) => {
+    const currentTransforms = slideDataRef.current?.imageTransforms || {};
+    updateSlideData({
+      imageTransforms: {
+        ...currentTransforms,
+        [frameId]: transform
+      }
+    });
   };
 
   // Helper function to handle both mouse and touch events
@@ -853,8 +864,10 @@ const NearestFireStation = forwardRef(({
           <ImageFrame
             id={1}
             image={frameImages[1]}
+            imageTransform={imageTransforms[1]}
             onImageUpload={handleImageUpload}
             onImageRemove={handleImageRemove}
+            onImageTransform={handleImageTransform}
             style={{ width: "1064px", height: "504px" }}
           />
         </div>
@@ -872,8 +885,10 @@ const NearestFireStation = forwardRef(({
           <ImageFrame
             id={1}
             image={frameImages[1]}
+            imageTransform={imageTransforms[1]}
             onImageUpload={handleImageUpload}
             onImageRemove={handleImageRemove}
+            onImageTransform={handleImageTransform}
             style={{ width: "420px", height: "504px" }}
           />
         </div>

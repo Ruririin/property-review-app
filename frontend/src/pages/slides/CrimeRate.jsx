@@ -30,6 +30,7 @@ const CrimeRate = forwardRef(({
   // Frame images for custom layout (1 rectangle top, 2 squares bottom)
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
+  const imageTransforms = slideData?.imageTransforms || {};
 
   // Keep ref updated with latest slideData
   useEffect(() => {
@@ -70,6 +71,16 @@ const CrimeRate = forwardRef(({
     delete newFrameImages[frameId];
     delete newFrameMeta[frameId];
     updateSlideData({ frameImages: newFrameImages, frameMeta: newFrameMeta });
+  };
+
+  const handleImageTransform = (frameId, transform) => {
+    const currentTransforms = slideDataRef.current?.imageTransforms || {};
+    updateSlideData({
+      imageTransforms: {
+        ...currentTransforms,
+        [frameId]: transform
+      }
+    });
   };
 
   // Custom layout configuration for Crime Rate slide
@@ -234,8 +245,10 @@ const CrimeRate = forwardRef(({
         <FrameLayout
           customLayout={customLayout}
           images={frameImages}
+          imageTransforms={imageTransforms}
           onImageUpload={handleImageUpload}
           onImageRemove={handleImageRemove}
+          onImageTransform={handleImageTransform}
         />
       </div>
     </div>

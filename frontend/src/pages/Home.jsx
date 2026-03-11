@@ -10,13 +10,31 @@ const G = '#2a7a2a';
 const GD = '#1e5a1e';
 const GL = '#e8f5e8';
 
+let mountCount = 0;
+
 export default function Home() {
+  mountCount++;
+  console.log('🏠 Home component mounted/rendered #', mountCount);
+
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const isAdmin = user?.is_staff === true;
   const sessionUser = user?.username || user?.email;
 
-  const [activeTab, setActiveTab] = useState('personal_draft');
+  const [activeTab, setActiveTabState] = useState(() => {
+    // Restore last active tab from localStorage
+    const savedTab = localStorage.getItem('homeActiveTab');
+    return savedTab || 'personal_draft';
+  });
+
+  // Wrapper to persist tab selection
+  const setActiveTab = (tab) => {
+    const caller = new Error().stack.split('\n')[2]?.trim();
+    console.log(`🔧 setActiveTab(${tab}) called from:`, caller);
+    setActiveTabState(tab);
+    localStorage.setItem('homeActiveTab', tab);
+  };
+
   const [personalDrafts, setPersonalDrafts] = useState([]);
   const [globalDrafts, setGlobalDrafts] = useState([]);
   const [forReview, setForReview] = useState([]);
@@ -37,13 +55,6 @@ export default function Home() {
   const getProjectName = (p) =>
     p.title || p.name || p.formData?.insuredName || p.insuredName || `Project ${p.id?.substring(0, 8) || '?'}`;
   const getOwnerName = (p) => p.ownerName || p.owner || 'Unknown';
-
-  const getCountdown = (exportedAt) => {
-    if (!exportedAt) return null;
-    const rem = new Date(exportedAt).getTime() + 7 * 864e5 - Date.now();
-    if (rem <= 0) return 'Expired';
-    return `${Math.floor(rem / 864e5)}d ${Math.floor((rem % 864e5) / 36e5)}h left`;
-  };
 
   const sCfg = {
     approved:       { bg: '#dcfce7', c: G,         l: 'Approved',    ic: 'bi-check-circle-fill' },
@@ -77,8 +88,23 @@ export default function Home() {
   };
 
   const handleStatusChange = async (id, s) => {
-    try { await apiService.updateProjectStatus(id, s); await fetchTabData(activeTab); }
-    catch { alert('Failed to update project status.'); }
+    try {
+      let note = '';
+      if (s === 'denied' || s === 'conditional') {
+        note = prompt(`Add a note for the project owner (reason for ${s === 'denied' ? 'denial' : 'conditional status'}):`);
+        if (note === null) return; // User cancelled
+      }
+      console.log(`📋 Changing project ${id} status to: ${s}`);
+      await apiService.updateProjectStatus(id, s, note);
+
+      // CRITICAL: Clear the cached project so next load gets fresh status from database
+      if (window.projectSaveService?.projects?.has(id)) {
+        console.log(`🗑️ Clearing cached project ${id} to force fresh load`);
+        window.projectSaveService.projects.delete(id);
+      }
+
+      await fetchTabData(activeTab);
+    } catch { alert('Failed to update project status.'); }
   };
 
   // Load exported items
@@ -204,11 +230,22 @@ export default function Home() {
 
   const handleCreateNew = () => navigate("/editor");
   const handleLogout = async () => { if (sessionUser) updateActiveUser(sessionUser, 'leave'); await logout(); };
-  const handleEdit = (id) => navigate(`/editor/${id}`);
+  const handleEdit = (id) => {
+    // Save current tab before navigating so it's preserved when returning
+    localStorage.setItem('homeActiveTab', activeTab);
+    navigate(`/editor/${id}`);
+  };
   const handleDelete = async (id) => {
     if (window.confirm('Delete this project? This cannot be undone.')) {
-      try { await projectSaveService.deleteProject(id); await fetchTabData(activeTab); }
-      catch { alert('Failed to delete project.'); }
+      try {
+        await projectSaveService.deleteProject(id);
+        await fetchTabData(activeTab);
+        console.log('✅ Project deleted successfully');
+      } catch (error) {
+        console.error('❌ Delete failed:', error);
+        const errorMsg = error.response?.data?.detail || error.response?.data?.error || error.message || 'Failed to delete project.';
+        alert(`Failed to delete project: ${errorMsg}`);
+      }
     }
   };
 
@@ -272,6 +309,7 @@ export default function Home() {
         {activeTab === 'global_draft' && <>
           {btn(isOwner(p) ? 'Edit' : 'View', isOwner(p) ? 'bi-pencil-square' : 'bi-eye', () => handleEdit(p.id), isOwner(p) ? 'primary' : 'default')}
           {btn('Submit for Review', 'bi-send', () => handleStatusChange(p.id, 'for_review'), 'blue')}
+          {isAdmin && btn('Delete', 'bi-trash3', () => handleDelete(p.id), 'red')}
         </>}
         {activeTab === 'for_review' && <>
           {btn('View', 'bi-eye', () => handleEdit(p.id))}
@@ -279,11 +317,12 @@ export default function Home() {
             {btn('Approve', 'bi-check-lg', () => handleStatusChange(p.id, 'approved'), 'green')}
             {btn('Deny', 'bi-x-lg', () => handleStatusChange(p.id, 'denied'), 'red')}
             {btn('Conditional', 'bi-exclamation-triangle', () => handleStatusChange(p.id, 'conditional'), 'yellow')}
+            {btn('Delete', 'bi-trash3', () => handleDelete(p.id), 'red')}
           </>}
         </>}
         {activeTab === 'approved' && <>
           {btn('View', 'bi-eye', () => handleEdit(p.id))}
-          {isOwner(p) && btn('Delete', 'bi-trash3', () => handleDelete(p.id), 'red')}
+          {(isOwner(p) || isAdmin) && btn('Delete', 'bi-trash3', () => handleDelete(p.id), 'red')}
         </>}
       </div>
     );
@@ -314,7 +353,6 @@ export default function Home() {
   const renderCard = (p) => {
     const name = getProjectName(p);
     const owner = getOwnerName(p);
-    const cd = activeTab === 'approved' ? getCountdown(p.exported_at) : null;
     const s = sCfg[p.status] || sCfg.editing;
     const slidePreview = p.slidePreview || [];
 
@@ -369,6 +407,20 @@ export default function Home() {
           {/* Divider */}
           <div style={{ height: 1, background: '#f0f0f0', marginBottom: 14 }} />
 
+        {/* Admin note for denied/conditional */}
+        {p.status_note && (p.status === 'denied' || p.status === 'conditional') && (
+          <div style={{
+            background: p.status === 'denied' ? '#fef2f2' : '#fffbeb',
+            border: `1px solid ${p.status === 'denied' ? '#fecaca' : '#fde68a'}`,
+            borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: '#374151',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 10, textTransform: 'uppercase', color: '#6b7280', marginBottom: 2 }}>
+              <i className="bi bi-chat-left-text" style={{ marginRight: 4 }}></i>Admin Note
+            </div>
+            {p.status_note}
+          </div>
+        )}
+
         {/* Details grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 16 }}>
           <div>
@@ -393,17 +445,12 @@ export default function Home() {
         {activeTab === 'approved' && (
           <div style={{ marginBottom: 16 }}>
             {p.exported_at ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{
-                  background: GL, color: G, borderRadius: 8, padding: '4px 10px',
-                  fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4,
-                }}>
-                  <i className="bi bi-check-circle-fill" style={{ fontSize: 10 }}></i>Exported
-                </span>
-                {cd && <span style={{ fontSize: 12, color: cd === 'Expired' ? '#dc2626' : '#a0aec0', fontWeight: 500 }}>
-                  <i className="bi bi-hourglass-split" style={{ marginRight: 3, fontSize: 11 }}></i>{cd}
-                </span>}
-              </div>
+              <span style={{
+                background: GL, color: G, borderRadius: 8, padding: '4px 10px',
+                fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}>
+                <i className="bi bi-check-circle-fill" style={{ fontSize: 10 }}></i>Exported
+              </span>
             ) : (
               <span style={{
                 background: '#fff7ed', color: '#c2410c', borderRadius: 8, padding: '4px 10px',

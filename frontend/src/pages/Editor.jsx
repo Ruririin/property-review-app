@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDevice } from "../hooks/useDevice";
 import ProjectLoadingScreen from "../components/ProjectLoadingScreen";
@@ -251,28 +251,6 @@ export default function Editor() {
   const [isSquareEditMode, setIsSquareEditMode] = useState(false); // New state for square editing after drawing
   const [isDraggingPoint, setIsDraggingPoint] = useState(false);
   const [draggingPointIndex, setDraggingPointIndex] = useState(null); // 0=topLeft, 1=topRight, 2=bottomLeft, 3=bottomRight
-
-  // Add keyboard support for deleting selected drawings
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((isDrawingMode || isSquareEditMode) && selectedDrawingIndex !== null && (e.key === 'Delete' || e.key === 'Backspace')) {
-        deleteDrawing(selectedDrawingIndex);
-        setSelectedDrawingIndex(null);
-        e.preventDefault();
-      }
-      
-      // ESC to exit square edit mode
-      if (e.key === 'Escape' && isSquareEditMode) {
-        setIsSquareEditMode(false);
-        setSelectedDrawingIndex(null);
-        e.preventDefault();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isDrawingMode, isSquareEditMode, selectedDrawingIndex]);
-  
   // Automatically enable square edit mode when exiting drawing mode if squares exist
   useEffect(() => {
     if (!isDrawingMode && !isSquareEditMode) {
@@ -410,9 +388,86 @@ export default function Editor() {
   const [showSlidesBar, setShowSlidesBar] = useState(true);
   const [showPopupDropdown, setShowPopupDropdown] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
-  
-  // Project status state
-  const [currentProjectStatus, setCurrentProjectStatus] = useState('draft');
+
+  // Undo history stack
+  const undoStackRef = useRef([]);
+  const isUndoingRef = useRef(false);
+  const undoDebounceRef = useRef(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const MAX_UNDO = 30;
+
+  // Refs to always access latest state for undo snapshots
+  const slideDataForUndo = useRef(slideData);
+  const currentSlideForUndo = useRef(currentSlide);
+  const globalLocationDataForUndo = useRef(globalLocationData);
+  const slidesForUndo = useRef(slides);
+  useEffect(() => { slideDataForUndo.current = slideData; }, [slideData]);
+  useEffect(() => { currentSlideForUndo.current = currentSlide; }, [currentSlide]);
+  useEffect(() => { globalLocationDataForUndo.current = globalLocationData; }, [globalLocationData]);
+  useEffect(() => { slidesForUndo.current = slides; }, [slides]);
+
+  const pushUndoState = useCallback(() => {
+    if (isUndoingRef.current) return;
+    const snapshot = {
+      slideData: JSON.parse(JSON.stringify(slideDataForUndo.current)),
+      currentSlide: currentSlideForUndo.current,
+      globalLocationData: JSON.parse(JSON.stringify(globalLocationDataForUndo.current)),
+      slides: JSON.parse(JSON.stringify(slidesForUndo.current)),
+    };
+    undoStackRef.current = [...undoStackRef.current.slice(-(MAX_UNDO - 1)), snapshot];
+    setCanUndo(true);
+  }, []);
+
+  const pushUndoDebounced = useCallback(() => {
+    if (undoDebounceRef.current) clearTimeout(undoDebounceRef.current);
+    undoDebounceRef.current = setTimeout(() => {
+      pushUndoState();
+    }, 800);
+  }, [pushUndoState]);
+
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) return;
+    isUndoingRef.current = true;
+    const prev = undoStackRef.current.pop();
+    setSlideData(prev.slideData);
+    setCurrentSlide(prev.currentSlide);
+    setGlobalLocationData(prev.globalLocationData);
+    setSlides(prev.slides);
+    setCanUndo(undoStackRef.current.length > 0);
+    // Allow state to settle before accepting new undo pushes
+    setTimeout(() => { isUndoingRef.current = false; }, 100);
+  }, []);
+
+  // Add keyboard support for deleting selected drawings and undo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      if ((isDrawingMode || isSquareEditMode) && selectedDrawingIndex !== null && (e.key === 'Delete' || e.key === 'Backspace')) {
+        deleteDrawing(selectedDrawingIndex);
+        setSelectedDrawingIndex(null);
+        e.preventDefault();
+      }
+
+      // ESC to exit square edit mode
+      if (e.key === 'Escape' && isSquareEditMode) {
+        setIsSquareEditMode(false);
+        setSelectedDrawingIndex(null);
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isDrawingMode, isSquareEditMode, selectedDrawingIndex, handleUndo]);
+
+  // Project status state (null until loaded from project data)
+  const [currentProjectStatus, setCurrentProjectStatus] = useState(null);
   
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
@@ -1012,8 +1067,11 @@ export default function Editor() {
 
   // Function to delete a drawing
   const deleteDrawing = (drawingIndex) => {
+    // Push undo state immediately before deleting
+    pushUndoState();
+
     const updatedDrawings = (slideData[currentSlide]?.drawings || []).filter((_, index) => index !== drawingIndex);
-    
+
     setSlideData(prev => ({
       ...prev,
       [currentSlide]: {
@@ -1231,12 +1289,15 @@ export default function Editor() {
         ...slideData[currentSlide],
         drawings: [...(slideData[currentSlide]?.drawings || []), drawingWithPoints]
       };
-      
+
+      // Push undo state immediately when drawing is complete
+      pushUndoState();
+
       setSlideData(prev => ({
         ...prev,
         [currentSlide]: updatedSlideData
       }));
-      
+
       setIsDrawing(false);
       setCurrentDrawing(null);
     }
@@ -1499,6 +1560,14 @@ export default function Editor() {
   };
 
   const updateSlideData = (slideId, updates) => {
+    // Immediate undo for image/frame changes, debounced for text
+    const isImageOrFrameChange = updates.frameImages || updates.frameMeta || updates.frameLayout !== undefined;
+    if (isImageOrFrameChange) {
+      pushUndoState(); // Immediate
+    } else {
+      pushUndoDebounced(); // Debounced for other changes
+    }
+
     setSlideData(prev => ({
       ...prev,
       [slideId]: {
@@ -1523,6 +1592,7 @@ export default function Editor() {
   };
 
   const updateSlideFormData = (slideId, formUpdates) => {
+    pushUndoDebounced();
     // Mark as changed since last export
     setHasChangedSinceExport(true);
 
@@ -1620,9 +1690,11 @@ export default function Editor() {
         
         // Load project status
         if (savedProject.status) {
+          console.log('📋 Loading project with status:', savedProject.status);
           setCurrentProjectStatus(savedProject.status);
         } else {
-          setCurrentProjectStatus('draft'); // Default status
+          console.log('⚠️ Project has no status, defaulting to personal_draft');
+          setCurrentProjectStatus('personal_draft'); // Default status for new projects
         }
       
       // Restore all project data
@@ -1955,8 +2027,8 @@ export default function Editor() {
         website: currentFormData.website || '',
         isoClass: currentFormData.isoClass || ''
       };
-      
-      // console.log('SAVE DEBUG - Project data:', projectData);
+
+      console.log(`💾 ${saveType} - Saving project with status:`, currentProjectStatus || 'personal_draft');
 
       try {
         // CRITICAL: Get existing project to preserve _savedToDatabase flag
@@ -1974,7 +2046,7 @@ export default function Editor() {
           slides: slides,
           multipleLocationsMode: multipleLocationsMode,
           selectedLocationIndex: selectedLocationIndex,
-          status: currentProjectStatus || 'editing',
+          status: currentProjectStatus || 'personal_draft', // Use valid status
           showWebsite: showWebsite,
           fontSizes: fontSizes,
           lastExportTime: lastExportTime
@@ -2019,6 +2091,7 @@ export default function Editor() {
   };
 
   const addSlide = (slideType) => {
+    pushUndoState();
     // Mark as changed since last export
     setHasChangedSinceExport(true);
 
@@ -2117,6 +2190,9 @@ export default function Editor() {
         imagePosition: { top: 300, left: 400 },
         drawings: [],
         fieldPositions: defaultFieldPositions,
+        frameLayout: 1,
+        frameImages: {},
+        frameMeta: {},
         // Store the location index this slide belongs to
         locationIndex: newSlide.locationIndex
       }
@@ -2156,6 +2232,7 @@ export default function Editor() {
   };
 
   const deleteSlide = (slideId) => {
+    pushUndoState();
     // Mark as changed since last export
     setHasChangedSinceExport(true);
 
@@ -2219,14 +2296,14 @@ export default function Editor() {
       // Wait a moment for any state updates to apply to DOM
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Generate filename using insured name and project creation date
+      // Generate filename using insured name and project modified date
       const insuredName = getSlideData(1)?.formData?.insuredName?.trim();
 
-      // Get project creation date from projectSaveService
+      // Get project modified date from projectSaveService
       const project = currentProjectId ? projectSaveService.projects.get(currentProjectId) : null;
 
-      const createdDate = project?.created ? new Date(project.created) : new Date();
-      const dateStr = `${createdDate.getMonth() + 1}-${createdDate.getDate()}-${createdDate.getFullYear()}`;
+      const modifiedDate = project?.lastModified ? new Date(project.lastModified) : new Date();
+      const dateStr = `${modifiedDate.getMonth() + 1}-${modifiedDate.getDate()}-${modifiedDate.getFullYear()}`;
 
       const filename = insuredName
         ? `Property Review ${insuredName} ${dateStr}.pdf`
@@ -2407,65 +2484,77 @@ export default function Editor() {
 
     // Handle all street view variants (street_view_1, street_view_2, etc.)
     if (slideData.type.startsWith('street_view')) {
-      return <StreetView 
-        {...slideProps} 
+      return <StreetView
+        key={slideId}
+        {...slideProps}
         ref={(el) => { slideComponentRefs.current[slideId] = el; }}
       />;
     }
 
     switch (slideData.type) {
       case 'cover':
-        return <SlideOne 
+        return <SlideOne
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'aerial_view_-_google':
-        return <SlideTwo 
+        return <SlideTwo
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'aerial_view_-_bing':
         return <SlideThree
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'aerial_view_-_apple':
         return <AerialView
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'interior':
-        return <Interior 
+        return <Interior
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'online_presence':
         return <OnlinePresence
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'inspection':
         return <Inspection
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'comments':
-        return <Comments 
+        return <Comments
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'fire_hazard':
-        return <FireHazard 
+        return <FireHazard
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'crime_rate':
-        return <CrimeRate 
+        return <CrimeRate
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'nearest_fire_station':
-        return <NearestFireStation 
+        return <NearestFireStation
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
@@ -2473,20 +2562,23 @@ export default function Editor() {
         // Pass website data from slide 1 (first slide) using getSlideData function
         const slide1FormData = getSlideData(1)?.formData || {};
         const websiteData = slide1FormData.website || '';
-        return <Website 
+        return <Website
+          key={slideId}
           {...slideProps}
           websiteUrl={websiteData}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       case 'ratings':
-        return <Ratings 
+        return <Ratings
+          key={slideId}
           {...slideProps}
           ref={(el) => { slideComponentRefs.current[slideId] = el; }}
         />;
       default:
         // If it's slide 1, always render as SlideOne (property information)
         if (slideId === 1) {
-          return <SlideOne 
+          return <SlideOne
+            key={slideId}
             {...slideProps}
             ref={(el) => { slideComponentRefs.current[slideId] = el; }}
           />;
@@ -2791,6 +2883,8 @@ export default function Editor() {
               BUTTON_STYLES={BUTTON_STYLES}
               setFontSizes={setFontSizes}
               editorApiService={editorApiService}
+              onUndo={handleUndo}
+              canUndo={canUndo}
             />
           </div>
         )}
@@ -2860,6 +2954,8 @@ export default function Editor() {
               setFontSizes={setFontSizes}
               editorApiService={editorApiService}
               isMobile={true}
+              onUndo={handleUndo}
+              canUndo={canUndo}
             />
           </div>
         )}
@@ -3094,7 +3190,7 @@ export default function Editor() {
                 slide={slide}
                 index={index}
                 isActive={currentSlide === slide.id}
-                onClick={setCurrentSlide}
+                onClick={(slideId) => { pushUndoState(); setCurrentSlide(slideId); }}
                 onDelete={deleteSlide}
                 canDelete={slides.length > 1}
                 multipleLocationsMode={multipleLocationsMode}

@@ -37,12 +37,20 @@ const Interior = forwardRef(({
   // Frame layout state (default to 1 frame)
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
+  const imageTransforms = slideData?.imageTransforms || {};
   const frameMeta = slideData?.frameMeta || {};
 
   // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
+
+  // Sync frameLayout state when slideData changes (e.g. switching between same-type slides)
+  useEffect(() => {
+    if (slideData?.frameLayout !== undefined && slideData.frameLayout !== frameLayout) {
+      setFrameLayout(slideData.frameLayout);
+    }
+  }, [slideData?.frameLayout]);
 
   const handleImageUpload = async (frameId, imageData, file) => {
     console.log('🔵 [Interior] handleImageUpload called for frameId:', frameId);
@@ -116,6 +124,16 @@ const Interior = forwardRef(({
   const handleFrameLayoutChange = (layout) => {
     setFrameLayout(layout);
     updateSlideData({ frameLayout: layout });
+  };
+
+  const handleImageTransform = (frameId, transform) => {
+    const currentTransforms = slideDataRef.current?.imageTransforms || {};
+    updateSlideData({
+      imageTransforms: {
+        ...currentTransforms,
+        [frameId]: transform
+      }
+    });
   };
 
   // Expose method for PDF export
@@ -311,8 +329,10 @@ const Interior = forwardRef(({
         <FrameLayout
           layoutType={frameLayout}
           images={frameImages}
+          imageTransforms={imageTransforms}
           onImageUpload={handleImageUpload}
           onImageRemove={handleImageRemove}
+          onImageTransform={handleImageTransform}
         />
       </div>
     </div>
