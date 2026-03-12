@@ -46,7 +46,7 @@ class PDFScreenshotService:
                     browser = p.chromium.launch(headless=True)
                     context = browser.new_context(
                         viewport={'width': SLIDE_WIDTH, 'height': SLIDE_HEIGHT},
-                        device_scale_factor=2  # 2x resolution for quality
+                        device_scale_factor=1
                     )
                     page = context.new_page()
 
@@ -107,33 +107,21 @@ class PDFScreenshotService:
                 buffer = BytesIO()
                 pdf_canvas = canvas.Canvas(buffer, pagesize=landscape((SLIDE_WIDTH, SLIDE_HEIGHT)))
 
-            # Add each image as a page
+            # Add each image as a page (convert to compressed JPEG first)
             for i, img_path in enumerate(image_paths):
                 logger.info(f"Adding image {i + 1}/{len(image_paths)} to PDF")
 
-                # Open image and get dimensions
-                img = Image.open(img_path)
-                img_width, img_height = img.size
+                # Convert PNG to compressed JPEG to reduce file size
+                img = Image.open(img_path).convert('RGB')
+                jpeg_path = img_path.replace('.png', '.jpg')
+                img.save(jpeg_path, 'JPEG', quality=75, optimize=True)
 
-                # Calculate scaling to fit page while maintaining aspect ratio
-                scale_x = SLIDE_WIDTH / img_width
-                scale_y = SLIDE_HEIGHT / img_height
-                scale = min(scale_x, scale_y)
-
-                scaled_width = img_width * scale
-                scaled_height = img_height * scale
-
-                # Center image on page
-                x = (SLIDE_WIDTH - scaled_width) / 2
-                y = (SLIDE_HEIGHT - scaled_height) / 2
-
-                # Draw image
+                # Draw image to fill the page
                 pdf_canvas.drawImage(
-                    img_path,
-                    x, y,
-                    width=scaled_width,
-                    height=scaled_height,
-                    preserveAspectRatio=True
+                    jpeg_path,
+                    0, 0,
+                    width=SLIDE_WIDTH,
+                    height=SLIDE_HEIGHT
                 )
 
                 # Add new page if not last image
