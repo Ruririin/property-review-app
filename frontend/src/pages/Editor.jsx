@@ -645,7 +645,7 @@ export default function Editor() {
 
   // Unified auto-save system - triggers on data changes with smart debouncing
   useEffect(() => {
-    if (sessionUser && currentProjectId && (slideData || globalLocationData)) {
+    if (sessionUser && currentProjectId && (slideData || globalLocationData) && slides.length > 0) {
       // Debounce auto-save to avoid excessive saves (10 seconds for auto-save to reduce DB load)
       const timeoutId = setTimeout(async () => {
         // Auto-save triggered
@@ -1946,10 +1946,16 @@ export default function Editor() {
   const saveProject = async (isAutoSave = false) => {
     const saveType = isAutoSave ? 'AUTO-SAVE' : 'MANUAL SAVE';
     // Save initiated
-    
+
     if (!sessionUser) {
       console.error(`${saveType} FAILED: No session user`);
       if (!isAutoSave) alert('Save failed: No user session');
+      return false;
+    }
+
+    // Prevent saving empty slides over existing project data
+    if (slides.length === 0 && isAutoSave) {
+      console.warn(`${saveType} SKIPPED: No slides loaded yet - preventing data loss`);
       return false;
     }
     

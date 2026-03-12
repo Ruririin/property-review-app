@@ -19,14 +19,20 @@ const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData })
   const commentOptions = [
     { key: 'fireHydrantWithin', label: 'Hydrant Within', text: 'The nearest fire hydrant is within the premise.' },
     { key: 'fireHydrantAway', label: 'Hydrant Away', text: 'The nearest fire hydrant is (distance) away from the premise.' },
+    { key: 'fireHydrantFeet', label: 'Hydrant Distance', text: 'Nearest fire hydrant is ___ feet away from the property.' },
     { key: 'matureTree', label: 'Mature Tree', text: 'There is a mature tree beside the premise.' },
+    { key: 'matureTreesUnkempt', label: 'Mature Trees/Unkempt', text: '(Mature trees, unkempt vegetation)' },
     { key: 'handrailsStairs', label: 'Handrails Stairs', text: 'The premise has handrails for stairs.' },
     { key: 'guardRailsBalcony', label: 'Guard Rails Balcony', text: 'The premise has guard rails for the balcony.' },
     { key: 'handrailsGuardRails', label: 'Handrails & Guard Rails', text: 'The premise has handrails for stairs and guard rails for the balcony.' },
     { key: 'pwdProvisions', label: 'PWD Provisions', text: 'The premise has PWD provisions (parking, ramp, etc.).' },
+    { key: 'onlineInfoMatch', label: 'Online Info Match', text: 'Online public information and acords description match.' },
+    { key: 'onsiteParking', label: 'Onsite Parking', text: 'Onsite parking is available with provisions for PWDs.' },
+    { key: 'noVandalism', label: 'No Vandalism', text: 'There is no visible vandalism on the property and its surrounding' },
+    { key: 'roofBuildingCondition', label: 'Roof/Building', text: '(Roof and/or building condition)' },
     { key: 'cctvCameras', label: 'CCTV Cameras', text: 'There are CCTV cameras present on the property.' },
     { key: 'poolGateFence', label: 'Pool Gate & Fence', text: 'There is a gate and fence around the pool.' },
-    { key: 'vandalism', label: 'No Vandalism', text: 'There are no visible vandalism on the premise and its surroundings.' }
+    { key: 'vandalism', label: 'No Vandalism (Old)', text: 'There are no visible vandalism on the premise and its surroundings.' }
   ];
 
   const toggleComment = (key) => {

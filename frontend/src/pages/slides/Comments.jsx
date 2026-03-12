@@ -886,14 +886,20 @@ const Comments = forwardRef(({
       {/* Comment Bullets - only show if they have content */}
       {formData && formData.fireHydrantWithin && renderBulletTextField('fireHydrantWithin', 'The nearest fire hydrant is within the premise.', 300)}
       {formData && formData.fireHydrantAway && renderBulletTextField('fireHydrantAway', 'The nearest fire hydrant is (distance) away from the premise.', 350)}
-      {formData && formData.matureTree && renderBulletTextField('matureTree', 'There is a mature tree beside the premise.', 400)}
-      {formData && formData.handrailsStairs && renderBulletTextField('handrailsStairs', 'The premise has handrails for stairs.', 450)}
-      {formData && formData.guardRailsBalcony && renderBulletTextField('guardRailsBalcony', 'The premise has guard rails for the balcony.', 500)}
-      {formData && formData.handrailsGuardRails && renderBulletTextField('handrailsGuardRails', 'The premise has handrails for stairs and guard rails for the balcony.', 550)}
-      {formData && formData.pwdProvisions && renderBulletTextField('pwdProvisions', 'The premise has PWD provisions (parking, ramp, etc.).', 600)}
-      {formData && formData.cctvCameras && renderBulletTextField('cctvCameras', 'There are CCTV cameras present on the property.', 300)}
-      {formData && formData.poolGateFence && renderBulletTextField('poolGateFence', 'There is a gate and fence around the pool.', 350)}
-      {formData && formData.vandalism && renderBulletTextField('vandalism', 'There are no visible vandalism on the premise and its surroundings.', 400)}
+      {formData && formData.fireHydrantFeet && renderBulletTextField('fireHydrantFeet', 'Nearest fire hydrant is ___ feet away from the property.', 400)}
+      {formData && formData.matureTree && renderBulletTextField('matureTree', 'There is a mature tree beside the premise.', 450)}
+      {formData && formData.matureTreesUnkempt && renderBulletTextField('matureTreesUnkempt', '(Mature trees, unkempt vegetation)', 500)}
+      {formData && formData.handrailsStairs && renderBulletTextField('handrailsStairs', 'The premise has handrails for stairs.', 550)}
+      {formData && formData.guardRailsBalcony && renderBulletTextField('guardRailsBalcony', 'The premise has guard rails for the balcony.', 300)}
+      {formData && formData.handrailsGuardRails && renderBulletTextField('handrailsGuardRails', 'The premise has handrails for stairs and guard rails for the balcony.', 350)}
+      {formData && formData.pwdProvisions && renderBulletTextField('pwdProvisions', 'The premise has PWD provisions (parking, ramp, etc.).', 400)}
+      {formData && formData.onlineInfoMatch && renderBulletTextField('onlineInfoMatch', 'Online public information and acords description match.', 450)}
+      {formData && formData.onsiteParking && renderBulletTextField('onsiteParking', 'Onsite parking is available with provisions for PWDs.', 500)}
+      {formData && formData.noVandalism && renderBulletTextField('noVandalism', 'There is no visible vandalism on the property and its surrounding', 550)}
+      {formData && formData.roofBuildingCondition && renderBulletTextField('roofBuildingCondition', '(Roof and/or building condition)', 300)}
+      {formData && formData.cctvCameras && renderBulletTextField('cctvCameras', 'There are CCTV cameras present on the property.', 350)}
+      {formData && formData.poolGateFence && renderBulletTextField('poolGateFence', 'There is a gate and fence around the pool.', 400)}
+      {formData && formData.vandalism && renderBulletTextField('vandalism', 'There are no visible vandalism on the premise and its surroundings.', 450)}
       
       {/* Dynamic Interior View textboxes */}
       {formData && Object.keys(formData).filter(key => key.startsWith('interiorView_')).map((key) => (

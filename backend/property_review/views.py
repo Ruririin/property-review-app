@@ -276,27 +276,30 @@ class PropertySlideViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]  # Require authentication
     
     def get_queryset(self):
-        # Filter by project if provided - SECURED: Only user's projects
+        # Filter by project if provided
         project_id = self.request.query_params.get('project', None)
         if project_id is not None:
             try:
-                # Try using it as a UUID first - SECURED: Check ownership
+                # Allow access if user owns the project OR the project is shared (global_draft, for_review, approved)
                 return PropertySlide.objects.filter(
-                    project_id=project_id,
-                    project__owner=self.request.user
+                    project_id=project_id
+                ).filter(
+                    models.Q(project__owner=self.request.user) |
+                    models.Q(project__status__in=['global_draft', 'for_review', 'approved'])
                 )
             except ValidationError:
-                # Legacy numeric ID support - SECURED: Check ownership
+                # Legacy numeric ID support
                 if project_id.isdigit():
-                    # Find project with legacy ID and get its UUID
                     project = Project.objects.filter(
-                        legacy_id=int(project_id),
-                        owner=self.request.user
+                        legacy_id=int(project_id)
+                    ).filter(
+                        models.Q(owner=self.request.user) |
+                        models.Q(status__in=['global_draft', 'for_review', 'approved'])
                     ).first()
                     if project:
                         return PropertySlide.objects.filter(project=project)
-                return PropertySlide.objects.none()  # Return empty queryset if no match
-        # Return all slides from user's projects
+                return PropertySlide.objects.none()
+        # Return all slides from user's own projects
         return PropertySlide.objects.filter(project__owner=self.request.user)
     
     def perform_create(self, serializer):
@@ -319,14 +322,17 @@ class ProjectLocationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]  # Require authentication
     
     def get_queryset(self):
-        # Filter by project if provided - SECURED: Only user's projects
+        # Filter by project if provided
         project_id = self.request.query_params.get('project', None)
         if project_id is not None:
+            # Allow access if user owns the project OR the project is shared
             return ProjectLocation.objects.filter(
-                project_id=project_id,
-                project__owner=self.request.user
+                project_id=project_id
+            ).filter(
+                models.Q(project__owner=self.request.user) |
+                models.Q(project__status__in=['global_draft', 'for_review', 'approved'])
             )
-        # Return all locations from user's projects
+        # Return all locations from user's own projects
         return ProjectLocation.objects.filter(project__owner=self.request.user)
     
     def perform_create(self, serializer):
