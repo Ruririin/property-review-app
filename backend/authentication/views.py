@@ -82,9 +82,9 @@ def login_view(request):
             'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
 
-        # DEBUG: Log response cookies
-        print(f"🍪 Response cookies: {response.cookies}")
-        print(f"🍪 Session cookie in response: {'sessionid' in response.cookies}")
+        # DEBUG: Log response cookies (removed emojis for Windows compatibility)
+        print(f"Response cookies: {response.cookies}")
+        print(f"Session cookie in response: {'sessionid' in response.cookies}")
 
         return response
     return Response({

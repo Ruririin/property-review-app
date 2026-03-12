@@ -29,6 +29,10 @@ urlpatterns = [
     path('export-frontend-slides/', views.export_frontend_slides_view, name='export_frontend_slides'),
     path('projects/<uuid:project_id>/export-pdf/', views.export_project_pdf_view, name='export_project_pdf'),
     path('projects/<uuid:project_id>/preview-pdf/', views.preview_project_pdf_view, name='preview_project_pdf'),
+
+    # Screenshot-based PDF export (pixel-perfect)
+    path('export-screenshot-pdf/', views.export_screenshot_pdf_view, name='export_screenshot_pdf'),
+    path('preview-screenshot-pdf/', views.preview_screenshot_pdf_view, name='preview_screenshot_pdf'),
     path('textbox-dimensions/save/', views.save_textbox_dimensions_view, name='save_textbox_dimensions'),
     path('textbox-dimensions/<str:slide_id>/', views.get_textbox_dimensions_view, name='get_textbox_dimensions'),
     

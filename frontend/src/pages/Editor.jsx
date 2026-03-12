@@ -18,7 +18,8 @@ import NearestFireStation from "./slides/NearestFireStation";
 import Website from "./slides/Website";
 import Ratings from "./slides/Ratings";
 import AerialView from "./slides/AerialView";
-import { exportToPDF } from "../utils/pdfExport";
+// Using screenshot-based PDF export for pixel-perfect results
+import { exportToPDFScreenshot, previewPDFScreenshot } from "../utils/pdfExportScreenshot";
 import exportedItemsService from "../services/exportedItemsService";
 import userActivityService from "../services/userActivityService";
 import fieldActivityService from "../services/fieldActivityService";
@@ -28,7 +29,7 @@ import projectSaveService from "../services/projectSaveService";
 import locationDataService from "../services/locationDataService";
 import LocationIndicator from "../components/LocationIndicator";
 import PDFPreviewModal from "../components/PDFPreviewModal";
-import { generatePDFPreview, cleanupPDFPreview } from "../services/pdfPreviewService";
+import { cleanupPDFPreview } from "../services/pdfPreviewService";
 import { useAuth } from "../contexts/AuthContext";
 
 const NAVBAR_HEIGHT = 72;
@@ -2319,7 +2320,8 @@ export default function Editor() {
         button.disabled = true;
       }
 
-      const pdfBlob = await exportToPDF(slideElements, slideData, filename);
+      // Use screenshot-based export for pixel-perfect results
+      const pdfBlob = await exportToPDFScreenshot(slideElements, slideData, filename);
 
       // PDF exported successfully - upload to backend for the exported items panel
       if (pdfBlob) {
@@ -2387,18 +2389,8 @@ export default function Editor() {
       // Small delay to ensure DOM updates
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Prepare slides data for backend
-      const slidesData = slides.map((slide, index) => {
-        const data = getSlideData(slide.id);
-        return {
-          slideNumber: index + 1,
-          formData: data.formData || {},
-          content: data.content || {}
-        };
-      });
-
-      // Generate preview URL
-      const pdfUrl = await generatePDFPreview(slidesData, 'Property Review Preview.pdf');
+      // Use screenshot-based preview for pixel-perfect results
+      const pdfUrl = await previewPDFScreenshot(slideElements, slideData, 'Property Review Preview.pdf');
       setPreviewPdfUrl(pdfUrl);
       setShowPreviewModal(true);
 

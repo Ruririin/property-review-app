@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 from .models import Project, PropertySlide, Template, ProjectLocation, ExportedPDF
 from .serializers import ProjectSerializer, LightProjectSerializer, PropertySlideSerializer, TemplateSerializer, ProjectLocationSerializer, ExportedPDFSerializer
 from .pdf_service import pdf_exporter
+from .pdf_screenshot_service import pdf_screenshot_service
 
 # PPTX Template extraction (equivalent to Express route)
 @api_view(['GET'])
@@ -477,6 +478,66 @@ def preview_project_pdf_view(request, project_id):
         return response
 
     except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def export_screenshot_pdf_view(request):
+    """
+    Export slides to PDF using Playwright screenshots (pixel-perfect)
+    Accepts HTML content for each slide and screenshots them
+    """
+    try:
+        slides_html = request.data.get('slides_html', [])
+        filename = request.data.get('filename', 'Property Review.pdf')
+
+        if not slides_html:
+            return Response({'error': 'No slide HTML provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"Creating screenshot-based PDF with {len(slides_html)} slides")
+
+        # Generate PDF from HTML screenshots
+        pdf_buffer = pdf_screenshot_service.create_pdf_from_html_slides(slides_html)
+
+        # Create HTTP response with PDF
+        response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Screenshot PDF export failed: {e}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def preview_screenshot_pdf_view(request):
+    """
+    Preview slides as PDF using Playwright screenshots (pixel-perfect)
+    Same as export but returns inline for viewing
+    """
+    try:
+        slides_html = request.data.get('slides_html', [])
+        filename = request.data.get('filename', 'Property Review Preview.pdf')
+
+        if not slides_html:
+            return Response({'error': 'No slide HTML provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"Creating screenshot-based PDF preview with {len(slides_html)} slides")
+
+        # Generate PDF from HTML screenshots
+        pdf_buffer = pdf_screenshot_service.create_pdf_from_html_slides(slides_html)
+
+        # Create HTTP response with PDF for inline viewing
+        response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Screenshot PDF preview failed: {e}")
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Textbox Dimension Persistence Views
