@@ -32,7 +32,6 @@ export const generatePDFPreview = async (slidesData, filename = 'Property Review
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
-    // Create blob URL for the PDF
     const pdfBlob = await response.blob();
     const pdfUrl = URL.createObjectURL(pdfBlob);
 
@@ -61,7 +60,6 @@ export const generateProjectPDFPreview = async (projectId, method = 'weasyprint'
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
-    // Create blob URL for the PDF
     const pdfBlob = await response.blob();
     const pdfUrl = URL.createObjectURL(pdfBlob);
 

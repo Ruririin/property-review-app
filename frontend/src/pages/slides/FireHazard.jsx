@@ -31,10 +31,8 @@ const FireHazard = forwardRef(({
   const containerRef = useRef(null);
   const slideDataRef = useRef(slideData);
 
-  // Use projectId or currentProjectId (whichever is available)
   const activeProjectId = currentProjectId;
 
-  // Frame image handler for backend upload/delete
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
     activeProjectId,
     slideId
@@ -43,12 +41,10 @@ const FireHazard = forwardRef(({
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
 
-  // Update stable positions when fieldPositions prop changes
   useEffect(() => {
     if (fieldPositions) {
       stablePositionsRef.current = {
@@ -106,7 +102,6 @@ const FireHazard = forwardRef(({
     return { clientX: e.clientX, clientY: e.clientY };
   };
 
-  // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       if (setFieldPositions) {
@@ -115,7 +110,6 @@ const FireHazard = forwardRef(({
     }
   }));
 
-  // Update stable positions when fieldPositions prop changes
   useEffect(() => {
     if (fieldPositions) {
       stablePositionsRef.current = { 
@@ -135,19 +129,15 @@ const FireHazard = forwardRef(({
     }
   }, [formData, containerRef]);
 
-  // Load slide content and field positions from backend
   useEffect(() => {
     const loadSlideData = async () => {
       if (!slideId || !currentProjectId) {
-        // Only warn if currentProjectId is explicitly null after initial load
-        // This prevents warnings during normal project loading
         return;
       }
 
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
         
-        // Load field positions if they exist
         if (result.field_positions && Object.keys(result.field_positions).length > 0) {
           if (setFieldPositions) {
             setFieldPositions(prev => ({
@@ -157,12 +147,10 @@ const FireHazard = forwardRef(({
           }
         }
 
-        // Load fire hazard content if it exists
         if (result.content && setFormData) {
           // Try both nested and direct content structures
           const fireHazardData = result.content.fireHazardData || result.content;
           
-          // Only load if we have actual form data (not just structural data)
           const hasFormData = Object.keys(fireHazardData).some(key => 
             !['slide_id', 'slide_type', 'field_positions'].includes(key) && 
             fireHazardData[key] && 
@@ -231,7 +219,6 @@ const FireHazard = forwardRef(({
     });
   };
 
-  // Resize functionality - same as Comments
   const handleResizeMouseDown = (e, field, mode) => {
     e.stopPropagation();
     e.preventDefault();
@@ -364,7 +351,6 @@ const FireHazard = forwardRef(({
     }
   }, [isDragging, isResizing, draggingField, resizingField, dragOffset, resizeStart, zoomLevel, fieldPositions, setFieldPositions]);
 
-  // Render simple text field for premise location (bottom right, like other slides)
   const renderSimpleField = (field, placeholder) => {
     const isActive = selectedField === field;
     const defaultPosition = { top: 670, right: 1.2 };
@@ -401,7 +387,6 @@ const FireHazard = forwardRef(({
     );
   };
 
-  // Render bullet text field with Comments-style drag and resize
   const renderBulletTextbox = (field, content, defaultTop = 200) => {
     const isActive = selectedField === field;
     
@@ -724,19 +709,15 @@ const FireHazard = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        // Handle text field dragging/resizing
         handleMouseMove(e);
       }}
       onMouseUp={(e) => {
-        // Handle text field dragging/resizing
         handleMouseUp(e);
       }}
       onTouchMove={(e) => {
-        // Handle text field dragging/resizing
         handleMouseMove(e);
       }}
       onTouchEnd={(e) => {
-        // Handle text field dragging/resizing
         handleMouseUp(e);
       }}
       onClick={(e) => {

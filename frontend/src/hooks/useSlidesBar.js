@@ -8,31 +8,26 @@ import { useState, useCallback } from 'react';
 export const useSlidesBar = () => {
   const [showSlidesBar, setShowSlidesBar] = useState(true);
 
-  // Handle slide selection
   const handleSlideSelect = useCallback((slideId, setCurrentSlide) => {
     setCurrentSlide(slideId);
     console.log('📍 Switched to slide:', slideId);
   }, []);
 
-  // Handle slide deletion
   const handleSlideDelete = useCallback((slideId, slides, setSlides, currentSlide, setCurrentSlide, setSlideData) => {
     if (slides.length <= 1) {
       console.warn('Cannot delete the last slide');
       return;
     }
 
-    // Remove from slides array
     const updatedSlides = slides.filter(slide => slide.id !== slideId);
     setSlides(updatedSlides);
     
-    // Remove slide data
     setSlideData(prev => {
       const newSlideData = { ...prev };
       delete newSlideData[slideId];
       return newSlideData;
     });
     
-    // If we deleted the current slide, switch to the first available slide
     if (currentSlide === slideId) {
       const newCurrentSlide = updatedSlides[0]?.id || 1;
       setCurrentSlide(newCurrentSlide);
@@ -41,7 +36,6 @@ export const useSlidesBar = () => {
     console.log('🗑️ Deleted slide:', slideId);
   }, []);
 
-  // Handle add slide
   const handleAddSlide = useCallback((slides, setSlides, slideTypes = []) => {
     // Define available slide types
     const defaultSlideTypes = [
@@ -60,12 +54,10 @@ export const useSlidesBar = () => {
 
     const availableTypes = slideTypes.length > 0 ? slideTypes : defaultSlideTypes;
     
-    // Find the first available slide type that hasn't been used
     const usedTypes = slides.map(slide => slide.type);
     const availableType = availableTypes.find(type => !usedTypes.includes(type.type));
     
     if (!availableType) {
-      // If all types are used, create a generic slide
       const newSlideId = Math.max(...slides.map(s => s.id)) + 1;
       const newSlide = {
         id: newSlideId,
@@ -78,7 +70,6 @@ export const useSlidesBar = () => {
       return newSlide;
     }
     
-    // Create new slide with the available type
     const newSlideId = Math.max(...slides.map(s => s.id)) + 1;
     const newSlide = {
       id: newSlideId,
@@ -91,7 +82,6 @@ export const useSlidesBar = () => {
     return newSlide;
   }, []);
 
-  // Get slide type display name
   const getSlideTypeDisplayName = useCallback((type) => {
     const typeMap = {
       'aerial_view_-_google': 'Aerial - Google',

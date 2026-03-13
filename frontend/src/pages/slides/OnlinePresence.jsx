@@ -27,18 +27,15 @@ const OnlinePresence = forwardRef(({
   const activeProjectId = projectId || currentProjectId;
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(activeProjectId, slideId);
 
-  // Frame layout state (default to 1 frame)
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
   const imageTransforms = slideData?.imageTransforms || {};
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
 
-  // Sync frameLayout state when slideData changes (e.g. switching between same-type slides)
   useEffect(() => {
     if (slideData?.frameLayout !== undefined && slideData.frameLayout !== frameLayout) {
       setFrameLayout(slideData.frameLayout);
@@ -50,19 +47,15 @@ const OnlinePresence = forwardRef(({
     const currentFrameImages = slideDataRef.current?.frameImages || {};
     const currentFrameMeta = slideDataRef.current?.frameMeta || {};
 
-    // Store the base64 data immediately for display
     const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
 
     updateSlideData({ frameImages: updatedFrameImages });
 
-    // Only upload to backend if project has a database ID (not just a temp UUID)
-    // This prevents upload failures when project is newly created
     const hasDatabaseId = slideData?._appState?.databaseId || false;
 
     if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
       if (result?.success) {
-        // Store backend metadata and combine with frameImages
         updateSlideData({
           frameImages: updatedFrameImages,
           frameMeta: { ...currentFrameMeta, [frameId]: { filePath: result.filePath, url: result.url, width: result.width, height: result.height, aspectRatio: result.aspectRatio } }
@@ -104,14 +97,11 @@ const OnlinePresence = forwardRef(({
     return { clientX: e.clientX, clientY: e.clientY };
   };
 
-  // Expose method for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
-      // Sync field positions if needed
     }
   }));
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -121,11 +111,9 @@ const OnlinePresence = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
 
-        // Load slide content if it exists
         if (result.content && result.content.onlinePresenceData && setFormData) {
           const onlinePresenceData = result.content.onlinePresenceData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(onlinePresenceData).some(key =>
             onlinePresenceData[key] && onlinePresenceData[key].toString().trim() !== ''
           );
@@ -174,12 +162,10 @@ const OnlinePresence = forwardRef(({
       
       let updatedPosition;
       if (initialBottom !== null) {
-        // Using bottom positioning
         const newBottom = initialBottom - deltaY;
         const newRight = initialRight - (deltaX / window.innerWidth) * 100;
         updatedPosition = { bottom: newBottom, right: newRight };
       } else {
-        // Using top positioning  
         const newTop = initialTop + deltaY;
         const newRight = initialRight - (deltaX / window.innerWidth) * 100;
         updatedPosition = { top: newTop, right: newRight };
@@ -220,7 +206,6 @@ const OnlinePresence = forwardRef(({
     const isActive = selectedField === field;
     const fieldFontSize = fontSizes[field] || 28;
     
-    // Calculate dynamic width based on text content like street view
     const textContent = formData[field] || placeholder;
     const estimatedWidth = Math.max(300, Math.min(900, textContent.length * 16 + 120));
 
@@ -279,7 +264,6 @@ const OnlinePresence = forwardRef(({
             }
           }}
           onMouseDown={(e) => {
-            // Only start dragging if clicking on the border/edge area, not in the text content
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
               const coords = getEventCoordinates(e);
@@ -299,7 +283,6 @@ const OnlinePresence = forwardRef(({
             }
           }}
           onTouchStart={(e) => {
-            // Only start dragging if touching on the border/edge area, not in the text content
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
               const coords = getEventCoordinates(e);
@@ -352,7 +335,6 @@ const OnlinePresence = forwardRef(({
         boxShadow: "0 0 20px rgba(0,0,0,0.15)",
       }}
       onClick={(e) => {
-        // If clicking on empty area (not on text field or image), deselect
         if (e.target === e.currentTarget) {
           onSelect(null);
         }

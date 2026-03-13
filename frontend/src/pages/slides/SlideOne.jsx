@@ -23,7 +23,6 @@ const SlideOne = forwardRef(({
   slideId = '1',
   currentProjectId,
 }, ref) => {
-  // For SlideOne, use formData directly since Editor now passes globalLocationData correctly
   // This avoids conflicts with useLocationAwareData hook that can cause infinite loops
   const getFormValue = (field) => {
     const value = formData?.[field] || '';
@@ -60,14 +59,11 @@ const SlideOne = forwardRef(({
     return { clientX: e.clientX, clientY: e.clientY };
   };
 
-  // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
-      // Force a re-render to ensure DOM reflects current fieldPositions state
       // This is called before PDF export to ensure positions are current
       // Syncing field positions to DOM for PDF export
       
-      // Force React to re-render by updating a dummy state
       // This ensures the DOM reflects the current fieldPositions
       if (setFieldPositions) {
         setFieldPositions({ ...(fieldPositions || {}) });
@@ -75,7 +71,6 @@ const SlideOne = forwardRef(({
     }
   }));
 
-  // Load ISO codes on component mount
   useEffect(() => {
     loadIsoCodes();
   }, []);
@@ -90,14 +85,11 @@ const SlideOne = forwardRef(({
     }
   }, [formData]);
 
-  // Initialize fixed positions to ensure perfect consistency between editor and PDF
   useEffect(() => {
     if (setFieldPositions && fieldPositions) {
       const hasCustomPositions = fieldPositions.lineBusiness?.right !== 124 || fieldPositions.isoClass?.right !== 124;
       
-      // Only update if positions haven't been customized by user dragging
       if (!hasCustomPositions) {
-        // Use fixed positions that are guaranteed to be identical in editor and PDF
         // Setting fixed positions for perfect alignment
         setFieldPositions({
           ...fieldPositions,
@@ -108,7 +100,6 @@ const SlideOne = forwardRef(({
     }
   }, []); // Only run once on mount
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -118,7 +109,6 @@ const SlideOne = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
 
-        // Load field positions if they exist
         if (result.field_positions && Object.keys(result.field_positions).length > 0 && setFieldPositions) {
           setFieldPositions(prev => ({
             ...prev,
@@ -126,11 +116,9 @@ const SlideOne = forwardRef(({
           }));
         }
 
-        // Load slide content if it exists
         if (result.content && result.content.slideOneData && setFormData) {
           const slideOneData = result.content.slideOneData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(slideOneData).some(key =>
             slideOneData[key] && slideOneData[key].toString().trim() !== ''
           );
@@ -159,7 +147,6 @@ const SlideOne = forwardRef(({
     const currentDescription = getFormValue('description');
     const currentIsoClass = getFormValue('isoClass');
 
-    // Check if user is in "Others" mode - if so, skip all ISO matching
     const isOthersMode = currentIsoClass === 'Others';
 
     if (!currentDescription) {
@@ -167,7 +154,6 @@ const SlideOne = forwardRef(({
       setIsDescriptionDropdownOpen(false);
       setIsLineBusinessDropdownOpen(false);
 
-      // Handle clearing: only reset "Others" mode on second clear (after typing)
       if (currentIsoClass === 'Others' && !othersCleared) {
         // First clear after clicking "Others" - stay in Others mode
         setOthersCleared(true);
@@ -181,16 +167,13 @@ const SlideOne = forwardRef(({
         // Normal clear (not from Others mode)
         setFormValue('isoClass', '');
       }
-      // If currentIsoClass === 'Others' but hasn't typed yet, do nothing (stay in Others mode)
       return;
     }
 
-    // Track that user has typed in Others mode
     if (isOthersMode && currentDescription) {
       hasTypedInOthersMode.current = true;
     }
 
-    // Skip auto-matching if the description already contains an ISO code (format: "#### - description")
     const isAlreadyFormatted = /^\d{4}\s*-\s*.+/.test(currentDescription);
 
     if (currentDescription && !isAlreadyFormatted && !isOthersMode) {
@@ -216,16 +199,13 @@ const SlideOne = forwardRef(({
         // No matches - clear matches but keep description
         setDescriptionMatches([]);
         setIsDescriptionDropdownOpen(false);
-        // Update isoClass to match description for consistency (unless in Others mode)
         if (currentIsoClass !== currentDescription && !isOthersMode) {
           setFormValue('isoClass', currentDescription);
         }
       }
     } else if (!isOthersMode) {
-      // Only sync isoClass with description if NOT in Others mode
       setDescriptionMatches([]);
       setIsDescriptionDropdownOpen(false);
-      // Keep isoClass in sync with description
       if (currentIsoClass !== currentDescription) {
         setFormValue('isoClass', currentDescription);
       }
@@ -237,10 +217,8 @@ const SlideOne = forwardRef(({
   }, [formData?.description, isUserEditingDescription]);
 
   const handleChange = (field, value) => {
-    // Use location-aware data setter
     setFormValue(field, value);
     
-    // Track field editing activity
     if (sessionUser && currentFormId) {
       const fieldName = field === 'insuredName' ? 'Insured Name' : 
                        field === 'premiseLocation' ? 'Premise Location' :
@@ -249,7 +227,6 @@ const SlideOne = forwardRef(({
                        field === 'lineBusiness' ? 'Line of Business' :
                        field === 'isoClass' ? 'ISO Class' : field;
         
-      // Create form-specific field ID to match dropdown
       const specificFieldId = `${field}-${currentFormId}`;
       
       fieldActivityService.startEditingField(sessionUser, specificFieldId, fieldName);
@@ -268,7 +245,6 @@ const SlideOne = forwardRef(({
     setIsDragging(true);
     setDraggingField(field);
     
-    // For textarea fields, use the parent div wrapper; for other fields use the currentTarget
     const fieldContainer = e.currentTarget.tagName === 'TEXTAREA' 
       ? e.currentTarget.parentElement 
       : e.currentTarget;
@@ -277,7 +253,6 @@ const SlideOne = forwardRef(({
     // Account for zoom level when calculating offset
     const zoomFactor = (zoomLevel || 100) / 100;
     
-    // Calculate offset from cursor to field container's position, accounting for zoom
     const coords = getEventCoordinates(e);
     setDragOffset({
       x: (coords.clientX - fieldRect.left) / zoomFactor,
@@ -292,12 +267,10 @@ const SlideOne = forwardRef(({
       // Account for zoom level when calculating new position
       const zoomFactor = (zoomLevel || 100) / 100;
       
-      // Calculate new field position maintaining the original offset, accounting for zoom
       const coords = getEventCoordinates(e);
       const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
       const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
       
-      // Get field width for right positioning calculation
       let fieldWidth;
       if (draggingField === 'lineBusiness' || draggingField === 'isoClass') {
         const layout = calculateDynamicLayout();
@@ -306,7 +279,6 @@ const SlideOne = forwardRef(({
         fieldWidth = 960; // Match the width used in renderField function
       }
       
-      // Convert to right positioning (container is 1280px wide)
       const containerWidth = 1280;
       const newRight = containerWidth - newLeft - fieldWidth;
       
@@ -327,7 +299,6 @@ const SlideOne = forwardRef(({
     setDraggingField(null);
   };
 
-  // Add document event listeners for dragging (like editor.jsx)
   useEffect(() => {
     const handleDocumentMouseMove = (e) => {
       if (isDragging && draggingField) {
@@ -336,12 +307,10 @@ const SlideOne = forwardRef(({
         // Account for zoom level when calculating new position
         const zoomFactor = (zoomLevel || 100) / 100;
         
-        // Calculate new field position maintaining the original offset, accounting for zoom
         const coords = getEventCoordinates(e);
         const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
         const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
         
-        // Get field width for right positioning calculation
         let fieldWidth;
         if (draggingField === 'lineBusiness' || draggingField === 'isoClass') {
           const layout = calculateDynamicLayout();
@@ -350,7 +319,6 @@ const SlideOne = forwardRef(({
           fieldWidth = 960; // Match the width used in renderField function
         }
         
-        // Convert to right positioning (container is 1280px wide)
         const containerWidth = 1280;
         const newRight = containerWidth - newLeft - fieldWidth;
         
@@ -381,12 +349,10 @@ const SlideOne = forwardRef(({
         // Account for zoom level when calculating new position
         const zoomFactor = (zoomLevel || 100) / 100;
         
-        // Calculate new field position maintaining the original offset, accounting for zoom
         const coords = getEventCoordinates(e);
         const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
         const newTop = (coords.clientY - containerRect.top) / zoomFactor - dragOffset.y;
         
-        // Get field width for right positioning calculation
         let fieldWidth;
         if (draggingField === 'lineBusiness' || draggingField === 'isoClass') {
           const layout = calculateDynamicLayout();
@@ -395,7 +361,6 @@ const SlideOne = forwardRef(({
           fieldWidth = 960; // Match the width used in renderField function
         }
         
-        // Convert to right positioning (container is 1280px wide)
         const containerWidth = 1280;
         const newRight = containerWidth - newLeft - fieldWidth;
         
@@ -468,7 +433,6 @@ const SlideOne = forwardRef(({
     background: "rgba(255, 255, 255, 0.1)",
   };
 
-  // Calculate dynamic layout for Line of Business and ISO Class
   const calculateDynamicLayout = () => {
     const totalAvailableWidth = 860; // Same as insured name
     const minFontSize = 18;
@@ -496,13 +460,11 @@ const SlideOne = forwardRef(({
       const lineBusinessTextWidth = estimateTextWidth(lineBusinessText, currentFontSize);
       const isoClassTextWidth = estimateTextWidth(isoClassText, currentFontSize);
       
-      // Calculate required widths with padding - let fields adjust to content
       lineBusinessWidth = lineBusinessTextWidth + 40;
       isoClassWidth = (isoClassTextWidth + 40) * 1.05; // Increased padding and width
       
       const totalUsedWidth = lineBusinessWidth + isoClassWidth + gap;
       
-      // Only reduce font size if total width exceeds available space
       if (totalUsedWidth > totalAvailableWidth && currentFontSize > minFontSize) {
         currentFontSize -= 1;
       } else {
@@ -510,7 +472,6 @@ const SlideOne = forwardRef(({
       }
     } while (currentFontSize > minFontSize);
     
-    // Calculate positions - ISO stays at original position, Line Business immediately to its left
     const isoClassRight = 124; // Keep ISO at original position  
     const lineBusinessRight = isoClassRight + isoClassWidth + gap; // Line Business positioned to the left of ISO
     
@@ -548,7 +509,6 @@ const SlideOne = forwardRef(({
     const isActive = selectedField === 'lineBusiness';
     const layout = calculateDynamicLayout();
     
-    // Use fixed positioning to ensure editor and PDF match exactly
     
     const lineBusinessOptions = [
       "Commercial Property - Special Multi Peril",
@@ -581,7 +541,6 @@ const SlideOne = forwardRef(({
             onSelect('lineBusiness');
           }}
           onMouseDown={(e) => {
-            // Only start dragging if not clicking on dropdown arrow area
             const rect = e.currentTarget.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             if (clickX > 30) { // Only drag if clicking outside dropdown arrow area
@@ -662,7 +621,6 @@ const SlideOne = forwardRef(({
     );
   };
 
-  // Render single Type of Operation field that combines description and ISO functionality
   const renderTypeOfOperationField = () => {
     const defaultFieldPositions = {
       description: { top: 430, right: 124 },
@@ -950,7 +908,6 @@ const SlideOne = forwardRef(({
     const position = (fieldPositions && fieldPositions[field]) || defaultFieldPositions[field];
     const isActive = selectedField === field;
     
-    // Calculate dynamic layout for ISO Class field
     let fieldWidth, fieldRight, fieldFontSize;
     if (field === 'isoClass') {
       const layout = calculateDynamicLayout();
@@ -1003,7 +960,6 @@ const SlideOne = forwardRef(({
             }
           }}
           onMouseDown={(e) => {
-            // Only start dragging if clicking on the border/edge area, not in the text content
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
               const coords = getEventCoordinates(e);
@@ -1011,7 +967,6 @@ const SlideOne = forwardRef(({
               const clickY = coords.clientY - rect.top;
               const borderThickness = 8; // Reduced from 20 to 8 pixels for better text selection
               
-              // Check if click is near the edges (drag zones)
               const isOnLeftEdge = clickX <= borderThickness;
               const isOnRightEdge = clickX >= rect.width - borderThickness;
               const isOnTopEdge = clickY <= borderThickness;
@@ -1025,7 +980,6 @@ const SlideOne = forwardRef(({
             }
           }}
           onTouchStart={(e) => {
-            // Only start dragging if touching on the border/edge area, not in the text content
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
               const coords = getEventCoordinates(e);
@@ -1033,7 +987,6 @@ const SlideOne = forwardRef(({
               const clickY = coords.clientY - rect.top;
               const borderThickness = 8; // Reduced from 20 to 8 pixels for better text selection
               
-              // Check if touch is near the edges (drag zones)
               const isOnLeftEdge = clickX <= borderThickness;
               const isOnRightEdge = clickX >= rect.width - borderThickness;
               const isOnTopEdge = clickY <= borderThickness;
@@ -1091,7 +1044,6 @@ const SlideOne = forwardRef(({
       onTouchMove={handleMouseMove}
       onTouchEnd={handleMouseUp}
       onClick={(e) => {
-        // If clicking on the container background (not on a field), deselect
         if (e.target === e.currentTarget) {
           onSelect(null);
           setIsLineBusinessDropdownOpen(false);

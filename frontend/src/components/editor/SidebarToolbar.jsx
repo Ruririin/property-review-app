@@ -37,7 +37,6 @@ const SidebarToolbar = ({
   multipleLocationsMode = false,
   onToggleMultipleLocations = () => {},
   
-  // Toggle sidebar
   isVisible = true,
   onToggleVisibility = () => {}
 }) => {

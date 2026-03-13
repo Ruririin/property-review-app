@@ -8,7 +8,6 @@
 
 class StorageEncryption {
   constructor() {
-    // Generate or retrieve encryption key from sessionStorage
     // Key is lost when browser closes (not persisted)
     this.keyPromise = this.getOrCreateKey();
   }
@@ -18,7 +17,6 @@ class StorageEncryption {
    */
   async getOrCreateKey() {
     try {
-      // Check if key exists in sessionStorage
       const storedKey = sessionStorage.getItem('_ek');
 
       if (storedKey) {
@@ -33,7 +31,6 @@ class StorageEncryption {
         );
       }
 
-      // Generate new key
       const key = await window.crypto.subtle.generateKey(
         { name: 'AES-GCM', length: 256 },
         true,
@@ -59,11 +56,9 @@ class StorageEncryption {
       const key = await this.keyPromise;
       if (!key) return plaintext; // Fallback to plaintext if encryption fails
 
-      // Convert string to bytes
       const encoder = new TextEncoder();
       const data = encoder.encode(plaintext);
 
-      // Generate random IV (initialization vector)
       const iv = window.crypto.getRandomValues(new Uint8Array(12));
 
       // Encrypt
@@ -73,12 +68,10 @@ class StorageEncryption {
         data
       );
 
-      // Combine IV + encrypted data
       const combined = new Uint8Array(iv.length + encrypted.byteLength);
       combined.set(iv, 0);
       combined.set(new Uint8Array(encrypted), iv.length);
 
-      // Convert to base64
       return btoa(String.fromCharCode(...combined));
     } catch (error) {
       console.warn('Encryption failed, using plaintext:', error);
@@ -94,10 +87,8 @@ class StorageEncryption {
       const key = await this.keyPromise;
       if (!key) return ciphertext; // Fallback to plaintext if decryption fails
 
-      // Convert from base64
       const combined = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
 
-      // Extract IV and encrypted data
       const iv = combined.slice(0, 12);
       const data = combined.slice(12);
 
@@ -108,7 +99,6 @@ class StorageEncryption {
         data
       );
 
-      // Convert bytes to string
       const decoder = new TextDecoder();
       return decoder.decode(decrypted);
     } catch (error) {
@@ -172,7 +162,6 @@ class StorageEncryption {
   }
 }
 
-// Create singleton instance
 const secureStorage = new StorageEncryption();
 
 export default secureStorage;

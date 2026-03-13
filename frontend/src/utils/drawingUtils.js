@@ -5,7 +5,6 @@
  * to reduce complexity and improve maintainability.
  */
 
-// Convert rectangle drawing to points
 export const rectToPoints = (drawing) => {
   if (drawing.points) {
     return drawing.points; // Already has points
@@ -20,7 +19,6 @@ export const rectToPoints = (drawing) => {
   ];
 };
 
-// Delete drawing from slide data
 export const deleteDrawing = (slideData, currentSlide, drawingIndex) => {
   const updatedDrawings = (slideData[currentSlide]?.drawings || []).filter(
     (_, index) => index !== drawingIndex
@@ -35,13 +33,11 @@ export const deleteDrawing = (slideData, currentSlide, drawingIndex) => {
   };
 };
 
-// Update point position in drawing
 export const updatePointPosition = (slideData, currentSlide, drawingIndex, pointIndex, newX, newY) => {
   const updatedDrawings = [...(slideData[currentSlide]?.drawings || [])];
   const drawing = updatedDrawings[drawingIndex];
 
   if (!drawing.points) {
-    // Convert rect to points first
     drawing.points = rectToPoints(drawing);
     delete drawing.startX;
     delete drawing.startY;
@@ -60,7 +56,6 @@ export const updatePointPosition = (slideData, currentSlide, drawingIndex, point
   };
 };
 
-// Update drawing size based on resize handle
 export const updateDrawingSize = (slideData, currentSlide, drawingIndex, oldStartX, oldStartY, oldEndX, oldEndY, handle, mouseX, mouseY) => {
   const updatedDrawings = [...(slideData[currentSlide]?.drawings || [])];
   let newStartX = oldStartX, newStartY = oldStartY, newEndX = oldEndX, newEndY = oldEndY;
@@ -113,7 +108,6 @@ export const updateDrawingSize = (slideData, currentSlide, drawingIndex, oldStar
   };
 };
 
-// Start point dragging helper
 export const createPointDragHandler = (e, drawingIndex, pointIndex, setIsDraggingPoint, setDraggingPointIndex, setSelectedDrawingIndex) => {
   e.stopPropagation();
   setIsDraggingPoint(true);
@@ -121,7 +115,6 @@ export const createPointDragHandler = (e, drawingIndex, pointIndex, setIsDraggin
   setSelectedDrawingIndex(drawingIndex);
 };
 
-// Create resize handler
 export const createResizeHandler = (slideData, currentSlide, canvasOffset, zoomLevel, setSlideData, setIsResizing, setResizeHandle, setSelectedDrawingIndex) => {
   return (e, drawingIndex, handle) => {
     e.stopPropagation();
@@ -137,7 +130,6 @@ export const createResizeHandler = (slideData, currentSlide, canvasOffset, zoomL
       const drawing = slideData[currentSlide]?.drawings[drawingIndex];
       if (!drawing) return;
 
-      // Calculate mouse position relative to slide container, accounting for zoom and canvas offset
       const mouseX = ((moveEvent.clientX - rect.left - canvasOffset.x) / (zoomLevel / 100));
       const mouseY = ((moveEvent.clientY - rect.top - canvasOffset.y) / (zoomLevel / 100));
 
@@ -187,7 +179,6 @@ export const createDrawingKeyboardHandler = (isDrawingMode, isSquareEditMode, se
   };
 };
 
-// Get slide data helper
 export const getSlideData = (slideData, slideId) => {
   return slideData[slideId] || { type: '', title: '', formData: {}, drawings: [] };
 };

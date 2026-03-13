@@ -195,7 +195,6 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
 
-  // Set max dimensions to optimize file size while maintaining quality
   const maxWidth = 1200;
   const maxHeight = 1200;
 
@@ -212,7 +211,6 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
   canvas.width = targetWidth;
   canvas.height = targetHeight;
 
-  // Enable image smoothing for better quality
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 

@@ -7,7 +7,6 @@ import React from 'react';
 export default function SlideThumbnail({ slideType, slideData, width = 120, height = 80, projectData }) {
   // Cover slide thumbnail - shows actual template background with ACTUAL slide form data
   if (slideType === 'cover') {
-    // Get actual form data from the slide (passed via slideData which contains the full slide object)
     const formData = slideData?.formData || {};
 
     // Scale factor for positioning (thumbnail is scaled down from 1280x720)
@@ -113,7 +112,6 @@ export default function SlideThumbnail({ slideType, slideData, width = 120, heig
     );
   }
 
-  // Standard slide thumbnail - white background with title
   return (
     <div style={{
       width,

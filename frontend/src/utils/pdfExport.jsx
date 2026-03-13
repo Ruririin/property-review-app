@@ -8,7 +8,6 @@ const extractLocationFromMapUrl = (url) => {
   if (!url) return null;
   
   try {
-    // Extract location from various Google Maps URL formats
     const match = url.match(/[?&]q=([^&]+)/);
     if (match) {
       return decodeURIComponent(match[1]);
@@ -48,7 +47,6 @@ const createMapPlaceholder = (clonedDoc, iframe) => {
   div.style.textAlign = 'center';
   div.style.padding = '20px';
   
-  // Add content
   const iconDiv = clonedDoc.createElement('div');
   iconDiv.style.fontSize = '48px';
   iconDiv.style.marginBottom = '10px';
@@ -152,7 +150,6 @@ export const exportToPDF = async (slides, filename = 'Property Review.pdf') => {
       throw new Error('No slides provided for export');
     }
 
-    // Create PDF document in landscape mode to match slide dimensions (1280x720)
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'px',
@@ -211,14 +208,12 @@ export const exportToPDF = async (slides, filename = 'Property Review.pdf') => {
           try {
             console.log('Converting slide to static for PDF...');
             
-            // Convert all interactive elements to static divs
             const textareas = clonedDoc.querySelectorAll('textarea');
             textareas.forEach(textarea => {
               try {
                 const div = clonedDoc.createElement('div');
                 div.textContent = textarea.value || textarea.placeholder || '';
                 
-                // Get the original textarea from the source document using data-field attribute
                 const fieldName = textarea.getAttribute('data-field') || 
                                 textarea.dataset?.field ||
                                 textarea.getAttribute('placeholder')?.replace(/\s+/g, '_').toLowerCase();
@@ -227,19 +222,16 @@ export const exportToPDF = async (slides, filename = 'Property Review.pdf') => {
                                        slideElement.querySelector(`textarea[value="${textarea.value}"]`) ||
                                        slideElement.querySelector(`textarea[placeholder="${textarea.placeholder}"]`);
                 
-                // Check if this is a Comments slide
                 const isCommentsSlide = slideElement.style.backgroundImage.includes('Template-06.png');
                 
                 // Copy all computed styles to maintain exact appearance
                 const computedStyle = getComputedStyle(textarea);
                 div.style.cssText = textarea.style.cssText;
                 
-                // Use saved dimensions from DOM attributes if available (set by Comments.jsx)
                 const savedWidth = textarea.getAttribute('data-current-width');
                 const savedHeight = textarea.getAttribute('data-current-height');
                 
                 if (savedWidth && savedHeight) {
-                  // Use the user's resized dimensions
                   div.style.width = `${savedWidth}px`;
                   div.style.height = `${savedHeight}px`;
                   console.log(`📐 Using saved dimensions for PDF: ${savedWidth}x${savedHeight} for text: "${div.textContent.substring(0, 50)}..."`);
@@ -277,7 +269,6 @@ export const exportToPDF = async (slides, filename = 'Property Review.pdf') => {
                   getComputedStyle(parentElement).position === 'absolute';
                 
                 if (hasParentPosition) {
-                  // Use parent container's positioning (Comments component structure)
                   const parentStyles = getComputedStyle(parentElement);
                   div.style.position = parentStyles.position;
                   div.style.top = parentStyles.top;
@@ -316,13 +307,11 @@ export const exportToPDF = async (slides, filename = 'Property Review.pdf') => {
               }
             });
             
-            // Remove all buttons and interactive elements
             const buttonsToRemove = clonedDoc.querySelectorAll('button, .btn, .iso-dropdown');
             buttonsToRemove.forEach(btn => {
               btn.remove();
             });
 
-            // Remove image control buttons
             const imageButtons = clonedDoc.querySelectorAll('[style*="border-radius: 50%"]');
             imageButtons.forEach(btn => {
               const text = btn.textContent;
@@ -331,7 +320,6 @@ export const exportToPDF = async (slides, filename = 'Property Review.pdf') => {
               }
             });
 
-            // Add comprehensive cleanup styles
             const style = clonedDoc.createElement('style');
             style.textContent = `
               * { 
@@ -360,16 +348,13 @@ export const exportToPDF = async (slides, filename = 'Property Review.pdf') => {
       // Restore original element style
       slideElement.style.cssText = originalStyle;
 
-      // Check if canvas has content
       if (canvas.width === 0 || canvas.height === 0) {
         console.error(`Canvas ${i + 1} has no dimensions: ${canvas.width}x${canvas.height}`);
         continue;
       }
 
-      // Convert canvas to image and add to PDF (reduced quality from 0.95 to 0.85)
       const imgData = canvas.toDataURL('image/jpeg', 0.85);
       
-      // Check if image data is valid
       if (!imgData || imgData === 'data:,') {
         console.error(`No image data for slide ${i + 1}`);
         continue;
@@ -381,13 +366,11 @@ export const exportToPDF = async (slides, filename = 'Property Review.pdf') => {
         pdf.addPage([1280, 720], 'landscape');
       }
       
-      // Add image to fill entire page
       pdf.addImage(imgData, 'JPEG', 0, 0, 1280, 720);
       
       console.log(`Slide ${i + 1} added to PDF`);
     }
 
-    // Save the PDF
     pdf.save(filename);
     console.log(`PDF saved as: ${filename}`);
     

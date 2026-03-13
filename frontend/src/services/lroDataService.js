@@ -2,7 +2,6 @@
 const API_BASE_URL = '/api';
 
 class LRODataService {
-  // Search for LRO forms
   async searchForms(searchParams = {}) {
     try {
       const queryParams = new URLSearchParams();
@@ -32,7 +31,6 @@ class LRODataService {
     }
   }
 
-  // Get all LRO forms
   async getAllForms() {
     try {
       const response = await fetch(`${API_BASE_URL}/forms/`, {
@@ -55,7 +53,6 @@ class LRODataService {
     }
   }
 
-  // Get formatted form data for property review
   async getFormDataForPropertyReview(formId) {
     try {
       const response = await fetch(`${API_BASE_URL}/forms/for-property-review/?id=${formId}`, {
@@ -78,7 +75,6 @@ class LRODataService {
     }
   }
 
-  // Get specific form by ID
   async getFormById(formId) {
     try {
       const response = await fetch(`${API_BASE_URL}/forms/${formId}/`, {

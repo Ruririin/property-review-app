@@ -27,12 +27,10 @@ const CrimeRate = forwardRef(({
   const activeProjectId = projectId || currentProjectId;
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(activeProjectId, slideId);
 
-  // Frame images for custom layout (1 rectangle top, 2 squares bottom)
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
   const imageTransforms = slideData?.imageTransforms || {};
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
@@ -42,19 +40,15 @@ const CrimeRate = forwardRef(({
     const currentFrameImages = slideDataRef.current?.frameImages || {};
     const currentFrameMeta = slideDataRef.current?.frameMeta || {};
 
-    // Store the base64 data immediately for display
     const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
 
     updateSlideData({ frameImages: updatedFrameImages });
 
-    // Only upload to backend if project has a database ID (not just a temp UUID)
-    // This prevents upload failures when project is newly created
     const hasDatabaseId = slideData?._appState?.databaseId || false;
 
     if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
       if (result?.success) {
-        // Store backend metadata and combine with frameImages
         updateSlideData({
           frameImages: updatedFrameImages,
           frameMeta: { ...currentFrameMeta, [frameId]: { filePath: result.filePath, url: result.url, width: result.width, height: result.height, aspectRatio: result.aspectRatio } }
@@ -83,12 +77,10 @@ const CrimeRate = forwardRef(({
     });
   };
 
-  // Custom layout configuration for Crime Rate slide
   // Container dimensions: 1064 x 504 (total height available)
   const containerWidth = 1064;
   const gap = 16;
 
-  // Custom layout: 1 wide rectangle on top (smaller), 2 taller rectangles on bottom
   const topHeight = 164; // Reduced for more space below
   const bottomHeight = 324; // Increased to use the space from top frame
   const bottomWidth = (containerWidth - gap) / 2;
@@ -119,7 +111,6 @@ const CrimeRate = forwardRef(({
     }
   ];
 
-  // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       if (setFieldPositions) {
@@ -128,7 +119,6 @@ const CrimeRate = forwardRef(({
     }
   }));
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -138,11 +128,9 @@ const CrimeRate = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
 
-        // Load slide content if it exists
         if (result.content && result.content.crimeRateData && setFormData) {
           const crimeRateData = result.content.crimeRateData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(crimeRateData).some(key =>
             crimeRateData[key] && crimeRateData[key].toString().trim() !== ''
           );
@@ -165,7 +153,6 @@ const CrimeRate = forwardRef(({
 
   // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
 
-  // Render simple text field for premise location (bottom right, like other slides)
   const renderSimpleField = (field, placeholder) => {
     const isActive = selectedField === field;
     const defaultPosition = { top: 670, right: 1.2 };
@@ -219,7 +206,6 @@ const CrimeRate = forwardRef(({
         userSelect: "none",
       }}
       onClick={(e) => {
-        // If clicking on empty area (not on text field or image), deselect
         if (e.target === e.currentTarget) {
           onSelect(null);
         }

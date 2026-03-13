@@ -33,7 +33,6 @@ const Comments = forwardRef(({
   const stablePositionsRef = useRef({});
   const containerRef = useRef(null); // For container reference instead of imageHandler
 
-  // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       if (setFieldPositions) {
@@ -42,7 +41,6 @@ const Comments = forwardRef(({
     }
   }));
 
-  // Update stable positions when fieldPositions prop changes
   useEffect(() => {
     if (fieldPositions) {
       stablePositionsRef.current = { 
@@ -52,10 +50,8 @@ const Comments = forwardRef(({
     }
   }, [fieldPositions]);
 
-  // Load slide data from backend when component mounts or projectId changes
   useEffect(() => {
     const loadSlideData = async () => {
-      // Skip backend fetch for draft projects
       if (!currentProjectId) {
         return;
       }
@@ -63,18 +59,14 @@ const Comments = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, 'comments_slide');
 
-        // Load field positions if they exist
         if (result.field_positions && Object.keys(result.field_positions).length > 0) {
-          // Update both the state and the stable ref with defensive checks
           stablePositionsRef.current = {
             ...stablePositionsRef.current,
             ...result.field_positions
           };
 
-          // Only update field positions if the function exists and component is still mounted
           if (setFieldPositions && typeof setFieldPositions === 'function') {
             try {
-              // Use a timeout to avoid React error #185 with rapid state updates
               setTimeout(() => {
                 setFieldPositions(prev => {
                   // Defensive check to ensure prev is an object
@@ -91,10 +83,8 @@ const Comments = forwardRef(({
           }
         }
 
-        // Load comments content if it exists
         if (result.content && result.content.comments && setFormData && typeof setFormData === 'function') {
           try {
-            // Use a timeout to avoid React error #185 with rapid state updates
             setTimeout(() => {
               setFormData(prev => {
                 // Defensive check to ensure prev is an object
@@ -126,7 +116,6 @@ const Comments = forwardRef(({
       const stringValue = String(value || "");
       setFormData({ ...formData, [field]: stringValue });
       
-      // Sync premise location with SlideOne (like the original implementation)
       if (field === 'premiseLocation') {
         // This will sync with SlideOne's premise location
         setFormData(prev => ({ ...prev, premiseLocation: stringValue }));
@@ -139,7 +128,6 @@ const Comments = forwardRef(({
     el.style.height = el.scrollHeight + "px"; 
   };
 
-  // Get touch or mouse coordinates
   const getEventCoordinates = (e) => {
     if (e.touches && e.touches.length > 0) {
       return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
@@ -174,7 +162,6 @@ const Comments = forwardRef(({
     });
   };
 
-  // Resize functionality - similar to image resize handles
   const handleResizeMouseDown = (e, field, mode) => {
     e.stopPropagation();
     e.preventDefault();
@@ -191,7 +178,6 @@ const Comments = forwardRef(({
     const zoomFactor = (zoomLevel || 100) / 100;
     const coords = getEventCoordinates(e);
     
-    // Store the current field dimensions from our position state
     const currentField = fieldPositions?.[field] || stablePositionsRef.current[field] || {};
     
     setResizeStart({
@@ -298,9 +284,7 @@ const Comments = forwardRef(({
     setResizeMode('');
   };
 
-  // Handle right-click to edit compiled comments
   const handleContextMenu = (e, field) => {
-    // Only allow right-click editing for compiled, custom, and interior comments
     if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
       e.preventDefault();
       e.stopPropagation();
@@ -310,7 +294,6 @@ const Comments = forwardRef(({
     }
   };
 
-  // Save edited text from popup
   const handleSaveEdit = (editedText) => {
     if (editingField && setFormData) {
       setFormData({
@@ -355,7 +338,6 @@ const Comments = forwardRef(({
       document.addEventListener('mousemove', handleDocumentMouseMove);
       document.addEventListener('mouseup', handleDocumentMouseUp);
       
-      // Touch events - fix passive listener issue
       document.addEventListener('touchmove', handleDocumentTouchMove, { passive: false });
       document.addEventListener('touchend', handleDocumentTouchEnd, { passive: false });
       
@@ -368,16 +350,13 @@ const Comments = forwardRef(({
     }
   }, [isDragging, isResizing, draggingField, resizingField, dragOffset, resizeStart, zoomLevel, fieldPositions, setFieldPositions]);
 
-  // Render bullet text field with SlideOne-style drag and resize
   const renderBulletTextField = (field, placeholder, defaultTop = 200) => {
     const isActive = selectedField === field;
     
-    // Use stablePositionsRef as the primary source of truth, fallback to fieldPositions
     const stableField = stablePositionsRef.current[field] || {};
     const propsField = fieldPositions?.[field] || {};
     const mergedField = { ...propsField, ...stableField };
     
-    // Use one-line height (50px) for new fields, fallback to 80px for existing fields
     const defaultHeight = (mergedField.height === undefined && formData?.[field] && formData[field].length < 50) ? 50 : 80;
     
     
@@ -450,7 +429,6 @@ const Comments = forwardRef(({
               onClick={(e) => {
                 e.stopPropagation();
                 if (setFormData && fieldPositions) {
-                  // Create new key with timestamp
                   const prefix = field.startsWith('compiled_') ? 'compiled_' :
                                  field.startsWith('custom_') ? 'custom_' :
                                  field.startsWith('interiorView_') ? 'interiorView_' : '';
@@ -510,9 +488,7 @@ const Comments = forwardRef(({
 
                 // Perform delete operation
                 const performDelete = async () => {
-                  // For dynamic fields (compiled, custom, interiorView), remove the key entirely
                   if (field.startsWith('compiled_') || field.startsWith('custom_') || field.startsWith('interiorView_')) {
-                    // Remove from formData
                     if (setFormData && formData) {
                       const updatedFormData = { ...formData };
                       delete updatedFormData[field];
@@ -528,7 +504,6 @@ const Comments = forwardRef(({
                       }
                     }
 
-                    // Remove from fieldPositions
                     if (setFieldPositions && fieldPositions) {
                       const updatedPositions = { ...fieldPositions };
                       delete updatedPositions[field];
@@ -544,12 +519,10 @@ const Comments = forwardRef(({
                       }
                     }
 
-                    // Remove from stablePositionsRef
                     if (stablePositionsRef.current[field]) {
                       delete stablePositionsRef.current[field];
                     }
                   } else {
-                    // For standard fields, just empty the value
                     if (setFormData) {
                       setFormData({ ...formData, [field]: "" });
                     }
@@ -732,7 +705,6 @@ const Comments = forwardRef(({
     );
   };
 
-  // Render standard field (like premiseLocation, websiteInfo) with SlideOne style
   const renderField = (field, placeholder, additionalStyles = {}) => {
     const defaultFieldPositions = {
       websiteInfo: { top: 630, right: 1.2 }, // 5% higher than premise location
@@ -853,11 +825,9 @@ const Comments = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        // Handle text field dragging/resizing
         handleMouseMove(e);
       }}
       onMouseUp={(e) => {
-        // Handle text field dragging/resizing
         handleMouseUp(e);
       }}
       onClick={(e) => {

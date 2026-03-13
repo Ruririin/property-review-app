@@ -25,10 +25,8 @@ export const useBackendImageHandler = (
   const imageData = slideData?.imageData || null;
   const imagePosition = slideData?.imagePosition || { top: 300, left: 400 };
 
-  // Handle paste events for adding images - only for the active slide
   useEffect(() => {
     const handlePaste = async (e) => {
-      // Only handle paste if this is the active slide and we have required IDs
       if (!isActiveSlide || !projectId || !slideId) return;
       
       const items = e.clipboardData.items;
@@ -45,7 +43,6 @@ export const useBackendImageHandler = (
               const response = await uploadImageToBackend(event.target.result);
               
               if (response.success) {
-                // Update slide data with backend response
                 updateSlideData({
                   imageData: response.image_data,
                   imagePosition: response.image_position,
@@ -171,21 +168,17 @@ export const useBackendImageHandler = (
     }
 
     if (isResizingImage && resizeStart && imageData && containerRef.current) {
-      // Get container bounds for proper coordinate calculation
       const containerRect = containerRef.current.getBoundingClientRect();
       
       // Account for zoom level when calculating resize delta
       const zoomFactor = (zoomLevel || 100) / 100;
       
-      // Calculate mouse position relative to container
       const currentMouseX = (e.clientX - containerRect.left) / zoomFactor;
       const currentMouseY = (e.clientY - containerRect.top) / zoomFactor;
       
-      // Calculate the distance from the resize start point
       const deltaX = currentMouseX - resizeStart.mouseStartX;
       const deltaY = currentMouseY - resizeStart.mouseStartY;
       
-      // Use the larger of the two deltas to maintain aspect ratio
       const delta = Math.max(deltaX, deltaY);
       
       const newWidth = Math.max(50, resizeStart.startWidth + delta);
@@ -208,7 +201,6 @@ export const useBackendImageHandler = (
     setResizeStart(null);
   };
 
-  // Start resizing
   const handleResizeMouseDown = (e) => {
     e.stopPropagation();
     setIsResizingImage(true);
@@ -229,12 +221,10 @@ export const useBackendImageHandler = (
     }
   };
 
-  // Delete image (now handles backend deletion)
   const handleDeleteImage = async (e) => {
     e.stopPropagation();
     
     try {
-      // Get file path from slide data
       const filePath = slideData?.imageMeta?.file_path;
       
       if (filePath) {
@@ -242,7 +232,6 @@ export const useBackendImageHandler = (
         console.log('Image deleted from backend successfully');
       }
       
-      // Clear frontend data
       updateSlideData({
         imageData: null,
         imagePosition: { top: 300, left: 400 },
@@ -262,7 +251,6 @@ export const useBackendImageHandler = (
     }
   };
 
-  // Handle container clicks to deselect image
   const handleContainerClick = (e, onSelect) => {
     if (e.target === containerRef.current) {
       onSelect(null);

@@ -28,13 +28,11 @@ const Ratings = forwardRef(({
   const activeProjectId = projectId || currentProjectId;
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(activeProjectId, slideId);
 
-  // Frame layout state (default to 1 frame)
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
   const imageTransforms = slideData?.imageTransforms || {};
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
@@ -44,19 +42,15 @@ const Ratings = forwardRef(({
     const currentFrameImages = slideDataRef.current?.frameImages || {};
     const currentFrameMeta = slideDataRef.current?.frameMeta || {};
 
-    // Store the base64 data immediately for display
     const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
 
     updateSlideData({ frameImages: updatedFrameImages });
 
-    // Only upload to backend if project has a database ID (not just a temp UUID)
-    // This prevents upload failures when project is newly created
     const hasDatabaseId = slideData?._appState?.databaseId || false;
 
     if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
       if (result?.success) {
-        // Store backend metadata and combine with frameImages
         updateSlideData({
           frameImages: updatedFrameImages,
           frameMeta: { ...currentFrameMeta, [frameId]: { filePath: result.filePath, url: result.url, width: result.width, height: result.height, aspectRatio: result.aspectRatio } }
@@ -90,7 +84,6 @@ const Ratings = forwardRef(({
     });
   };
 
-  // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       if (setFieldPositions) {
@@ -99,7 +92,6 @@ const Ratings = forwardRef(({
     }
   }));
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -109,11 +101,9 @@ const Ratings = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
 
-        // Load slide content if it exists
         if (result.content && result.content.ratingsData && setFormData) {
           const ratingsData = result.content.ratingsData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(ratingsData).some(key =>
             ratingsData[key] && ratingsData[key].toString().trim() !== ''
           );
@@ -136,7 +126,6 @@ const Ratings = forwardRef(({
 
   // Note: Auto-save removed - Editor.jsx handles centralized saving via projectSaveService
 
-  // Render simple text field for premise location (bottom right, like other slides)
   const renderSimpleField = (field, placeholder) => {
     const isActive = selectedField === field;
     const defaultPosition = { top: 670, right: 1.2 };
@@ -193,7 +182,6 @@ const Ratings = forwardRef(({
         userSelect: "none",
       }}
       onClick={(e) => {
-        // If clicking on empty area (not on image), deselect
         if (e.target === e.currentTarget) {
           onSelect(null);
         }

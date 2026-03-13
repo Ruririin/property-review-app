@@ -11,7 +11,6 @@ class SlideApiService {
       'Accept': 'application/json',
     };
     
-    // Add caching and request throttling
     this.cache = new Map();
     this.cacheTimeout = 3 * 60 * 1000; // 3 minutes cache
     this.activeRequests = new Map(); // Track active requests to prevent duplicates
@@ -69,7 +68,6 @@ class SlideApiService {
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
 
-    // Get CSRF token and add to headers for non-GET requests
     const csrfToken = this.getCookie('csrftoken');
     const headers = {
       ...this.headers,
@@ -119,7 +117,6 @@ class SlideApiService {
       field_positions: fieldPositions
     };
 
-    // Clear cache when updating to ensure fresh data on next fetch
     this.clearCache(projectId, slideId);
     
     // Also clear any active requests to prevent stale data conflicts
@@ -149,7 +146,6 @@ class SlideApiService {
       return JSON.parse(JSON.stringify(cachedData.data));
     }
     
-    // Check if there's already an active request for this slide
     if (this.activeRequests.has(cacheKey)) {
       console.log(`⏳ Waiting for existing request for slide ${slideId}`);
       try {
@@ -157,13 +153,11 @@ class SlideApiService {
         // Return a deep clone to prevent mutations affecting the original
         return JSON.parse(JSON.stringify(result));
       } catch (error) {
-        // If the active request failed, remove it and continue with fresh request
         this.activeRequests.delete(cacheKey);
         throw error;
       }
     }
     
-    // Create new request
     console.log(`🌐 Fetching fresh data for slide ${slideId}`);
     const requestPromise = this.request(`/slides/${projectId}/${slideId}/content/`)
       .then(data => {
@@ -173,19 +167,16 @@ class SlideApiService {
           timestamp: Date.now()
         });
         
-        // Remove from active requests
         this.activeRequests.delete(cacheKey);
         
         // Return a deep clone to prevent mutations affecting cached data
         return JSON.parse(JSON.stringify(data || { content: {}, field_positions: {} }));
       })
       .catch(error => {
-        // Remove from active requests on error
         this.activeRequests.delete(cacheKey);
         throw error;
       });
     
-    // Track the active request
     this.activeRequests.set(cacheKey, requestPromise);
     
     return requestPromise;
@@ -234,7 +225,6 @@ class SlideApiService {
   }
 }
 
-// Create singleton instance
 const slideApiService = new SlideApiService();
 
 export default slideApiService;

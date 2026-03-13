@@ -24,26 +24,21 @@ const StreetView = forwardRef(({
   const containerRef = useRef(null);
   const slideDataRef = useRef(slideData);
 
-  // Use projectId or currentProjectId (whichever is available)
   const activeProjectId = projectId || currentProjectId;
 
-  // Frame image handler for backend upload/delete
   const { uploadFrameImage, deleteFrameImage, uploadingFrames } = useFrameImageHandler(
     activeProjectId,
     slideId
   );
 
-  // Frame layout state (default to 1 frame)
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {}; // Store backend file paths
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
 
-  // Sync frameLayout state when slideData changes (e.g. switching between same-type slides)
   useEffect(() => {
     if (slideData?.frameLayout !== undefined && slideData.frameLayout !== frameLayout) {
       setFrameLayout(slideData.frameLayout);
@@ -55,22 +50,18 @@ const StreetView = forwardRef(({
     const currentFrameImages = slideDataRef.current?.frameImages || {};
     const currentFrameMeta = slideDataRef.current?.frameMeta || {};
 
-    // Store the base64 data immediately for display
     const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
 
     updateSlideData({
       frameImages: updatedFrameImages
     });
 
-    // Only upload to backend if project has a database ID (not just a temp UUID)
-    // This prevents upload failures when project is newly created
     const hasDatabaseId = slideData?._appState?.databaseId || false;
 
     if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
 
       if (result && result.success) {
-        // Store backend metadata and combine with frameImages
         updateSlideData({
           frameImages: updatedFrameImages,
           frameMeta: {
@@ -94,15 +85,12 @@ const StreetView = forwardRef(({
   };
 
   const handleImageRemove = async (frameId) => {
-    // Get file path from metadata
     const filePath = frameMeta[frameId]?.filePath;
 
-    // Delete from backend if file path exists
     if (filePath && activeProjectId) {
       await deleteFrameImage(frameId, filePath);
     }
 
-    // Remove from frontend
     const newFrameImages = { ...frameImages };
     const newFrameMeta = { ...frameMeta };
     delete newFrameImages[frameId];
@@ -120,7 +108,6 @@ const StreetView = forwardRef(({
   };
 
 
-  // Expose method for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       if (setFieldPositions) {
@@ -129,7 +116,6 @@ const StreetView = forwardRef(({
     }
   }));
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -139,11 +125,9 @@ const StreetView = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
 
-        // Load slide content if it exists
         if (result.content && result.content.streetViewData && setFormData) {
           const streetViewData = result.content.streetViewData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(streetViewData).some(key =>
             streetViewData[key] && streetViewData[key].toString().trim() !== ''
           );
@@ -173,14 +157,11 @@ const StreetView = forwardRef(({
       premiseLocation: { top: 670, right: 1.2 }, // Same positioning as Aerial view
     };
 
-    // Use fieldPositions if available, otherwise fall back to defaultPosition
     const position = (fieldPositions && fieldPositions[field]) || defaultPosition[field];
 
-    // Calculate dynamic width based on text content
     const textContent = formData[field] || placeholder;
     const estimatedWidth = Math.max(300, Math.min(900, textContent.length * 16 + 120));
 
-    // For websiteInfo, use a div-based approach for better PDF rendering
     if (field === 'websiteInfo') {
       return (
         <div
@@ -233,7 +214,6 @@ const StreetView = forwardRef(({
       );
     }
 
-    // For other fields, use regular textarea
     return (
       <textarea
         key={field}

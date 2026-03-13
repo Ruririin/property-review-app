@@ -14,7 +14,6 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
       throw new Error('No slides provided for PDF generation');
     }
 
-    // Create PDF in landscape orientation (1280x720 matches slide dimensions)
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'px', 
@@ -51,10 +50,8 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
       console.log(`Slide ${i + 1} children count:`, slideElement.children.length);
 
       try {
-        // Check if this is the comments slide (slide 1, index 0) to handle differently
         const isCommentsSlide = i === 0; // 0-based index, so slide 1 is index 0
         
-        // For comments slide, use simplified capture to avoid CSS parsing issues
         const canvasOptions = {
           width: 1280,
           height: 720,
@@ -66,10 +63,8 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
           foreignObjectRendering: false, // Disable to avoid textarea rendering issues
         };
         
-        // Disable onclone processing entirely to avoid CSS parsing issues
         // Will use basic html2canvas capture for all slides
         
-        // Force all child elements to be visible and render backgrounds
         const childElements = slideElement.querySelectorAll('*');
         const originalChildStyles = [];
         
@@ -84,7 +79,6 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
         const backgroundImage = getComputedStyle(slideElement).backgroundImage;
         console.log(`Slide ${i + 1} background image:`, backgroundImage);
         
-        // Force background image to be loaded
         if (backgroundImage && backgroundImage !== 'none') {
           slideElement.style.backgroundImage = backgroundImage;
           slideElement.style.backgroundSize = '100% 100%';
@@ -103,33 +97,26 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
         canvasOptions.foreignObjectRendering = false;
         canvasOptions.removeContainer = true;
         canvasOptions.onclone = (clonedDoc) => {
-          // Hide all elements with no-export class (frame selectors, delete buttons, etc.)
           const noExportElements = clonedDoc.querySelectorAll('.no-export');
           noExportElements.forEach(el => {
             el.style.display = 'none';
           });
 
           // Fix objectFit: 'cover' images - html2canvas doesn't support objectFit
-          // Only stretch to 100% for images inside frame containers (ImageFrame)
-          // For freely-positioned images (MultiImageComponent), keep their explicit pixel dimensions
           const images = clonedDoc.querySelectorAll('img');
           images.forEach(img => {
             if (img.style.objectFit === 'cover') {
               img.style.objectFit = '';
-              // Check if image has explicit pixel dimensions (freely positioned images)
               const hasPixelWidth = img.style.width && !img.style.width.includes('%');
               const hasPixelHeight = img.style.height && !img.style.height.includes('%');
               if (hasPixelWidth && hasPixelHeight) {
-                // Keep the explicit pixel dimensions - these are freely positioned images
               } else {
-                // Frame images - stretch to fill their container
                 img.style.width = '100%';
                 img.style.height = '100%';
               }
             }
           });
 
-          // Convert all textareas to divs for better PDF rendering
           const textareas = clonedDoc.querySelectorAll('textarea');
           textareas.forEach(textarea => {
             const div = clonedDoc.createElement('div');
@@ -161,17 +148,14 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
           el.style.cssText = originalChildStyles[index];
         });
 
-        // Check if canvas has content
         if (canvas.width === 0 || canvas.height === 0) {
           console.error(`Canvas ${i + 1} has no dimensions: ${canvas.width}x${canvas.height}`);
           continue;
         }
 
-        // Convert canvas to image and add to PDF
         // Quality 0.75 gives a good balance between file size and visual clarity
         const imgData = canvas.toDataURL('image/jpeg', 0.75);
         
-        // Check if image data is valid
         if (!imgData || imgData === 'data:,') {
           console.error(`No image data for slide ${i + 1}`);
           continue;
@@ -183,7 +167,6 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
           pdf.addPage([1280, 720], 'landscape');
         }
         
-        // Add image to PDF normally
         pdf.addImage(imgData, 'JPEG', 0, 0, 1280, 720);
         
         console.log(`Slide ${i + 1} added to PDF`);
@@ -196,7 +179,6 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
       }
     }
 
-    // Save the PDF (triggers browser download)
     pdf.save(filename);
     console.log(`PDF saved as: ${filename}`);
 
@@ -209,7 +191,6 @@ const generatePDFFromSlides = async (slides, allSlideData, filename = 'Property_
   }
 };
 
-// Keep the original export name for compatibility
 const exportToPDF = generatePDFFromSlides;
 
 export { cleanSlidesToRenderPDF, exportToPDF };

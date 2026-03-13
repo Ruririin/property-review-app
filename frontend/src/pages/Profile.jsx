@@ -29,7 +29,6 @@ export default function Profile() {
     try {
       const profile = await apiService.getUserProfile();
 
-      // Add cache-busting timestamp to image URLs
       if (profile) {
         const timestamp = Date.now();
         if (profile.avatar_url) {
@@ -53,11 +52,9 @@ export default function Profile() {
   const loadStats = async () => {
     setLoading(true);
     try {
-      // Get all personal projects
       const personalDrafts = await apiService.getPersonalDrafts();
       const approved = await apiService.getApprovedList();
 
-      // Calculate most common Line of Business
       const lineBusinessCounts = {};
       let totalWithLineBusiness = 0;
 
@@ -82,7 +79,6 @@ export default function Profile() {
         ? Math.round((maxCount / totalWithLineBusiness) * 100)
         : 0;
 
-      // Calculate average completion time
       const completedProjects = personalDrafts.filter(p => p.exported_at && p.created_at);
       let avgMinutes = 0;
 
@@ -130,14 +126,12 @@ export default function Profile() {
   const isAdmin = user?.is_staff === true;
   const position = isAdmin ? 'Administrator' : 'Member';
 
-  // Get background style based on user profile
   const getBackgroundStyle = () => {
     if (!userProfile) {
       return `linear-gradient(135deg, ${G} 0%, ${GD} 100%)`;
     }
 
     if (userProfile.background_type === 'color') {
-      // Create gradient from the selected color
       const color = userProfile.background_color || G;
       const darkerColor = userProfile.background_color
         ? `${userProfile.background_color}dd`

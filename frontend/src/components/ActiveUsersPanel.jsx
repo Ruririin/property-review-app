@@ -96,7 +96,6 @@ export default function ActiveUsersPanel() {
   );
 }
 
-// Generate consistent colors for users
 function getUserColor(username) {
   const colors = [
     '#667eea', '#764ba2', '#f093fb', '#f5576c',

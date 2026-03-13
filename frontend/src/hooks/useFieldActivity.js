@@ -20,7 +20,6 @@ export const useFieldActivity = (fieldId, fieldName, sessionUser) => {
       }
     });
 
-    // Check if field is currently being edited
     const editor = fieldActivityService.getFieldEditor(fieldId);
     if (editor && editor.user !== sessionUser) {
       setCurrentEditor(editor.user);

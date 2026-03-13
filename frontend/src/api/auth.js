@@ -1,7 +1,5 @@
 import axios from 'axios';
 
-// Create axios instance with default config
-// Use relative URL to leverage Vite proxy - requests to /api/* will be proxied to localhost:8000/api/*
 // This ensures cookies work properly since everything appears to come from the same origin
 const apiClient = axios.create({
   baseURL: '/api',
@@ -31,7 +29,6 @@ const getCsrfToken = () => {
 // Request interceptor to handle CSRF tokens
 apiClient.interceptors.request.use(
   (config) => {
-    // Add CSRF token to non-GET requests
     if (config.method !== 'get') {
       const csrfToken = getCsrfToken();
       if (csrfToken) {
@@ -53,7 +50,6 @@ apiClient.interceptors.response.use(
   (error) => {
     // Suppress console errors for 403/401 (expected when logged out)
     if (error.response?.status === 403 || error.response?.status === 401) {
-      // Create a silent error that doesn't log to console
       const silentError = new Error(error.message);
       silentError.response = error.response;
       silentError.config = error.config;
@@ -76,7 +72,6 @@ export const authApi = {
     return response.data;
   },
 
-  // Register new user
   register: async (userData) => {
     try {
       const response = await apiClient.post('/auth/register/', userData);
@@ -87,19 +82,16 @@ export const authApi = {
     }
   },
 
-  // Get current user profile
   getProfile: async () => {
     const response = await apiClient.get('/auth/profile/');
     return response.data;
   },
 
-  // Update user profile
   updateProfile: async (profileData) => {
     const response = await apiClient.put('/auth/profile/', profileData);
     return response.data;
   },
 
-  // Check authentication status
   checkAuth: async () => {
     try {
       // NOTE: We cannot check for sessionid cookie in document.cookie because it's HttpOnly

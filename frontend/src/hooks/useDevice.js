@@ -30,7 +30,6 @@ export const useDevice = () => {
       
       setDevice(newDevice);
       
-      // Add CSS classes to body for styling
       document.body.classList.remove('mobile', 'tablet', 'desktop', 'mobile-or-tablet', 'touch-device', 'landscape', 'portrait');
       
       if (newDevice.isMobile) document.body.classList.add('mobile');
@@ -43,10 +42,8 @@ export const useDevice = () => {
       // console.log('📱 Device detected:', newDevice);
     };
 
-    // Check on mount
     checkDevice();
 
-    // Add resize listener
     window.addEventListener('resize', checkDevice);
     window.addEventListener('orientationchange', checkDevice);
 

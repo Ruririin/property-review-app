@@ -73,13 +73,11 @@ const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData })
   const getPreviewText = () => {
     const texts = [];
 
-    // Add selected standard comments
     selectedComments.forEach(key => {
       const option = commentOptions.find(opt => opt.key === key);
       if (option) texts.push(`• ${option.text}`);
     });
 
-    // Add interior view if any features selected
     const interiorText = generateInteriorText();
     if (interiorText) {
       texts.push(`• ${interiorText}`);
@@ -111,7 +109,6 @@ const CommentMultiSelect = ({ updateSlideFormData, currentSlide, getSlideData })
       [newKey]: editedText
     });
 
-    // Reset selection after adding
     setSelectedComments([]);
     setInteriorFeatures({
       emergencyExits: false,
@@ -622,7 +619,6 @@ const Sidebar = ({
                 const newShowWebsite = !showWebsite;
                 setShowWebsite(newShowWebsite);
 
-                // Save to backend if we have a current project
                 if (currentProjectId) {
                   const result = await apiService.updateAppState(currentProjectId, { showWebsite: newShowWebsite });
                   if (result) {
@@ -632,7 +628,6 @@ const Sidebar = ({
                   }
                 }
               } catch (error) {
-                // Only revert and show error if it's not a 404
                 if (!error.message?.includes('404') && !error.message?.includes('DoesNotExist')) {
                   console.error('Failed to save website visibility:', error);
                   // Revert on error
@@ -663,7 +658,6 @@ const Sidebar = ({
                 }}
                 onClick={() => {
                   let url = websiteValue;
-                  // Add https:// if no protocol is specified
                   if (!url.startsWith('http://') && !url.startsWith('https://')) {
                     url = 'https://' + url;
                   }
@@ -755,7 +749,6 @@ const Sidebar = ({
                 return;
               }
               
-              // Extract zipcode (last numerical digits) from premise location
               const zipcodeMatch = location.match(/(\d{5}(?:-\d{4})?)(?=\s*$)/);
               const zipcode = zipcodeMatch ? zipcodeMatch[1] : '';
               
@@ -880,7 +873,6 @@ const Sidebar = ({
                 console.log('🏢 Enabling multiple locations mode');
                 setSelectedLocationIndex(0);
                 
-                // Initialize location data service with current global data
                 locationDataService.initializeFromProject({
                   formData: globalLocationData
                 }, true);
@@ -891,13 +883,11 @@ const Sidebar = ({
                 console.log('🏠 Disabling multiple locations mode');
                 setSelectedLocationIndex(0);
                 
-                // Clear location data service
                 locationDataService.initializeFromProject({
                   formData: globalLocationData
                 }, false);
               }
               
-              // Save to backend using API service
               try {
                 if (currentProjectId) {
                   await apiService.toggleMultipleLocations(currentProjectId);
@@ -1334,7 +1324,6 @@ const Sidebar = ({
                     }
 
                     try {
-                      // Get the correct location based on mode
                       let targetLocation = '';
                       const premiseLocation = globalLocationData?.premiseLocation || '';
                       
@@ -1355,12 +1344,10 @@ const Sidebar = ({
                         return;
                       }
 
-                      // Generate realistic fire station data based on known fire department naming conventions
                       const cityMatch = targetLocation.match(/,\s*([^,]+),\s*([A-Z]{2})/);
                       const city = cityMatch ? cityMatch[1].trim() : 'Local Area';
                       const state = cityMatch ? cityMatch[2].trim() : '';
                       
-                      // Use known fire department naming conventions for specific cities
                       let fireStationName, fireStationAddress;
                       const fireStationNumber = Math.floor(Math.random() * 25) + 1;
                       const travelTime = Math.floor(Math.random() * 4) + 2; // 2-5 minutes
@@ -1409,14 +1396,12 @@ const Sidebar = ({
                         fireStationDistance: fireStationDistance
                       });
                       
-                      // Set font sizes to default 32px for both fields
                       setFontSizes(prev => ({
                         ...prev,
                         fireStationName: 32,
                         fireStationDistance: 32
                       }));
                       
-                      // Open Google Maps directions from nearest fire station to premise location
                       const mapsDirectionsUrl = `https://www.google.com/maps/dir/fire+station+near+${encodeURIComponent(targetLocation)}/${encodeURIComponent(targetLocation)}`;
                       window.open(mapsDirectionsUrl, '_blank');
                       
@@ -1485,7 +1470,6 @@ const Sidebar = ({
                         textTransform: "capitalize"
                       }}
                       onClick={() => {
-                        // Apply alignment to both fire station fields if they exist
                         const currentFormData = getSlideData(currentSlide)?.formData || {};
                         
                         setTextAlignments(prev => ({

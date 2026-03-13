@@ -7,7 +7,6 @@ const ImageComponent = ({
   onResizeMouseDown,
   onDeleteImage,
 }) => {
-  // Touch event handlers for tablet compatibility
   const handleTouchStart = (e) => {
     if (e.touches.length === 1) {
       const touch = e.touches[0];
@@ -24,7 +23,6 @@ const ImageComponent = ({
       };
       onMouseDownImage(syntheticEvent);
     }
-    // Only prevent default if the event is cancelable
     if (e.cancelable) {
       e.preventDefault();
     }
@@ -46,7 +44,6 @@ const ImageComponent = ({
       };
       onResizeMouseDown(syntheticEvent);
     }
-    // Only prevent default if the event is cancelable
     if (e.cancelable) {
       e.preventDefault();
     }

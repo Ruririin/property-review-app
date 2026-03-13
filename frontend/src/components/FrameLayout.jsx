@@ -13,7 +13,6 @@ const FrameLayout = ({
   const containerHeight = 504;
   const gap = 16;
 
-  // Build explicit pixel-based layouts for reliable html2canvas PDF export
   const getLayoutFrames = () => {
     if (customLayout) {
       return { type: 'custom', frames: customLayout };
@@ -101,7 +100,6 @@ const FrameLayout = ({
 
   const rowStyle = { display: 'flex', gap: `${gap}px` };
 
-  // Custom layout (e.g., Crime Rate: 1 top rectangle, 2 bottom squares)
   if (layout.type === 'custom') {
     const frames = layout.frames;
     return (

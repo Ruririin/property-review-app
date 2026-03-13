@@ -12,17 +12,13 @@ const MultiImageComponent = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
-  // Resize state management
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
-  // Sync local images with prop changes - only when significantly different
   useEffect(() => {
-    // Only sync if the arrays are meaningfully different (different IDs or lengths)
     const currentIds = localImages.map(img => img.id).sort();
     const propIds = images.map(img => img.id).sort();
     
-    // Check if the image IDs are different (indicates real data change from backend)
     const idsChanged = currentIds.length !== propIds.length || 
                       currentIds.some((id, index) => id !== propIds[index]);
     
@@ -38,16 +34,13 @@ const MultiImageComponent = ({
   // Reference to the container div for event binding
   const containerDivRef = useRef(null);
 
-  // Handle paste events for adding multiple images - only when slide is active
   useEffect(() => {
     const handlePaste = (e) => {
-      // Only handle paste if this slide is active
       if (!isActiveSlide) {
         console.log('📷 MultiImageComponent: Ignoring paste - slide not active', { isActiveSlide });
         return;
       }
       
-      // Check if the container is focused or an element within it is focused
       const container = containerDivRef.current;
       if (!container || !container.contains(document.activeElement)) {
         console.log('📷 MultiImageComponent: Ignoring paste - container not focused');
@@ -72,7 +65,6 @@ const MultiImageComponent = ({
             img.onload = () => {
               const aspectRatio = img.width / img.height;
               
-              // Calculate size and position for new image
               const maxWidth = 400;
               const maxHeight = 300;
               
@@ -89,7 +81,6 @@ const MultiImageComponent = ({
                 newHeight = Math.max(100, Math.min(img.height, maxHeight));
               }
               
-              // Generate unique ID for new image
               const newId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
               
               // Position new image with slight offset from existing images
@@ -108,7 +99,6 @@ const MultiImageComponent = ({
                 aspectRatio
               };
               
-              // Add to existing images array instead of replacing
               const updatedImages = [...localImages, newImage];
               setLocalImages(updatedImages);
               
@@ -124,14 +114,12 @@ const MultiImageComponent = ({
       }
     };
 
-    // Only add listener if slide is active
     if (isActiveSlide) {
       document.addEventListener("paste", handlePaste);
       return () => document.removeEventListener("paste", handlePaste);
     }
   }, [localImages, onUpdateImages, isActiveSlide]);
 
-  // Handle mouse down for dragging
   const handleMouseDown = (e, imageId) => {
     console.log('🖱️ Mouse down on image:', imageId);
     e.preventDefault();
@@ -141,7 +129,6 @@ const MultiImageComponent = ({
 
     const image = localImages.find(img => img.id === imageId);
     if (image) {
-      // Calculate offset relative to the container, not viewport
       const containerRect = containerDivRef.current?.getBoundingClientRect();
       const zoomFactor = (zoomLevel || 100) / 100;
       const offsetX = containerRect ? (e.clientX - containerRect.left) / zoomFactor : e.clientX;
@@ -153,14 +140,11 @@ const MultiImageComponent = ({
     }
   };
 
-  // Track current drag position without updating parent
   const [currentDragPosition, setCurrentDragPosition] = useState(null);
 
-  // Handle mouse move for dragging
   const handleMouseMove = (e) => {
     if (!isDragging || !selectedImageId) return;
 
-    // Calculate position relative to the container, not viewport
     const containerRect = containerDivRef.current?.getBoundingClientRect();
     const zoomFactor = (zoomLevel || 100) / 100;
     const mouseX = containerRect ? (e.clientX - containerRect.left) / zoomFactor : e.clientX;
@@ -171,15 +155,12 @@ const MultiImageComponent = ({
       top: mouseY - dragStart.y
     };
 
-    // Update local drag position for visual feedback
     setCurrentDragPosition(newPosition);
   };
 
-  // Handle mouse up to stop dragging
   const handleMouseUp = () => {
     console.log('🖱️ Mouse up, stopping drag');
     
-    // Save final position if we were dragging
     if (isDragging && selectedImageId && currentDragPosition) {
       console.log('💾 Saving final drag position:', currentDragPosition);
       const updatedImages = localImages.map(img => 
@@ -189,7 +170,6 @@ const MultiImageComponent = ({
       );
       console.log('💾 Calling onUpdateImages with updated position:', updatedImages);
       
-      // Update local state immediately
       setLocalImages(updatedImages);
       // Notify parent
       onUpdateImages(updatedImages);
@@ -201,13 +181,11 @@ const MultiImageComponent = ({
   };
 
 
-  // Delete image
   const deleteImage = (imageId) => {
     console.log('🗑️ deleteImage called:', imageId);
     const updatedImages = localImages.filter(img => img.id !== imageId);
     console.log('🗑️ Calling onUpdateImages with:', updatedImages);
     
-    // Update local state immediately
     setLocalImages(updatedImages);
     // Notify parent
     onUpdateImages(updatedImages);
@@ -215,7 +193,6 @@ const MultiImageComponent = ({
   };
 
 
-  // Handle resize mouse down
   const handleResizeMouseDown = (e, imageId) => {
     e.preventDefault();
     e.stopPropagation();
@@ -235,10 +212,8 @@ const MultiImageComponent = ({
     }
   };
 
-  // Track current resize dimensions
   const [currentResizeDimensions, setCurrentResizeDimensions] = useState(null);
 
-  // Handle resize mouse move
   const handleResizeMouseMove = (e) => {
     if (!isResizing || !selectedImageId) return;
 
@@ -250,23 +225,17 @@ const MultiImageComponent = ({
     const deltaX = mouseX - resizeStart.x;
     const deltaY = mouseY - resizeStart.y;
     
-    // Use the larger delta to maintain aspect ratio (uniform resize)
     const delta = Math.max(deltaX, deltaY);
     
-    // Calculate original aspect ratio
     const aspectRatio = resizeStart.width / resizeStart.height;
     
-    // Calculate new dimensions maintaining aspect ratio
     const newWidth = Math.max(50, resizeStart.width + delta);
     const newHeight = Math.max(38, newWidth / aspectRatio);
     
-    // Update local resize dimensions for visual feedback
     setCurrentResizeDimensions({ width: newWidth, height: newHeight });
   };
 
-  // Handle resize mouse up
   const handleResizeMouseUp = () => {
-    // Save final dimensions if we were resizing
     if (isResizing && selectedImageId && currentResizeDimensions) {
       console.log('📏 Saving final resize dimensions:', currentResizeDimensions);
       const updatedImages = localImages.map(img => 
@@ -276,7 +245,6 @@ const MultiImageComponent = ({
       );
       console.log('📏 Calling onUpdateImages with updated dimensions:', updatedImages);
       
-      // Update local state immediately
       setLocalImages(updatedImages);
       // Notify parent
       onUpdateImages(updatedImages);
@@ -287,7 +255,6 @@ const MultiImageComponent = ({
     setResizeStart({ x: 0, y: 0, width: 0, height: 0 });
   };
 
-  // Touch event handlers for tablet compatibility
   const handleTouchStart = (e, imageId) => {
     if (e.touches.length === 1) {
       const touch = e.touches[0];
@@ -304,7 +271,6 @@ const MultiImageComponent = ({
       };
       handleMouseDown(syntheticEvent, imageId);
     }
-    // Only prevent default if the event is cancelable
     if (e.cancelable) {
       e.preventDefault();
     }
@@ -326,7 +292,6 @@ const MultiImageComponent = ({
       };
       handleMouseMove(syntheticEvent);
     }
-    // Only prevent default if the event is cancelable
     if (e.cancelable) {
       e.preventDefault();
     }
@@ -334,13 +299,11 @@ const MultiImageComponent = ({
 
   const handleTouchEnd = (e) => {
     handleMouseUp();
-    // Only prevent default if the event is cancelable
     if (e.cancelable) {
       e.preventDefault();
     }
   };
 
-  // Add global event listeners for drag and resize functionality
   useEffect(() => {
     const handleGlobalMouseMove = (e) => {
       if (isDragging) {
@@ -388,12 +351,10 @@ const MultiImageComponent = ({
       }}
     >
       {localImages.map((image) => {
-        // Use current drag position if this image is being dragged
         const position = (isDragging && selectedImageId === image.id && currentDragPosition) 
           ? currentDragPosition 
           : image.position;
           
-        // Use current resize dimensions if this image is being resized
         const dimensions = (isResizing && selectedImageId === image.id && currentResizeDimensions)
           ? currentResizeDimensions
           : { width: image.width, height: image.height };

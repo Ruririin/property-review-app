@@ -43,7 +43,6 @@ class ApiService {
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
 
-    // Get CSRF token and add to headers for non-GET requests
     const csrfToken = this.getCookie('csrftoken');
     const headers = {
       ...this.headers,
@@ -57,7 +56,6 @@ class ApiService {
     };
 
     try {
-      // Only log API requests in development mode
       if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
         console.log(`🔄 API Request: ${config.method || 'GET'} ${url}`);
         if (config.body && (config.method === 'POST' || config.method === 'PATCH')) {
@@ -77,7 +75,6 @@ class ApiService {
         throw new Error(`API Error ${response.status}: ${errorText}`);
       }
 
-      // Handle empty responses (like DELETE 204 No Content)
       const contentType = response.headers.get('content-type');
       if (response.status === 204 || !contentType?.includes('application/json')) {
         if (process.env.NODE_ENV === 'development' && window.location.search.includes('debug=api')) {
@@ -114,13 +111,11 @@ class ApiService {
    */
   async updateAppState(projectId, appStateUpdates) {
     try {
-      // Get current project
       const project = await this.getProject(projectId);
       if (!project) {
         throw new Error('Project not found');
       }
 
-      // Update the app state within slideData
       const updatedSlideData = {
         ...project.slideData,
         _appState: {
@@ -129,7 +124,6 @@ class ApiService {
         }
       };
 
-      // Save the updated project
       return this.updateProject(projectId, {
         slideData: updatedSlideData
       });
@@ -182,7 +176,6 @@ class ApiService {
    * Project Management APIs
    */
   async createProject(projectData) {
-    // Extract multipleLocationsMode from slideData._appState if available
     const multipleLocationsMode = projectData.slideData?._appState?.multipleLocationsMode ?? 
                                  projectData.multipleLocationsMode ?? 
                                  false;
@@ -207,7 +200,6 @@ class ApiService {
   }
 
   async updateProject(projectId, projectData) {
-    // Extract multipleLocationsMode from slideData._appState if available
     const multipleLocationsMode = projectData.slideData?._appState?.multipleLocationsMode ?? 
                                  projectData.multipleLocationsMode ?? 
                                  false;
@@ -373,7 +365,6 @@ class ApiService {
    * Utility Methods
    */
   
-  // Convert base64 image to File object for upload
   base64ToFile(base64String, filename = 'image.png') {
     const arr = base64String.split(',');
     const mime = arr[0].match(/:(.*?);/)[1];
@@ -388,7 +379,6 @@ class ApiService {
     return new File([u8arr], filename, { type: mime });
   }
 
-  // Convert project data from localStorage format to API format
   convertProjectData(localStorageProject) {
     return {
       title: localStorageProject.title || localStorageProject.insuredName || 'Untitled Project',
@@ -566,7 +556,6 @@ class ApiService {
   }
 }
 
-// Create singleton instance
 const apiService = new ApiService();
 
 export default apiService;

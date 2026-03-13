@@ -33,20 +33,17 @@ const NearestFireStation = forwardRef(({
   const containerRef = useRef(null);
   const slideDataRef = useRef(slideData);
 
-  // Frame image handler for backend upload/delete
   const activeProjectId = currentProjectId;
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
     activeProjectId,
     slideId
   );
 
-  // Frame layout state: 1 = single full frame, 2 = portrait left frame
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
   const imageTransforms = slideData?.imageTransforms || {};
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
@@ -114,7 +111,6 @@ const NearestFireStation = forwardRef(({
     return { clientX: e.clientX, clientY: e.clientY };
   };
 
-  // Expose method to sync current state positions to DOM for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       if (setFieldPositions) {
@@ -123,7 +119,6 @@ const NearestFireStation = forwardRef(({
     }
   }));
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -133,7 +128,6 @@ const NearestFireStation = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
 
-        // Load field positions if they exist
         if (result.field_positions && Object.keys(result.field_positions).length > 0 && setFieldPositions) {
           setFieldPositions(prev => ({
             ...prev,
@@ -141,11 +135,9 @@ const NearestFireStation = forwardRef(({
           }));
         }
 
-        // Load nearest fire station content if it exists
         if (result.content && result.content.nearestFireStationData && setFormData) {
           const nearestFireStationData = result.content.nearestFireStationData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(nearestFireStationData).some(key =>
             nearestFireStationData[key] && nearestFireStationData[key].toString().trim() !== ''
           );
@@ -211,7 +203,6 @@ const NearestFireStation = forwardRef(({
     let newWidth = resizeStart.width;
     let newHeight = resizeStart.height;
     
-    // Update dimensions based on resize mode
     if (resizeMode.includes('right')) {
       newWidth = Math.max(300, resizeStart.width + (currentX - resizeStart.x));
     }
@@ -225,7 +216,6 @@ const NearestFireStation = forwardRef(({
       newHeight = Math.max(60, resizeStart.height - (currentY - resizeStart.y));
     }
     
-    // Update field positions with new dimensions
     if (setFieldPositions && fieldPositions) {
       const actualField = multipleLocationsMode ? `${resizingField}_loc${selectedLocationIndex}` : resizingField;
       const existingField = fieldPositions[actualField] || {};
@@ -247,7 +237,6 @@ const NearestFireStation = forwardRef(({
     setResizeMode("");
   };
 
-  // Add document event listeners for resize
   useEffect(() => {
     if (isResizing) {
       document.addEventListener('mousemove', handleResizeMouseMove);
@@ -275,7 +264,6 @@ const NearestFireStation = forwardRef(({
     setIsDragging(true);
     setDraggingField(field);
     
-    // Get the container element (the div that wraps bullet + textarea)
     const fieldContainer = e.currentTarget.parentElement;
     const fieldRect = fieldContainer.getBoundingClientRect();
     const containerRect = containerRef.current.getBoundingClientRect();
@@ -283,7 +271,6 @@ const NearestFireStation = forwardRef(({
     // Account for zoom level when calculating offset
     const zoomFactor = (zoomLevel || 100) / 100;
     
-    // Calculate offset from cursor to field container's position relative to main container
     const coords = getEventCoordinates(e);
     setDragOffset({
       x: (coords.clientX - fieldRect.left) / zoomFactor,
@@ -298,7 +285,6 @@ const NearestFireStation = forwardRef(({
       // Account for zoom level when calculating new position
       const zoomFactor = (zoomLevel || 100) / 100;
       
-      // Calculate new field position maintaining the original offset
       const coords = getEventCoordinates(e);
       const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
       const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
@@ -309,7 +295,6 @@ const NearestFireStation = forwardRef(({
           left: Math.max(0, Math.min(newLeft, 1000)), // Keep within reasonable bounds
         };
         
-        // Use location-aware field key for positioning
         const actualFieldKey = multipleLocationsMode ? `${draggingField}_loc${selectedLocationIndex}` : draggingField;
         const updatedPositions = {
           ...(fieldPositions || {}),
@@ -326,7 +311,6 @@ const NearestFireStation = forwardRef(({
     setDraggingField(null);
   };
 
-  // Add document event listeners for dragging
   useEffect(() => {
     const handleDocumentMouseMove = (e) => {
       if (isDragging && draggingField && containerRef.current) {
@@ -335,13 +319,11 @@ const NearestFireStation = forwardRef(({
         // Account for zoom level when calculating new position
         const zoomFactor = (zoomLevel || 100) / 100;
         
-        // Calculate new field position maintaining the original offset
         const coords = getEventCoordinates(e);
       const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
         const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
         
         if (setFieldPositions) {
-          // Use location-aware field key for positioning
           const actualFieldKey = multipleLocationsMode ? `${draggingField}_loc${selectedLocationIndex}` : draggingField;
           const existingField = fieldPositions?.[actualFieldKey] || {};
           setFieldPositions({
@@ -378,7 +360,6 @@ const NearestFireStation = forwardRef(({
     }
   }, [isDragging, draggingField, dragOffset, zoomLevel, fieldPositions, setFieldPositions, containerRef]);
 
-  // Render simple text field for premise location (bottom right, like other slides)
   const renderSimpleField = (field, placeholder) => {
     const isActive = selectedField === field;
     const defaultPosition = { top: 670, right: 1.2 };
@@ -418,7 +399,6 @@ const NearestFireStation = forwardRef(({
   const renderBulletTextbox = (field, content, defaultTop = 300) => {
     const isActive = selectedField === field;
     
-    // Get position from fieldPositions or use default (centered)
     const defaultFieldPositions = {
       [field]: { top: defaultTop, left: 500 }, // Center horizontally
     };
@@ -517,7 +497,6 @@ const NearestFireStation = forwardRef(({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                // Remove the field data and position using location-aware keys
                 const actualFieldKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
                 if (setFormData) {
                   setFormData({ ...formData, [actualFieldKey]: "" });
@@ -562,7 +541,6 @@ const NearestFireStation = forwardRef(({
               // Allow Delete key to delete the entire field when empty
               if (e.key === 'Delete' && e.target.value === "" && e.ctrlKey) {
                 e.preventDefault();
-                // Remove the field data and position
                 if (setFormData) {
                   const fieldKey = multipleLocationsMode ? `${field}_loc${selectedLocationIndex}` : field;
                   setFormData({ ...formData, [fieldKey]: "" });
@@ -682,7 +660,6 @@ const NearestFireStation = forwardRef(({
     );
   };
 
-  // Get actual form data based on location mode
   const getActualFormData = (field) => {
     if (multipleLocationsMode) {
       return formData?.[`${field}_loc${selectedLocationIndex}`] || "";
@@ -690,7 +667,6 @@ const NearestFireStation = forwardRef(({
     return formData?.[field] || "";
   };
 
-  // Handle change with location awareness
   const handleFormChange = (field, value) => {
     if (multipleLocationsMode) {
       setFormData({ ...formData, [`${field}_loc${selectedLocationIndex}`]: value });
@@ -716,25 +692,21 @@ const NearestFireStation = forwardRef(({
         userSelect: "none",
       }}
       onMouseMove={(e) => {
-        // Handle text field dragging
         if (isDragging && draggingField) {
           handleMouseMove(e);
         }
       }}
       onMouseUp={(e) => {
-        // Handle text field dragging/resizing
         if (isDragging) {
           handleMouseUp(e);
         }
       }}
       onTouchMove={(e) => {
-        // Handle text field dragging
         if (isDragging && draggingField) {
           handleMouseMove(e);
         }
       }}
       onTouchEnd={(e) => {
-        // Handle text field dragging/resizing
         if (isDragging) {
           handleMouseUp(e);
         }

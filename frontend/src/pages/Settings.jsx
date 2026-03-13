@@ -52,7 +52,6 @@ const Settings = () => {
       setLoading(true);
       const data = await apiService.getUserProfile();
 
-      // Add cache-busting timestamp to image URLs
       const timestamp = Date.now();
       if (data.avatar_url) {
         data.avatar_url = `${data.avatar_url}?t=${timestamp}`;
@@ -66,7 +65,6 @@ const Settings = () => {
 
       setProfile(data);
 
-      // Set form values from profile
       if (data.avatar_url) setAvatarPreview(data.avatar_url);
       if (data.header_image_url) setHeaderPreview(data.header_image_url);
       setBackgroundType(data.background_type || 'color');
@@ -106,7 +104,6 @@ const Settings = () => {
     };
     reader.readAsDataURL(file);
 
-    // Reset input
     e.target.value = '';
   };
 
@@ -124,7 +121,6 @@ const Settings = () => {
     };
     reader.readAsDataURL(file);
 
-    // Reset input
     e.target.value = '';
   };
 
@@ -142,20 +138,17 @@ const Settings = () => {
     };
     reader.readAsDataURL(file);
 
-    // Reset input
     e.target.value = '';
   };
 
   const handleCropComplete = async (croppedBlob) => {
     setCropModalOpen(false);
 
-    // Convert blob to file
     const file = new File([croppedBlob], 'cropped-image.jpg', { type: 'image/jpeg' });
 
     try {
       setSaving(true);
 
-      // Show local preview immediately
       const reader = new FileReader();
       reader.onloadend = () => {
         if (cropType === 'avatar') {
@@ -182,10 +175,8 @@ const Settings = () => {
         setMessage('Background image updated successfully!');
       }
 
-      // Update profile state with server response containing new URLs
       if (updatedProfile) {
         setProfile(updatedProfile);
-        // Update previews with server URLs
         if (cropType === 'avatar' && updatedProfile.avatar_url) {
           setAvatarPreview(updatedProfile.avatar_url);
         } else if (cropType === 'header' && updatedProfile.header_image_url) {

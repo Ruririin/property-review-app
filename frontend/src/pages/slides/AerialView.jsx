@@ -26,7 +26,6 @@ const AerialView = forwardRef((
 
   const activeProjectId = currentProjectId;
 
-  // Frame image handler for backend upload/delete
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
     activeProjectId,
     slideId
@@ -35,7 +34,6 @@ const AerialView = forwardRef((
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
@@ -88,14 +86,11 @@ const AerialView = forwardRef((
     return { clientX: e.clientX, clientY: e.clientY };
   };
 
-  // Expose method for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
-      // Sync field positions if needed
     },
   }));
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -108,11 +103,9 @@ const AerialView = forwardRef((
           slideId
         );
 
-        // Load slide content if it exists
         if (result.content && result.content.aerialViewData && setFormData) {
           const aerialViewData = result.content.aerialViewData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(aerialViewData).some(
             (key) =>
               aerialViewData[key] &&
@@ -166,12 +159,10 @@ const AerialView = forwardRef((
 
       let updatedPosition;
       if (initialBottom !== null) {
-        // Using bottom positioning
         const newBottom = initialBottom - deltaY;
         const newRight = initialRight - (deltaX / window.innerWidth) * 100;
         updatedPosition = { bottom: newBottom, right: newRight };
       } else {
-        // Using top positioning
         const newTop = initialTop + deltaY;
         const newRight = initialRight - (deltaX / window.innerWidth) * 100;
         updatedPosition = { top: newTop, right: newRight };
@@ -214,7 +205,6 @@ const AerialView = forwardRef((
     const isActive = selectedField === field;
     const fieldFontSize = fontSizes[field] || 28;
 
-    // Calculate dynamic width based on text content
     const textContent = formData[field] || placeholder;
     const estimatedWidth = Math.max(
       300,
@@ -281,7 +271,6 @@ const AerialView = forwardRef((
             }
           }}
           onMouseDown={(e) => {
-            // Only start dragging if clicking on the border/edge area
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
               const coords = getEventCoordinates(e);
@@ -306,7 +295,6 @@ const AerialView = forwardRef((
             }
           }}
           onTouchStart={(e) => {
-            // Only start dragging if touching on the border/edge area
             if (selectedField === field) {
               const rect = e.target.getBoundingClientRect();
               const coords = getEventCoordinates(e);
@@ -406,7 +394,6 @@ const AerialView = forwardRef((
         boxShadow: "0 0 20px rgba(0,0,0,0.15)",
       }}
       onClick={(e) => {
-        // If clicking on empty area (not on text field or image), deselect
         if (e.target === e.currentTarget) {
           onSelect(null);
         }

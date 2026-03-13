@@ -7,7 +7,6 @@
 
 import { transformSlideType, createSlideObject, handleSlideTypeDeletion } from './SlideTypeHandlers';
 
-// Add slide function
 export const createAddSlideHandler = (
   slides,
   nextSlideId,
@@ -23,10 +22,8 @@ export const createAddSlideHandler = (
   return (slideType) => {
     const { actualSlideType, slideTitle, updatedCounts } = transformSlideType(slideType, slideTypeCounts);
     
-    // Update slide type counts
     setSlideTypeCounts(updatedCounts);
     
-    // Create new slide
     const newSlide = createSlideObject(
       nextSlideId,
       actualSlideType,
@@ -34,7 +31,6 @@ export const createAddSlideHandler = (
       multipleLocationsMode ? selectedLocationIndex : 0
     );
 
-    // Add slide and switch to it
     setSlides([...slides, newSlide]);
     setCurrentSlide(newSlide.id);
     setNextSlideId(nextSlideId + 1);
@@ -42,7 +38,6 @@ export const createAddSlideHandler = (
   };
 };
 
-// Delete slide function
 export const createDeleteSlideHandler = (
   slides,
   slideTypeCounts,
@@ -60,14 +55,11 @@ export const createDeleteSlideHandler = (
     const slideToDelete = slides.find(slide => slide.id === slideId);
     const updatedSlides = slides.filter(slide => slide.id !== slideId);
     
-    // Update slide type counters
     const updatedCounts = handleSlideTypeDeletion(slideToDelete, slideTypeCounts);
     setSlideTypeCounts(updatedCounts);
     
-    // Update slides array
     setSlides(updatedSlides);
     
-    // Remove slide data if setter is provided
     if (setSlideData) {
       setSlideData(prev => {
         const newData = { ...prev };
@@ -76,7 +68,6 @@ export const createDeleteSlideHandler = (
       });
     }
     
-    // If we deleted the current slide, switch to another slide
     const currentSlideIndex = slides.findIndex(slide => slide.id === slideId);
     if (currentSlideIndex !== -1 && updatedSlides.length > 0) {
       // Switch to the first available slide

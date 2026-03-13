@@ -22,7 +22,6 @@ export const useSidebarToolbar = () => {
           [selectedField]: newFontSize
         };
         
-        // Save to backend if we have project and API service
         if (projectId && apiService) {
           apiService.updateAppState(projectId, { fontSizes: newFontSizes })
             .catch(error => console.error('Failed to save font size:', error));
@@ -36,14 +35,12 @@ export const useSidebarToolbar = () => {
   // Visit website handler
   const handleVisitWebsite = useCallback((websiteUrl) => {
     let url = websiteUrl;
-    // Add https:// if no protocol is specified
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url;
     }
     window.open(url, '_blank');
   }, []);
 
-  // Open Google Maps (simplified with backend API)
   const handleOpenGoogleMaps = useCallback(async (currentProjectId) => {
     if (!currentProjectId) {
       console.warn('No project ID available for Google Maps');
@@ -52,7 +49,6 @@ export const useSidebarToolbar = () => {
     await editorApiService.openGoogleMaps(currentProjectId);
   }, []);
 
-  // Open Bing Maps (simplified with backend API)
   const handleOpenBingMaps = useCallback(async (currentProjectId) => {
     if (!currentProjectId) {
       console.warn('No project ID available for Bing Maps');
@@ -83,7 +79,6 @@ export const useSidebarToolbar = () => {
     setIsDrawingMode(prev => !prev);
   }, []);
 
-  // Clear drawings
   const handleClearDrawings = useCallback((currentSlide, setSlideData) => {
     setSlideData(prev => ({
       ...prev,
@@ -94,13 +89,11 @@ export const useSidebarToolbar = () => {
     }));
   }, []);
 
-  // Toggle website field with backend sync
   const handleToggleWebsite = useCallback(async (showWebsite, setShowWebsite, projectId, apiService) => {
     try {
       const newShowWebsite = !showWebsite;
       setShowWebsite(newShowWebsite);
       
-      // Save to backend if we have project and API service
       if (projectId && apiService) {
         await apiService.updateAppState(projectId, { showWebsite: newShowWebsite });
         console.log('🔄 Website visibility toggled:', newShowWebsite);
@@ -112,12 +105,10 @@ export const useSidebarToolbar = () => {
     }
   }, []);
 
-  // Toggle multiple locations mode
   const handleToggleMultipleLocations = useCallback(async (currentProjectId, multipleLocationsMode, setMultipleLocationsMode, apiService) => {
     try {
       setMultipleLocationsMode(prev => !prev);
       
-      // If we have a current project, sync with backend
       if (currentProjectId && apiService) {
         await apiService.toggleMultipleLocations(currentProjectId);
         console.log('🔄 Multiple locations mode toggled:', !multipleLocationsMode);

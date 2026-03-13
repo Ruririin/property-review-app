@@ -18,7 +18,6 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
   const [isSaving, setIsSaving] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
 
-  // Load LRO forms
   const loadLroForms = useCallback(async () => {
     try {
       setIsLoadingLroForms(true);
@@ -31,7 +30,6 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     }
   }, []);
 
-  // Handle LRO form selection
   const handleLroFormSelect = useCallback(async (formId, callbacks = {}) => {
     const {
       setCurrentFormId = () => {},
@@ -49,13 +47,11 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
       
       setCurrentFormId(formId);
       
-      // Store the original LRO form ID
       const currentData = getSlideData(1)?.formData || {};
       if (!currentData.originalLroFormId) {
         updateSlideFormData(1, { originalLroFormId: formId });
       }
       
-      // Search for full ISO description if available
       let fullIsoDescription = apiResponse.description || '';
       if (apiResponse.isoClass && apiResponse.isoClass.trim()) {
         try {
@@ -79,7 +75,6 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
         isoClass: apiResponse.isoClass || '',
       };
 
-      // Update location service and slide data
       if (multipleLocationsMode && selectedLocationIndex !== undefined && locationDataService) {
         Object.entries(lroFormData).forEach(([field, value]) => {
           locationDataService.updateLocationData(selectedLocationIndex, field, value);
@@ -100,14 +95,12 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     }
   }, []);
 
-  // Handle PDF export
   const handleExportPdf = useCallback(async (slides, slideData, globalLocationData, callbacks = {}) => {
     const { syncPositionsToDom = () => {} } = callbacks;
     
     try {
       setIsExporting(true);
       
-      // Sync all positions before export
       syncPositionsToDom();
       
       // Small delay to ensure DOM updates
@@ -127,20 +120,17 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     }
   }, [currentProjectId]);
 
-  // Handle PDF preview
   const handlePreviewPdf = useCallback(async (slides, slideData, globalLocationData, callbacks = {}) => {
     const { syncPositionsToDom = () => {} } = callbacks;
 
     try {
       setIsPreviewing(true);
 
-      // Cleanup previous preview URL
       if (previewPdfUrl) {
         cleanupPDFPreview(previewPdfUrl);
         setPreviewPdfUrl(null);
       }
 
-      // Sync all positions before preview
       syncPositionsToDom();
 
       // Small delay to ensure DOM updates
@@ -156,7 +146,6 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
         };
       });
 
-      // Generate preview URL
       const pdfUrl = await generatePDFPreview(slidesData, 'Property Review Preview.pdf');
       setPreviewPdfUrl(pdfUrl);
 
@@ -170,7 +159,6 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     }
   }, [previewPdfUrl]);
 
-  // Cleanup preview URL
   const cleanupPreview = useCallback(() => {
     if (previewPdfUrl) {
       cleanupPDFPreview(previewPdfUrl);
@@ -178,7 +166,6 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     }
   }, [previewPdfUrl]);
 
-  // Handle project save
   const handleSaveProject = useCallback(async (saveFunction) => {
     try {
       setIsSaving(true);
@@ -190,14 +177,11 @@ export const useHeaderToolbar = (sessionUser, currentProjectId) => {
     }
   }, []);
 
-  // Handle update project status with three options
   const handleUpdateProjectStatus = useCallback(async (newStatus) => {
     if (currentProjectId && sessionUser) {
       try {
-        // Get current project data first
         const project = await apiService.getProject(currentProjectId);
         if (project) {
-          // Update project status
           await apiService.updateProject(currentProjectId, {
             ...project,
             status: newStatus

@@ -21,7 +21,6 @@ const AuthPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
-    // Initialize with sign-in state
     setTimeout(() => {
       // This ensures the initial animation triggers
     }, 200);
@@ -61,7 +60,6 @@ const AuthPage = () => {
         console.log('Registration data being sent:', registerData);
         const response = await register(registerData);
 
-        // Show success message and switch to login mode
         setSuccessMessage(response.message);
         setIsSignUpMode(false);
         setFormData({
@@ -82,7 +80,6 @@ const AuthPage = () => {
     setIsSignUpMode(!isSignUpMode);
     setError(null);
     setSuccessMessage('');
-    // Clear form data when switching
     setFormData({
       username: '',
       email: '',

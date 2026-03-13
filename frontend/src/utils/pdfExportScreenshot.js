@@ -13,7 +13,6 @@ const convertImagesToBase64 = async (slideElements) => {
   slideElements.forEach(slideElement => {
     if (!slideElement) return;
 
-    // Convert <img> tags to base64
     const images = slideElement.querySelectorAll('img');
     images.forEach(img => {
       if (img.src && !img.src.startsWith('data:')) {
@@ -50,12 +49,10 @@ const convertImagesToBase64 = async (slideElements) => {
       }
     });
 
-    // Convert background-image CSS to base64
     const elementsWithBg = slideElement.querySelectorAll('*');
     elementsWithBg.forEach(el => {
       const bgImage = window.getComputedStyle(el).backgroundImage;
       if (bgImage && bgImage !== 'none' && !bgImage.includes('data:')) {
-        // Extract URL from background-image
         const urlMatch = bgImage.match(/url\(['"]?([^'"]+)['"]?\)/);
         if (urlMatch && urlMatch[1]) {
           const imageUrl = urlMatch[1];
@@ -113,18 +110,15 @@ export const exportToPDFScreenshot = async (slideElements, slideData, filename =
       throw new Error('No slides provided for export');
     }
 
-    // Convert all images to base64 first
     console.log('Converting images to base64...');
     await convertImagesToBase64(slideElements);
 
-    // Extract HTML from each slide element
     const slidesHTML = slideElements.map((slideElement, index) => {
       if (!slideElement) {
         console.warn(`Slide ${index + 1} element not found, skipping`);
         return null;
       }
 
-      // Get the outer HTML of the slide
       let html = slideElement.outerHTML;
 
       // Wrap in a complete HTML document with styles
@@ -186,7 +180,6 @@ export const exportToPDFScreenshot = async (slideElements, slideData, filename =
 
     console.log(`Sending ${slidesHTML.length} slides to backend for screenshot`);
 
-    // Get CSRF token from cookie
     const csrftoken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
 
     // Send to backend
@@ -207,7 +200,6 @@ export const exportToPDFScreenshot = async (slideElements, slideData, filename =
       throw new Error(`Backend screenshot PDF export failed: ${response.status} - ${errorText}`);
     }
 
-    // Get PDF blob
     const blob = await response.blob();
 
     // Download the PDF
@@ -245,18 +237,15 @@ export const previewPDFScreenshot = async (slideElements, slideData, filename = 
       throw new Error('No slides provided for preview');
     }
 
-    // Convert all images to base64 first
     console.log('Converting images to base64...');
     await convertImagesToBase64(slideElements);
 
-    // Extract HTML from each slide element
     const slidesHTML = slideElements.map((slideElement, index) => {
       if (!slideElement) {
         console.warn(`Slide ${index + 1} element not found, skipping`);
         return null;
       }
 
-      // Get the outer HTML of the slide
       let html = slideElement.outerHTML;
 
       // Wrap in a complete HTML document with styles
@@ -318,7 +307,6 @@ export const previewPDFScreenshot = async (slideElements, slideData, filename = 
 
     console.log(`Sending ${slidesHTML.length} slides to backend for preview screenshot`);
 
-    // Get CSRF token from cookie
     const csrftoken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
 
     // Send to backend
@@ -339,7 +327,6 @@ export const previewPDFScreenshot = async (slideElements, slideData, filename = 
       throw new Error(`Backend screenshot PDF preview failed: ${response.status} - ${errorText}`);
     }
 
-    // Get PDF blob and create URL for preview
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
 

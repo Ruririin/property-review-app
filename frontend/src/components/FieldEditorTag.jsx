@@ -8,11 +8,9 @@ export default function FieldEditorTag({ fieldId, fieldName }) {
   const [editor, setEditor] = useState(null);
 
   useEffect(() => {
-    // Check initial state
     const currentEditor = fieldActivityService.getFieldEditor(fieldId);
     setEditor(currentEditor);
     
-    // Listen for field activity changes
     const unsubscribe = fieldActivityService.addListener((event, data) => {
       if (data.fieldId === fieldId) {
         const updatedEditor = fieldActivityService.getFieldEditor(fieldId);
@@ -64,7 +62,6 @@ export default function FieldEditorTag({ fieldId, fieldName }) {
   );
 }
 
-// Add CSS animations via inline styles
 const styleSheet = document.createElement('style');
 styleSheet.textContent = `
   @keyframes pulse {
@@ -109,7 +106,6 @@ styleSheet.textContent = `
   }
 `;
 
-// Only add the stylesheet once
 if (!document.head.querySelector('[data-field-editor-styles]')) {
   styleSheet.setAttribute('data-field-editor-styles', 'true');
   document.head.appendChild(styleSheet);

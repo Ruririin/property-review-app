@@ -19,10 +19,8 @@ const SlideRenderer = ({
   className,
   ...additionalProps
 }) => {
-  // Get the appropriate slide component
   const SlideComponent = getSlideComponent(slideType);
   
-  // Get slide-specific data
   const currentSlideData = getSlideData(slideData, slideId);
   
   // Prepare form data with global and slide-specific data

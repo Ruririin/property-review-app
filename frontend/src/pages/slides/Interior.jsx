@@ -25,27 +25,22 @@ const Interior = forwardRef(({
   const containerRef = useRef(null);
   const slideDataRef = useRef(slideData);
 
-  // Use projectId or currentProjectId (whichever is available)
   const activeProjectId = projectId || currentProjectId;
 
-  // Frame image handler for backend upload/delete
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
     activeProjectId,
     slideId
   );
 
-  // Frame layout state (default to 1 frame)
   const [frameLayout, setFrameLayout] = useState(slideData?.frameLayout || 1);
   const frameImages = slideData?.frameImages || {};
   const imageTransforms = slideData?.imageTransforms || {};
   const frameMeta = slideData?.frameMeta || {};
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
 
-  // Sync frameLayout state when slideData changes (e.g. switching between same-type slides)
   useEffect(() => {
     if (slideData?.frameLayout !== undefined && slideData.frameLayout !== frameLayout) {
       setFrameLayout(slideData.frameLayout);
@@ -64,7 +59,6 @@ const Interior = forwardRef(({
     console.log('🔵 [Interior] currentFrameImages:', currentFrameImages);
     console.log('🔵 [Interior] Keys in currentFrameImages:', Object.keys(currentFrameImages));
 
-    // Update frameImages immediately for UI responsiveness
     const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
 
     console.log('🔵 [Interior] updatedFrameImages:', Object.keys(updatedFrameImages));
@@ -75,14 +69,11 @@ const Interior = forwardRef(({
 
     console.log('🔵 [Interior] Called updateSlideData with updatedFrameImages');
 
-    // Only upload to backend if project has a database ID (not just a temp UUID)
-    // This prevents upload failures when project is newly created
     const hasDatabaseId = slideData?._appState?.databaseId || false;
 
     if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
       if (result && result.success) {
-        // Combine both frameImages and frameMeta in a single update
         updateSlideData({
           frameImages: updatedFrameImages,
           frameMeta: {
@@ -136,7 +127,6 @@ const Interior = forwardRef(({
     });
   };
 
-  // Expose method for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       if (setFieldPositions) {
@@ -145,7 +135,6 @@ const Interior = forwardRef(({
     }
   }));
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -155,11 +144,9 @@ const Interior = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
 
-        // Load slide content if it exists
         if (result.content && result.content.interiorData && setFormData) {
           const interiorData = result.content.interiorData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(interiorData).some(key =>
             interiorData[key] && interiorData[key].toString().trim() !== ''
           );
@@ -189,14 +176,11 @@ const Interior = forwardRef(({
       premiseLocation: { top: 670, right: 1.2 }, // Same positioning as Aerial view
     };
 
-    // Use fieldPositions if available, otherwise fall back to defaultPosition
     const position = (fieldPositions && fieldPositions[field]) || defaultPosition[field];
 
-    // Calculate dynamic width based on text content
     const textContent = formData[field] || placeholder;
     const estimatedWidth = Math.max(300, Math.min(900, textContent.length * 16 + 120));
 
-    // For websiteInfo, use a div-based approach for better PDF rendering
     if (field === 'websiteInfo') {
       return (
         <div
@@ -248,7 +232,6 @@ const Interior = forwardRef(({
       );
     }
 
-    // For other fields, use regular textarea
     return (
       <textarea
         key={field}
@@ -299,7 +282,6 @@ const Interior = forwardRef(({
         boxShadow: "0 0 20px rgba(0,0,0,0.15)",
       }}
       onClick={(e) => {
-        // If clicking on empty area (not on text field or image), deselect
         if (e.target === e.currentTarget) {
           onSelect(null);
         }

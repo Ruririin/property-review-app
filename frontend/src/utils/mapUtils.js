@@ -11,7 +11,6 @@ export const generateGoogleMapsEmbedUrl = (location) => {
   }
   
   const encodedLocation = encodeURIComponent(location.trim());
-  // Using Google Maps Embed API with satellite view
   return `https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=${encodedLocation}&maptype=satellite&zoom=18`;
 };
 
@@ -43,7 +42,6 @@ export const generateGoogleMapsFallbackUrl = (location, mapType = 'satellite') =
   
   const encodedLocation = encodeURIComponent(location.trim());
   
-  // Map type conversion for Google Maps URL parameter
   const typeMap = {
     'satellite': 'k',    // Satellite view
     'hybrid': 'h',       // Hybrid (satellite + labels)
@@ -53,7 +51,6 @@ export const generateGoogleMapsFallbackUrl = (location, mapType = 'satellite') =
   
   const typeParam = typeMap[mapType] || 'k';
   
-  // Standard Google Maps URL with specified view type
   return `https://maps.google.com/maps?q=${encodedLocation}&t=${typeParam}&z=18&output=embed`;
 };
 
@@ -65,7 +62,6 @@ export const generateGoogleMapsFallbackUrl = (location, mapType = 'satellite') =
 export const cleanLocation = (location) => {
   if (!location) return '';
   
-  // Remove extra whitespace and common prefixes
   return location
     .trim()
     .replace(/^(address|location|premise):?\s*/i, '')

@@ -22,11 +22,9 @@ class ProjectSaveService {
 
     this.initialized = true;
 
-    // Check if backend is available
     this.isOnline = await apiService.healthCheck();
     console.log(`🌐 Backend status: ${this.isOnline ? 'ONLINE (Database)' : 'OFFLINE (localStorage fallback)'}`);
 
-    // Load projects from appropriate source
     if (this.isOnline) {
       await this.loadProjectsFromDatabase();
     } else {
@@ -40,7 +38,6 @@ class ProjectSaveService {
    * Save project - Database first, localStorage fallback
    */
   async saveProject(projectId, projectData) {
-    // Prevent multiple saves of the same project running simultaneously
     if (this.savingProjects.has(projectId)) {
       console.log(`⏳ DUPLICATE SAVE BLOCKED for project ${projectId} (race condition prevented)`);
       return this.projects.get(projectId);
@@ -103,7 +100,6 @@ class ProjectSaveService {
       console.log('📊 SAVE DEBUG - first slide data:', saveData.slideData[Object.keys(saveData.slideData)[0]]);
     }
 
-    // Save to memory cache
     this.projects.set(projectId, saveData);
     this.setCurrentProject(projectId);
 
@@ -148,7 +144,6 @@ class ProjectSaveService {
       const existingProject = this.projects.get(projectId);
 
       try {
-        // Check if this project has been saved to database before
         // CRITICAL: Check both the existingProject AND saveData for the flag
         const hasBeenSavedToDb = existingProject?._savedToDatabase === true || saveData._savedToDatabase === true;
         console.log(`💾 Save decision for ${projectId}:`, {
@@ -165,7 +160,6 @@ class ProjectSaveService {
             dbProject = await apiService.updateProject(projectId, apiData);
             console.log('✅ Updated existing database project:', projectId);
           } catch (updateError) {
-            // If update fails (project was deleted), create new
             if (updateError.message.includes('404') || updateError.message.includes('DoesNotExist')) {
               dbProject = await apiService.createProject(apiData);
               console.log('🆕 Created new project after 404:', dbProject.id);
@@ -179,7 +173,6 @@ class ProjectSaveService {
           console.log('🆕 Created NEW project:', dbProject.id);
         }
 
-        // Update memory cache with database info
         // CRITICAL: Preserve _savedToDatabase flag from either existingProject or saveData
         const updatedProject = {
           ...saveData,
@@ -191,14 +184,11 @@ class ProjectSaveService {
           lastModified: Date.now()
         };
 
-        // Use the database ID as the primary ID and update the URL
         // This ensures consistency between frontend and database
         updatedProject.id = dbProject.id;
         updatedProject.databaseId = dbProject.id;
         
-        // If the projectId changed, keep the old entry with databaseId pointer for redirects
         if (projectId !== dbProject.id) {
-          // Keep old cache entry with databaseId for redirect (don't delete!)
           const redirectPointer = {
             ...updatedProject,
             databaseId: dbProject.id,
@@ -206,7 +196,6 @@ class ProjectSaveService {
           };
           this.projects.set(projectId, redirectPointer);
 
-          // Update URL to reflect the correct database ID
           if (window.location.pathname === '/editor' || window.location.pathname.startsWith('/editor')) {
             const newUrl = `/editor/${dbProject.id}`;
             window.history.replaceState({}, '', newUrl);
@@ -217,7 +206,6 @@ class ProjectSaveService {
         this.projects.set(dbProject.id, updatedProject);
         this.setCurrentProject(dbProject.id);
 
-        // Save slides and images to database
         await this.saveProjectSlidesToDatabase(dbProject.id, saveData);
 
         return dbProject;
@@ -241,10 +229,8 @@ class ProjectSaveService {
       const slideNumber = slide.id || slide.slideNumber;
       const slideContent = saveData.slideData[slideNumber] || {};
 
-      // Extract fieldPositions - it's stored as a separate field in the backend model
       const fieldPositions = slideContent.fieldPositions || {};
 
-      // Build content object WITHOUT fieldPositions and frameImages
       // frameImages contain base64 data which is too large for database
       // Images are uploaded separately via the image upload endpoint
       // frameMeta is kept - it's small metadata (file paths, URLs, dimensions)
@@ -272,7 +258,6 @@ class ProjectSaveService {
         let dbSlide;
         const slidesResponse = await apiService.getProjectSlides(projectId);
 
-        // Handle both array and paginated response formats
         const existingSlides = Array.isArray(slidesResponse)
           ? slidesResponse
           : (slidesResponse?.results || []);
@@ -287,12 +272,10 @@ class ProjectSaveService {
           dbSlide = await apiService.createSlide(projectId, slideData);
         }
 
-        // Handle image uploads for MultiImageComponent format (Comments, Inspection slides)
         // Note: Most slides now use frame-based images which are handled separately below
         if (slideContent.images && Array.isArray(slideContent.images) && slideContent.images.length > 0 && dbSlide) {
           for (const image of slideContent.images) {
             if (image.src && image.src.startsWith('data:image/')) {
-              // Skip upload - legacy endpoint no longer exists
               // These images are stored in slideData.images for Comments/Inspection slides
               console.log(`Skipping legacy image upload for slide ${dbSlide.id} - stored in slideData instead`);
             }
@@ -312,7 +295,6 @@ class ProjectSaveService {
           let metaChanged = false;
 
           for (const [frameId, imageData] of Object.entries(frameImages)) {
-            // Only upload if it's base64 data and not yet in frameMeta
             if (imageData && imageData.startsWith('data:image/') && !existingMeta[frameId]) {
               try {
                 const result = await apiService.post('/slides/upload-image/', {
@@ -339,7 +321,6 @@ class ProjectSaveService {
             }
           }
 
-          // If we uploaded new frames, update the slide content with frameMeta
           if (metaChanged) {
             try {
               const updatedContent = { ...slideData.content, frameMeta: updatedMeta };
@@ -378,7 +359,6 @@ class ProjectSaveService {
       const stored = localStorage.getItem('savedProjects');
       const projects = stored ? JSON.parse(stored) : {};
 
-      // Keep images but compress them for localStorage
       const lightweightData = { ...saveData };
 
       // CRITICAL: Preserve database flags to prevent duplicate creation
@@ -392,7 +372,6 @@ class ProjectSaveService {
       if (lightweightData.slideData) {
         for (const [slideId, slideInfo] of Object.entries(lightweightData.slideData)) {
           if (slideInfo.images && Array.isArray(slideInfo.images)) {
-            // Keep images but potentially compress them later if quota issues arise
             lightweightData.slideData[slideId] = {
               ...slideInfo,
               images: slideInfo.images, // Keep pasted images
@@ -435,10 +414,8 @@ class ProjectSaveService {
    */
   async loadProjectFromDatabase(projectId) {
     try {
-      // Check if project is already in memory cache
       if (this.projects.has(projectId)) {
         const cachedProject = this.projects.get(projectId);
-        // If slides not loaded yet, load them now
         if (!cachedProject.slidesLoaded) {
           await this.ensureProjectSlidesLoaded(projectId);
         }
@@ -448,7 +425,6 @@ class ProjectSaveService {
       console.log(`🔄 Loading project ${projectId} from database...`);
       const dbProject = await apiService.getProject(projectId);
       
-      // Create project data with basic info only (no slides yet)
       const projectData = {
         id: dbProject.id,
         databaseId: dbProject.id,
@@ -493,7 +469,6 @@ class ProjectSaveService {
    */
   async loadProjectsFromDatabase() {
     try {
-      // Check cache timestamp
       const cacheKey = 'projectsCache';
       const cacheTimeKey = 'projectsCacheTime';
       const cacheExpiry = 2 * 60 * 1000; // 2 minutes cache
@@ -501,7 +476,6 @@ class ProjectSaveService {
       const cachedTime = localStorage.getItem(cacheTimeKey);
       const cachedData = localStorage.getItem(cacheKey);
       
-      // Use cache if it's fresh and we have data in memory
       if (cachedTime && cachedData && this.projects.size > 0) {
         const age = Date.now() - parseInt(cachedTime);
         if (age < cacheExpiry) {
@@ -520,7 +494,6 @@ class ProjectSaveService {
       
       this.projects.clear(); // Clear existing cache
       
-      // Load projects without slides first (much faster)
       const projectPromises = (dbProjects.results || dbProjects).map(async (dbProject) => {
         const projectData = {
           id: dbProject.id,
@@ -595,7 +568,6 @@ class ProjectSaveService {
       const slidesResponse = await apiService.getProjectSlides(projectId);
       console.log(`📋 Slides API response:`, slidesResponse);
 
-      // Handle both array and paginated response formats
       const slides = Array.isArray(slidesResponse)
         ? slidesResponse
         : (slidesResponse?.results || []);
@@ -719,7 +691,6 @@ class ProjectSaveService {
       throw error; // Re-throw to prevent frontend cache deletion if backend fails
     }
 
-    // Remove from cache if it exists
     if (this.projects.has(projectId)) {
       this.projects.delete(projectId);
       console.log('🗑️ Removed project from cache');
@@ -743,11 +714,9 @@ class ProjectSaveService {
     return true;
   }
 
-  // Keep existing methods for compatibility
   getUserProjects(sessionUser, includeCompleted = true) {
     const userProjects = [];
     for (const [id, project] of this.projects) {
-      // Check both sessionUser (localStorage) and owner (database)
       const projectUser = project.sessionUser || project.owner;
       if (projectUser === sessionUser) {
         if (includeCompleted || project.status !== 'completed') {
@@ -781,7 +750,6 @@ class ProjectSaveService {
   getUserProjects(sessionUser, includeCompleted = true) {
     const userProjects = [];
     for (const [id, project] of this.projects) {
-      // Check both sessionUser (localStorage) and owner (database)
       const projectUser = project.sessionUser || project.owner;
       if (projectUser === sessionUser) {
         if (includeCompleted || project.status !== 'completed') {
@@ -887,7 +855,6 @@ class ProjectSaveService {
     if (this.projects.has(projectId)) {
       this.updateLastModified(projectId);
       
-      // Update key fields that might have changed
       const project = this.projects.get(projectId);
       project.formData = { ...project.formData, ...currentData.formData };
       project.slideData = { ...project.slideData, ...currentData.slideData };
@@ -897,7 +864,6 @@ class ProjectSaveService {
   }
 
   generateProjectId(formId = null, sessionUser = '') {
-    // Generate a proper UUID v4
     return crypto.randomUUID();
   }
 
@@ -968,10 +934,8 @@ class ProjectSaveService {
   }
 }
 
-// Create singleton instance
 const projectSaveService = new ProjectSaveService();
 
-// Expose globally for debugging and cache invalidation
 if (typeof window !== 'undefined') {
   window.projectSaveService = projectSaveService;
 }

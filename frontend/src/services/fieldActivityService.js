@@ -7,13 +7,11 @@ class FieldActivityService {
     this.fieldActivities = new Map(); // fieldId -> { user, fieldName }
     this.listeners = new Set();
     
-    // Set up BroadcastChannel for cross-tab communication
     this.broadcastChannel = new BroadcastChannel('fieldActivity');
     this.broadcastChannel.onmessage = (event) => {
         this.handleBroadcastMessage(event.data);
     };
     
-    // Load existing activities from localStorage
     this.loadActivities();
   }
 
@@ -230,7 +228,6 @@ class FieldActivityService {
   }
 }
 
-// Create singleton instance
 const fieldActivityService = new FieldActivityService();
 
 export default fieldActivityService;

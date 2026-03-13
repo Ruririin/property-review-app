@@ -39,25 +39,21 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
       const response = await authApi.login(credentials);
-      // Extract user data from the response
       const userData = response.user || response;
       setUser(userData);
       return userData;
     } catch (error) {
       let errorMessage = 'Login failed';
 
-      // Handle Django error formats
       if (error.response?.data?.non_field_errors) {
         errorMessage = Array.isArray(error.response.data.non_field_errors)
           ? error.response.data.non_field_errors.join(' ')
           : error.response.data.non_field_errors;
       } else if (error.response?.data?.error?.non_field_errors) {
-        // Handle nested non_field_errors inside error object
         errorMessage = Array.isArray(error.response.data.error.non_field_errors)
           ? error.response.data.error.non_field_errors.join(' ')
           : error.response.data.error.non_field_errors;
       } else if (error.response?.data?.error && typeof error.response.data.error === 'object') {
-        // Handle object errors from Django
         const errorObj = error.response.data.error;
         const errorMessages = [];
         for (const [field, messages] of Object.entries(errorObj)) {
@@ -102,7 +98,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       let errorMessage = 'Registration failed';
 
-      // Handle password validation errors
       if (error.response?.data?.password) {
         errorMessage = error.response.data.password.join(' ');
       } else if (error.response?.data?.username) {
@@ -110,7 +105,6 @@ export const AuthProvider = ({ children }) => {
       } else if (error.response?.data?.email) {
         errorMessage = `Email: ${error.response.data.email.join(' ')}`;
       } else if (error.response?.data?.error && typeof error.response.data.error === 'object') {
-        // Handle object errors from Django
         const errorObj = error.response.data.error;
         const errorMessages = [];
         for (const [field, messages] of Object.entries(errorObj)) {

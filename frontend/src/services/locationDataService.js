@@ -20,18 +20,15 @@ class LocationDataService {
     });
     
     if (multipleLocationsMode) {
-      // Parse multiple locations from premise location text
       const premiseLocation = projectData.formData?.premiseLocation || '';
       const locations = this.parseLocationsFromText(premiseLocation);
       
       console.log('📍 Parsed locations:', locations);
       
-      // Initialize each location with separate data
       locations.forEach((location, index) => {
         const locationData = {
           ...projectData.formData,
           premiseLocation: location.trim(),
-          // Initialize location-specific fields
           insuredName: projectData.formData?.insuredName || '',
           website: projectData.formData?.website || '',
           description: projectData.formData?.description || '',
@@ -166,6 +163,5 @@ class LocationDataService {
   }
 }
 
-// Create singleton instance
 const locationDataService = new LocationDataService();
 export default locationDataService;

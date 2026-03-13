@@ -68,15 +68,12 @@ export default function ExportedItemsPanel({ sessionUser }) {
         pdfUrl = URL.createObjectURL(await res.blob());
       }
       if (pdfUrl) {
-        // Add project creation date to filename if not already present
         let filename = item.filename;
 
-        // Use project creation date, fallback to export date if not available
         const dateToUse = item.project_created_at || item.export_date;
         const createdDate = new Date(dateToUse);
         const dateStr = `${createdDate.getMonth() + 1}-${createdDate.getDate()}-${createdDate.getFullYear()}`;
 
-        // Only add date if filename doesn't already contain a date pattern
         if (!filename.match(/\d{1,2}-\d{1,2}-\d{4}/)) {
           filename = filename.replace('.pdf', ` ${dateStr}.pdf`);
         }
@@ -324,9 +321,7 @@ export default function ExportedItemsPanel({ sessionUser }) {
               >Close</button>
               {selectedPDF.dataUrl && (
                 <button onClick={() => {
-                  // Add project creation date to filename if not already present
                   let filename = selectedPDF.filename;
-                  // Use project creation date, fallback to export date if not available
                   const dateToUse = selectedPDF.project_created_at || selectedPDF.export_date;
                   const createdDate = new Date(dateToUse);
                   const dateStr = `${createdDate.getMonth() + 1}-${createdDate.getDate()}-${createdDate.getFullYear()}`;

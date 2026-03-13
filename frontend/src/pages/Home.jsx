@@ -107,7 +107,6 @@ export default function Home() {
     } catch { alert('Failed to update project status.'); }
   };
 
-  // Load exported items
   const loadExportedItems = async () => {
     if (!sessionUser) return;
     setIsLoading(true);
@@ -175,7 +174,6 @@ export default function Home() {
     return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + s[i];
   };
 
-  // Load user profile with avatar
   const loadUserProfile = async () => {
     try {
       const profile = await apiService.getUserProfile();
@@ -202,7 +200,6 @@ export default function Home() {
     return () => document.removeEventListener('visibilitychange', h);
   }, [sessionUser, activeTab]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (userDropdownOpen && !e.target.closest('[data-user-dropdown]')) {
@@ -231,7 +228,6 @@ export default function Home() {
   const handleCreateNew = () => navigate("/editor");
   const handleLogout = async () => { if (sessionUser) updateActiveUser(sessionUser, 'leave'); await logout(); };
   const handleEdit = (id) => {
-    // Save current tab before navigating so it's preserved when returning
     localStorage.setItem('homeActiveTab', activeTab);
     navigate(`/editor/${id}`);
   };

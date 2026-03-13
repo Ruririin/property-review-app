@@ -32,7 +32,6 @@ const ImageFrame = ({
   const handleImageUpload = (file) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      // Load image to get natural dimensions
       const img = new Image();
       img.onload = () => {
         const dimensions = {
@@ -149,7 +148,6 @@ const ImageFrame = ({
     setImageTransform({ x: 0, y: 0, scale: 1 });
   };
 
-  // Add global mouse event listeners
   useEffect(() => {
     if (isDraggingImage) {
       window.addEventListener('mousemove', handleImageMouseMove);
@@ -161,7 +159,6 @@ const ImageFrame = ({
     }
   }, [isDraggingImage, imageTransform.x, imageTransform.y]);
 
-  // Add paste event listener
   useEffect(() => {
     const container = containerRef.current;
     if (container) {
@@ -172,18 +169,13 @@ const ImageFrame = ({
     }
   }, []);
 
-  // Calculate container dimensions based on image for single frames
-  // Use fixed size for multi-frame layouts
   const getContainerStyle = () => {
-    // If no image or no dimensions yet, use default style
     if (!image || !imageDimensions) {
       return style;
     }
 
-    // Check if this is a single frame (full size: 1064x504)
     const isSingleFrame = style?.width === '1064px' && style?.height === '504px';
 
-    // For single frames, dynamically adjust to image aspect ratio
     if (isSingleFrame) {
       const maxWidth = 1064;
       const maxHeight = 504;
@@ -204,7 +196,6 @@ const ImageFrame = ({
       };
     }
 
-    // For multi-frame layouts, use fixed frame size from layout props
     return style;
   };
 
@@ -236,7 +227,6 @@ const ImageFrame = ({
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
       onClick={(e) => {
-        // Only focus the container, don't trigger file upload on click
         containerRef.current?.focus();
       }}
     >

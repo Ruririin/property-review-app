@@ -17,7 +17,6 @@ const loadIsoCodes = async () => {
     const csvText = await response.text();
     const lines = csvText.split('\n').filter(line => line.trim());
     
-    // Skip header row
     isoCodes = [];
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -75,17 +74,14 @@ const findBestMatch = (searchTerm) => {
   isoCodes.forEach(isoCode => {
     let score = 0;
     
-    // Check for exact phrase matches in description
     if (isoCode.keywords && isoCode.keywords.includes(searchLower)) {
       score += 10;
     }
     
-    // Check for exact phrase matches in full text
     if (isoCode.full_text && isoCode.full_text.toLowerCase().includes(searchLower)) {
       score += 8;
     }
     
-    // Check for word matches
     words.forEach(word => {
       if (isoCode.keywords && isoCode.keywords.includes(word)) {
         score += 1;
@@ -115,17 +111,14 @@ const findSimilarMatches = (description, minScore = 1) => {
   isoCodes.forEach(isoCode => {
     let score = 0;
     
-    // Check for exact phrase matches in description
     if (isoCode.keywords && isoCode.keywords.includes(searchText)) {
       score += 10;
     }
     
-    // Check for exact phrase matches in full text
     if (isoCode.full_text && isoCode.full_text.toLowerCase().includes(searchText)) {
       score += 8;
     }
     
-    // Check for word matches
     words.forEach(word => {
       if (isoCode.keywords && isoCode.keywords.includes(word)) {
         score += 1;
@@ -140,7 +133,6 @@ const findSimilarMatches = (description, minScore = 1) => {
     }
   });
   
-  // Sort by score (highest first) and return top matches
   return matches.sort((a, b) => b.score - a.score).slice(0, 10);
 };
 

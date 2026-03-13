@@ -6,7 +6,6 @@ class ExportedItemsService {
     this.cachedItems = null;
   }
 
-  // Get CSRF token from cookie
   getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -22,7 +21,6 @@ class ExportedItemsService {
     return cookieValue;
   }
 
-  // Fetch exported items from backend
   async getExportedItems() {
     try {
       const csrfToken = this.getCookie('csrftoken');
@@ -82,7 +80,6 @@ class ExportedItemsService {
     }
   }
 
-  // Delete an exported item
   async removeExportedItem(itemId) {
     try {
       const csrfToken = this.getCookie('csrftoken');

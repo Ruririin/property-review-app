@@ -41,7 +41,6 @@ export const slideComponents = {
 export const normalizeSlideType = (slideType) => {
   if (!slideType) return null;
   
-  // Handle dynamic street view types
   if (slideType.startsWith('street_view_')) {
     return 'street_view';
   }
@@ -49,7 +48,6 @@ export const normalizeSlideType = (slideType) => {
   return slideType;
 };
 
-// Get slide component for a given slide type
 export const getSlideComponent = (slideType, fallbackComponent = SlideOne) => {
   const normalizedType = normalizeSlideType(slideType);
   return slideComponents[normalizedType] || fallbackComponent;
@@ -63,7 +61,6 @@ export const transformSlideType = (slideType, slideTypeCounts) => {
   let slideTitle = slideType;
   let updatedCounts = { ...slideTypeCounts };
   
-  // Handle special cases
   if (slideTypeKey === 'street_view') {
     const newCount = slideTypeCounts.street_view + 1;
     slideTitle = `Street View ${newCount}`;
@@ -88,7 +85,6 @@ export const transformSlideType = (slideType, slideTypeCounts) => {
   };
 };
 
-// Create new slide object
 export const createSlideObject = (slideId, slideType, slideTitle, locationIndex = 0) => {
   return {
     id: slideId,
@@ -102,7 +98,6 @@ export const createSlideObject = (slideId, slideType, slideTitle, locationIndex 
 export const handleSlideTypeDeletion = (slideToDelete, slideTypeCounts) => {
   let updatedCounts = { ...slideTypeCounts };
   
-  // Update counters for street view slides
   if (slideToDelete && slideToDelete.type.startsWith('street_view')) {
     updatedCounts = {
       ...slideTypeCounts,
@@ -113,18 +108,15 @@ export const handleSlideTypeDeletion = (slideToDelete, slideTypeCounts) => {
   return updatedCounts;
 };
 
-// Get slide data helper
 export const getSlideData = (slideData, slideId) => {
   return slideData[slideId] || { type: '', title: '', formData: {}, drawings: [] };
 };
 
-// Validate slide component exists
 export const isValidSlideType = (slideType) => {
   const normalizedType = normalizeSlideType(slideType);
   return normalizedType && slideComponents.hasOwnProperty(normalizedType);
 };
 
-// Get all available slide types
 export const getAvailableSlideTypes = () => {
   return Object.keys(slideComponents);
 };
@@ -146,7 +138,6 @@ export const slideTypeDisplayNames = {
   ratings: 'Ratings'
 };
 
-// Get display name for slide type
 export const getSlideTypeDisplayName = (slideType) => {
   const normalizedType = normalizeSlideType(slideType);
   return slideTypeDisplayNames[normalizedType] || slideType;

@@ -9,10 +9,8 @@ class UserActivityService {
     this.listeners = new Set();
     this.heartbeatInterval = null;
     
-    // Load existing activities from localStorage
     this.loadActivities();
     
-    // Start heartbeat to keep activities fresh
     this.startHeartbeat();
     
     // Clean up stale activities when page loads
@@ -227,7 +225,6 @@ class UserActivityService {
   }
 }
 
-// Create singleton instance
 const userActivityService = new UserActivityService();
 
 export default userActivityService;

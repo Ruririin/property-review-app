@@ -107,19 +107,16 @@ const SlidesBar = ({
     }
   };
 
-  // Set up mouse wheel event listener for horizontal scrolling
   useEffect(() => {
     const slidesContainer = slidesContainerRef.current;
     if (!slidesContainer) return;
 
     const handleWheel = (e) => {
-      // Check if we're over a dropdown
       const isOverDropdown = e.target.closest('.dropdown-item') ||
                             e.target.closest('[role="menu"]') ||
                             (e.target.closest('[style*="position: fixed"]') && 
                              e.target.closest('[style*="zIndex: 5000"]'));
 
-      // Only convert vertical mouse wheel to horizontal scroll if not over dropdown
       if (!isOverDropdown) {
         e.preventDefault();
         e.stopPropagation();

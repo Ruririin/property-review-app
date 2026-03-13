@@ -23,21 +23,17 @@ const SlideTwo = forwardRef(({
   const containerRef = useRef(null);
   const slideDataRef = useRef(slideData);
 
-  // Use projectId or currentProjectId (whichever is available)
   const activeProjectId = projectId || currentProjectId;
 
-  // Frame image handler for backend upload/delete
   const { uploadFrameImage, deleteFrameImage } = useFrameImageHandler(
     activeProjectId,
     slideId
   );
 
-  // Image handling using FrameLayout (1 frame only for aerial views)
   const frameImages = slideData?.frameImages || {};
   const frameMeta = slideData?.frameMeta || {};
   const imageTransforms = slideData?.imageTransforms || {};
 
-  // Keep ref updated with latest slideData
   useEffect(() => {
     slideDataRef.current = slideData;
   }, [slideData]);
@@ -47,22 +43,18 @@ const SlideTwo = forwardRef(({
     const currentFrameImages = slideDataRef.current?.frameImages || {};
     const currentFrameMeta = slideDataRef.current?.frameMeta || {};
 
-    // Store the base64 data immediately for display
     const updatedFrameImages = { ...currentFrameImages, [frameId]: imageData };
 
     updateSlideData({
       frameImages: updatedFrameImages
     });
 
-    // Only upload to backend if project has a database ID (not just a temp UUID)
-    // This prevents upload failures when project is newly created
     const hasDatabaseId = slideData?._appState?.databaseId || false;
 
     if (activeProjectId && hasDatabaseId) {
       const result = await uploadFrameImage(frameId, imageData);
 
       if (result && result.success) {
-        // Store backend metadata and combine with frameImages
         updateSlideData({
           frameImages: updatedFrameImages,
           frameMeta: {
@@ -81,15 +73,12 @@ const SlideTwo = forwardRef(({
   };
 
   const handleImageRemove = async (frameId) => {
-    // Get file path from metadata
     const filePath = frameMeta[frameId]?.filePath;
 
-    // Delete from backend if file path exists
     if (filePath && activeProjectId) {
       await deleteFrameImage(frameId, filePath);
     }
 
-    // Remove from frontend
     const newFrameImages = { ...frameImages };
     const newFrameMeta = { ...frameMeta };
     delete newFrameImages[frameId];
@@ -113,18 +102,13 @@ const SlideTwo = forwardRef(({
 
   const currentViewType = formData.websiteInfo || "Satellite View";
   
-  // Force re-render when any slide data changes (for cross-slide logic)
   const [, forceUpdate] = useState({});
   useEffect(() => {
     forceUpdate({});
   }, [allSlideData]);
   
-  // Check if this is the first or second aerial slide with an image
-  // Find other aerial slides that have images
   const otherAerialSlidesWithImages = slides.filter(slide => {
-    // Skip current slide
     if (slide.id === slideId) return false;
-    // Check if it's an aerial slide type and has image data
     const isAerialSlide = slide.type === 'aerial_view_-_google' || slide.type === 'aerial_view_-_bing';
     const hasImage = allSlideData[slide.id]?.imageData;
     return isAerialSlide && hasImage;
@@ -132,16 +116,13 @@ const SlideTwo = forwardRef(({
   
   const isSecondAerialSlide = otherAerialSlidesWithImages.length > 0;
   
-  // Check if this is the second aerial slide (no debug logging)
 
-  // Expose method for PDF export (aerial slides don't have draggable positioning)
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       // No positioning sync needed (fixed positions)
     }
   }));
 
-  // Load slide data from backend when component mounts
   useEffect(() => {
     const loadSlideData = async () => {
       if (!currentProjectId || !slideId) {
@@ -151,11 +132,9 @@ const SlideTwo = forwardRef(({
       try {
         const result = await slideApiService.getSlideContent(currentProjectId, slideId);
 
-        // Load slide content if it exists
         if (result.content && result.content.slideTwoData && setFormData) {
           const slideTwoData = result.content.slideTwoData;
 
-          // Only load if we have actual form data
           const hasFormData = Object.keys(slideTwoData).some(key =>
             slideTwoData[key] && slideTwoData[key].toString().trim() !== ''
           );
@@ -185,7 +164,6 @@ const SlideTwo = forwardRef(({
       premiseLocation: { top: 670, right: 1.2 }, // Fixed: positioned from top instead of bottom
     };
 
-    // Calculate dynamic width based on text content
     const textContent = formData[field] || placeholder;
     const estimatedWidth = Math.max(300, Math.min(900, textContent.length * 16 + 120)); // Increased calculation and max width
 

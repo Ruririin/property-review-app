@@ -32,7 +32,6 @@ const MapEmbed = ({
       if (mapType === 'bing') {
         url = generateBingMapsEmbedUrl(cleanedLocation);
       } else {
-        // Use Google Maps with the selected view type
         url = generateGoogleMapsFallbackUrl(cleanedLocation, currentView);
       }
       

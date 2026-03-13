@@ -152,7 +152,6 @@ class EditorApiService {
   }
 }
 
-// Create singleton instance
 const editorApiService = new EditorApiService();
 
 export default editorApiService;

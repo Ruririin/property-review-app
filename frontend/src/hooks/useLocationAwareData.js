@@ -14,7 +14,6 @@ export function useLocationAwareData(
 ) {
   const [locationFormData, setLocationFormData] = useState({});
 
-  // Initialize location data when component mounts or location changes
   useEffect(() => {
     if (multipleLocationsMode) {
       const data = locationDataService.getLocationData(selectedLocationIndex);
@@ -37,7 +36,6 @@ export function useLocationAwareData(
   // Location-aware form data setter
   const setFormValue = useCallback((field, value) => {
     if (multipleLocationsMode) {
-      // Update location-specific data
       const updatedData = locationDataService.updateLocationData(selectedLocationIndex, field, value);
       setLocationFormData(updatedData);
       
@@ -67,7 +65,6 @@ export function useLocationAwareData(
       
       setLocationFormData(updatedData);
       
-      // Update global form data
       const allLocationData = locationDataService.getAllLocationData();
       setGlobalFormData({
         ...globalFormData,
@@ -81,7 +78,6 @@ export function useLocationAwareData(
     }
   }, [globalFormData, setGlobalFormData, multipleLocationsMode, selectedLocationIndex]);
 
-  // Get current location info
   const getCurrentLocation = useCallback(() => {
     if (!multipleLocationsMode) {
       return { index: 0, name: 'Single Location', isMultiple: false };

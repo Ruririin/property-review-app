@@ -33,7 +33,6 @@ const Comments = forwardRef(({
     return { clientX: e.clientX, clientY: e.clientY };
   };
 
-  // Expose method to sync positions for PDF export
   useImperativeHandle(ref, () => ({
     syncPositionsToDom: () => {
       if (setFieldPositions) {
@@ -52,12 +51,10 @@ const Comments = forwardRef(({
     }
   };
 
-  // Handle field changes
   const handleChange = (field, value) => {
     setFormData({ ...formData, [field]: value });
   };
 
-  // Handle field mouse down for dragging
   const handleFieldMouseDown = (e, field) => {
     e.stopPropagation();
     e.preventDefault();
@@ -79,7 +76,6 @@ const Comments = forwardRef(({
     onSelect(field);
   };
 
-  // Handle mouse move for dragging
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (isDragging && draggingField && containerRef.current) {
@@ -90,7 +86,6 @@ const Comments = forwardRef(({
         const newLeft = (coords.clientX - containerRect.left) / zoomFactor - dragOffset.x;
         const newTop = (e.clientY - containerRect.top) / zoomFactor - dragOffset.y;
         
-        // Convert to right positioning for consistency with SlideOne
         const containerWidth = 1280;
         const fieldWidth = 400; // Default width for comment fields
         const newRight = containerWidth - newLeft - fieldWidth;
@@ -129,7 +124,6 @@ const Comments = forwardRef(({
     };
   }, [isDragging, draggingField, dragOffset, zoomLevel, setFieldPositions]);
 
-  // Render comment field with SlideOne-style implementation
   const renderCommentField = (field, placeholder, defaultPosition) => {
     const position = fieldPositions?.[field] || defaultPosition;
     const isActive = selectedField === field;
@@ -263,7 +257,6 @@ const Comments = forwardRef(({
     );
   };
 
-  // Handle resize functionality
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (isResizing && resizeField && containerRef.current) {
@@ -311,17 +304,14 @@ const Comments = forwardRef(({
     };
   }, [isResizing, resizeField, fieldPositions, zoomLevel, setFieldPositions]);
 
-  // Add new textbox
   const addTextbox = (text = "", position = { top: 200, right: 200, width: 400, height: 100 }) => {
     const newFieldId = `comment_${Date.now()}`;
     
-    // Add to formData
     setFormData(prev => ({
       ...prev,
       [newFieldId]: text
     }));
     
-    // Add position
     if (setFieldPositions) {
       setFieldPositions(prev => ({
         ...prev,

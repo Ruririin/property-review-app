@@ -41,7 +41,6 @@ const EditorRefactorExample = ({ sessionUser }) => {
   const [currentFormId, setCurrentFormId] = useState(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
-  // Initialize custom hooks
   const headerToolbar = useHeaderToolbar(sessionUser, currentProjectId);
   const sidebarToolbar = useSidebarToolbar();
   const slidesBar = useSlidesBar();
@@ -69,7 +68,6 @@ const EditorRefactorExample = ({ sessionUser }) => {
     return null;
   };
 
-  // Save project function
   const saveProject = async (isAutoSave = false) => {
     if (!currentProjectId) return;
     
@@ -89,7 +87,6 @@ const EditorRefactorExample = ({ sessionUser }) => {
     console.log(isAutoSave ? '🔄 Auto-saved project' : '💾 Manually saved project');
   };
 
-  // Setup header toolbar callbacks
   const headerCallbacks = {
     setCurrentFormId,
     updateSlideFormData,

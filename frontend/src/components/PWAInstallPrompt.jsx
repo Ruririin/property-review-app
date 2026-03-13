@@ -6,7 +6,6 @@ const PWAInstallPrompt = () => {
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
-    // Check if app is already installed (standalone mode)
     const checkStandalone = () => {
       const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
                               window.navigator.standalone === true ||
@@ -16,14 +15,12 @@ const PWAInstallPrompt = () => {
 
     checkStandalone();
 
-    // Listen for install prompt
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
       setShowInstallButton(true);
     };
 
-    // Listen for app installed
     const handleAppInstalled = () => {
       console.log('PWA was installed');
       setShowInstallButton(false);
@@ -42,10 +39,8 @@ const PWAInstallPrompt = () => {
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
 
-    // Show the install prompt
     deferredPrompt.prompt();
 
-    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
     
     if (outcome === 'accepted') {
@@ -54,7 +49,6 @@ const PWAInstallPrompt = () => {
       console.log('User dismissed the install prompt');
     }
 
-    // Clear the deferred prompt
     setDeferredPrompt(null);
     setShowInstallButton(false);
   };
