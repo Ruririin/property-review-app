@@ -73,9 +73,7 @@ class FrameImageHandlerService:
 
     @staticmethod
     def process_frame_image(base64_data, max_width=1200, max_height=800):
-        """
-        Process base64 frame image data and save to storage
-        """
+        """Process base64 frame image data and save to storage"""
         try:
             # SECURITY: Validate image data before processing
             is_valid, error_msg = FrameImageHandlerService.validate_image_data(base64_data)
@@ -85,39 +83,29 @@ class FrameImageHandlerService:
                     'error': error_msg
                 }
 
-            # Remove data URL prefix if present
             if ',' in base64_data:
                 base64_data = base64_data.split(',')[1]
 
-            # Decode base64 data
             image_data = base64.b64decode(base64_data)
-
-            # Open image with PIL
             image = Image.open(io.BytesIO(image_data))
 
-            # Convert to RGB if necessary
             if image.mode in ('RGBA', 'P'):
-                # For transparent images, use white background
                 if image.mode == 'RGBA':
                     background = Image.new('RGB', image.size, (255, 255, 255))
-                    background.paste(image, mask=image.split()[3])  # Use alpha channel as mask
+                    background.paste(image, mask=image.split()[3])
                     image = background
                 else:
                     image = image.convert('RGB')
 
-            # Resize if too large while maintaining aspect ratio
             image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
 
-            # Get image info
             width, height = image.size
             aspect_ratio = width / height
 
-            # Save processed image
             output_buffer = io.BytesIO()
             image.save(output_buffer, format='JPEG', quality=85, optimize=True)
             output_buffer.seek(0)
 
-            # Generate unique filename
             filename = f"frame_image_{uuid.uuid4()}.jpg"
             file_path = default_storage.save(f"frame_images/{filename}", ContentFile(output_buffer.read()))
 
@@ -140,9 +128,7 @@ class FrameImageHandlerService:
 
     @staticmethod
     def delete_frame_image(file_path):
-        """
-        Delete a frame image from storage
-        """
+        """Delete a frame image from storage"""
         try:
             if default_storage.exists(file_path):
                 default_storage.delete(file_path)
@@ -153,13 +139,10 @@ class FrameImageHandlerService:
 
         return False
 
-# API Views for Frame Image Handler
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])  # Authentication required for security
+@permission_classes([IsAuthenticated])
 def upload_frame_image(request):
-    """
-    Upload and process a frame image from base64 data
-    """
+    """Upload and process a frame image from base64 data"""
     project_id = request.data.get('project_id')
     slide_id = request.data.get('slide_id')
     frame_id = request.data.get('frame_id')
@@ -191,11 +174,9 @@ def upload_frame_image(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE'])
-@permission_classes([IsAuthenticated])  # Authentication required for security
+@permission_classes([IsAuthenticated])
 def delete_frame_image(request, project_id, slide_id):
-    """
-    Delete a frame image from storage
-    """
+    """Delete a frame image from storage"""
     frame_id = request.data.get('frame_id')
     file_path = request.data.get('file_path', '')
 

@@ -31,7 +31,6 @@ class PDFScreenshotService:
                 screenshot_paths = []
 
                 with sync_playwright() as p:
-                    logger.info("Launching headless Chromium browser")
                     browser = p.chromium.launch(headless=True)
                     context = browser.new_context(
                         viewport={'width': SLIDE_WIDTH, 'height': SLIDE_HEIGHT},
@@ -41,8 +40,6 @@ class PDFScreenshotService:
 
                     for i, html_content in enumerate(slides_html_list):
                         try:
-                            logger.info(f"Processing slide {i + 1}/{len(slides_html_list)}")
-
                             page.set_content(html_content, wait_until='networkidle')
                             page.wait_for_timeout(2000)
 
@@ -53,7 +50,6 @@ class PDFScreenshotService:
                                 type='png'
                             )
                             screenshot_paths.append(screenshot_path)
-                            logger.info(f"Screenshot saved: {screenshot_path}")
 
                         except Exception as e:
                             logger.error(f"Failed to screenshot slide {i + 1}: {e}")
@@ -61,7 +57,6 @@ class PDFScreenshotService:
 
                     browser.close()
 
-                logger.info("Creating PDF from screenshots")
                 pdf_buffer = PDFScreenshotService._create_pdf_from_images(screenshot_paths, output_path)
 
                 return pdf_buffer
@@ -81,8 +76,6 @@ class PDFScreenshotService:
                 pdf_canvas = canvas.Canvas(buffer, pagesize=landscape((SLIDE_WIDTH, SLIDE_HEIGHT)))
 
             for i, img_path in enumerate(image_paths):
-                logger.info(f"Adding image {i + 1}/{len(image_paths)} to PDF")
-
                 img = Image.open(img_path).convert('RGB')
                 jpeg_path = img_path.replace('.png', '.jpg')
                 img.save(jpeg_path, 'JPEG', quality=75, optimize=True)
@@ -98,7 +91,6 @@ class PDFScreenshotService:
                     pdf_canvas.showPage()
 
             pdf_canvas.save()
-            logger.info("PDF created successfully")
 
             if output_path:
                 return output_path

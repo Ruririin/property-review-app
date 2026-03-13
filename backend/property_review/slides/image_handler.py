@@ -40,7 +40,6 @@ class ImageHandlerService:
             if ',' in base64_data:
                 base64_data = base64_data.split(',')[1]
 
-            # Check base64 data length (rough file size check)
             estimated_size = len(base64_data) * 3 / 4
             if estimated_size > ImageHandlerService.MAX_FILE_SIZE:
                 return False, f"Image too large. Maximum size is {ImageHandlerService.MAX_FILE_SIZE / (1024*1024)}MB"
@@ -52,14 +51,13 @@ class ImageHandlerService:
 
             try:
                 image = Image.open(io.BytesIO(image_data))
-                image.verify()  # Verify image integrity
+                image.verify()
 
                 if image.format not in ImageHandlerService.ALLOWED_FORMATS:
                     return False, f"Invalid image format. Allowed formats: {', '.join(ImageHandlerService.ALLOWED_FORMATS)}"
 
                 image = Image.open(io.BytesIO(image_data))
 
-                # Check image dimensions (prevent extremely large images)
                 width, height = image.size
                 if width > 10000 or height > 10000:
                     return False, "Image dimensions too large. Maximum 10000x10000 pixels"
@@ -87,10 +85,7 @@ class ImageHandlerService:
             if ',' in base64_data:
                 base64_data = base64_data.split(',')[1]
 
-            # Decode base64 data
             image_data = base64.b64decode(base64_data)
-
-            # Open image with PIL
             image = Image.open(io.BytesIO(image_data))
             
             if image.mode in ('RGBA', 'P'):
@@ -129,8 +124,7 @@ class ImageHandlerService:
     def calculate_image_dimensions(original_width, original_height, container_width=1280, container_height=720):
         """Calculate optimal image dimensions for container"""
         aspect_ratio = original_width / original_height
-        
-        # Calculate maximum dimensions that fit in container
+
         if original_width > container_width or original_height > container_height:
             if aspect_ratio > (container_width / container_height):
                 new_width = container_width * 0.8
@@ -152,9 +146,7 @@ class ImageHandlerService:
     
     @staticmethod
     def validate_image_position(position, image_dimensions, container_width=1280, container_height=720):
-        """
-        Validate and adjust image position to ensure it stays within container bounds
-        """
+        """Validate and adjust image position to ensure it stays within container bounds"""
         top = max(0, min(position.get('top', 0), container_height - image_dimensions['height']))
         left = max(0, min(position.get('left', 0), container_width - image_dimensions['width']))
         
@@ -167,9 +159,7 @@ class ImageHandlerService:
     
     @staticmethod
     def get_image_metadata(file_path):
-        """
-        Get metadata for an existing image
-        """
+        """Get metadata for an existing image"""
         try:
             full_path = default_storage.path(file_path)
             if os.path.exists(full_path):
@@ -193,9 +183,7 @@ class ImageHandlerService:
     
     @staticmethod
     def delete_image(file_path):
-        """
-        Delete an image from storage
-        """
+        """Delete an image from storage"""
         try:
             if default_storage.exists(file_path):
                 default_storage.delete(file_path)
@@ -209,9 +197,7 @@ class ImageHandlerService:
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_image(request):
-    """
-    Upload and process an image from base64 data
-    """
+    """Upload and process an image from base64 data"""
     base64_data = request.data.get('imageData', '')
     max_width = request.data.get('maxWidth', 1200)
     max_height = request.data.get('maxHeight', 800)
@@ -231,9 +217,7 @@ def upload_image(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def calculate_image_dimensions(request):
-    """
-    Calculate optimal image dimensions
-    """
+    """Calculate optimal image dimensions"""
     original_width = request.data.get('originalWidth', 0)
     original_height = request.data.get('originalHeight', 0)
     container_width = request.data.get('containerWidth', 1280)
@@ -253,9 +237,7 @@ def calculate_image_dimensions(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def validate_image_position(request):
-    """
-    Validate and adjust image position
-    """
+    """Validate and adjust image position"""
     position = request.data.get('position', {})
     image_dimensions = request.data.get('imageDimensions', {})
     container_width = request.data.get('containerWidth', 1280)
@@ -270,9 +252,7 @@ def validate_image_position(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_image_metadata(request):
-    """
-    Get metadata for an existing image
-    """
+    """Get metadata for an existing image"""
     file_path = request.GET.get('filePath', '')
 
     if not file_path:
@@ -281,16 +261,13 @@ def get_image_metadata(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     # SECURITY: Prevent path traversal attacks
-    # Validate that the file path doesn't contain directory traversal patterns
     if '..' in file_path or file_path.startswith('/'):
         return Response({
             'error': 'Invalid file path'
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    # Normalize the path and ensure it's within the media storage
     normalized_path = os.path.normpath(file_path)
 
-    # Verify the file exists in allowed storage before accessing
     if not default_storage.exists(normalized_path):
         return Response({
             'error': 'File not found'
@@ -308,9 +285,7 @@ def get_image_metadata(request):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_image(request):
-    """
-    Delete an image from storage
-    """
+    """Delete an image from storage"""
     file_path = request.data.get('filePath', '')
 
     if not file_path:
@@ -324,7 +299,6 @@ def delete_image(request):
             'error': 'Invalid file path'
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    # Normalize the path
     normalized_path = os.path.normpath(file_path)
 
     success = ImageHandlerService.delete_image(normalized_path)
