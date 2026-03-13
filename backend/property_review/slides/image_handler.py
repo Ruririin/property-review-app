@@ -32,16 +32,11 @@ class ImageHandlerService:
 
     @staticmethod
     def validate_image_data(base64_data):
-        """
-        Validate base64 image data before processing
-        Returns (is_valid, error_message)
-        """
+        """Validate base64 image data before processing"""
         try:
-            # Check if data is provided
             if not base64_data:
                 return False, "No image data provided"
 
-            # Remove data URL prefix if present
             if ',' in base64_data:
                 base64_data = base64_data.split(',')[1]
 
@@ -50,22 +45,18 @@ class ImageHandlerService:
             if estimated_size > ImageHandlerService.MAX_FILE_SIZE:
                 return False, f"Image too large. Maximum size is {ImageHandlerService.MAX_FILE_SIZE / (1024*1024)}MB"
 
-            # Decode base64 data
             try:
                 image_data = base64.b64decode(base64_data)
             except Exception:
                 return False, "Invalid base64 data"
 
-            # Verify it's actually an image and check format
             try:
                 image = Image.open(io.BytesIO(image_data))
                 image.verify()  # Verify image integrity
 
-                # Check if format is allowed
                 if image.format not in ImageHandlerService.ALLOWED_FORMATS:
                     return False, f"Invalid image format. Allowed formats: {', '.join(ImageHandlerService.ALLOWED_FORMATS)}"
 
-                # Re-open image (verify() closes it)
                 image = Image.open(io.BytesIO(image_data))
 
                 # Check image dimensions (prevent extremely large images)
@@ -83,9 +74,7 @@ class ImageHandlerService:
 
     @staticmethod
     def process_base64_image(base64_data, max_width=1200, max_height=800):
-        """
-        Process base64 image data and save to storage
-        """
+        """Process base64 image data and save to storage"""
         try:
             # SECURITY: Validate image data before processing
             is_valid, error_msg = ImageHandlerService.validate_image_data(base64_data)
@@ -95,7 +84,6 @@ class ImageHandlerService:
                     'error': error_msg
                 }
 
-            # Remove data URL prefix if present
             if ',' in base64_data:
                 base64_data = base64_data.split(',')[1]
 
@@ -105,23 +93,18 @@ class ImageHandlerService:
             # Open image with PIL
             image = Image.open(io.BytesIO(image_data))
             
-            # Convert to RGB if necessary
             if image.mode in ('RGBA', 'P'):
                 image = image.convert('RGB')
             
-            # Resize if too large while maintaining aspect ratio
             image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
-            
-            # Get image info
+
             width, height = image.size
             aspect_ratio = width / height
             
-            # Save processed image
             output_buffer = io.BytesIO()
             image.save(output_buffer, format='JPEG', quality=85, optimize=True)
             output_buffer.seek(0)
-            
-            # Generate unique filename
+
             filename = f"slide_image_{uuid.uuid4()}.jpg"
             file_path = default_storage.save(f"property_images/{filename}", ContentFile(output_buffer.read()))
             
@@ -144,23 +127,18 @@ class ImageHandlerService:
     
     @staticmethod
     def calculate_image_dimensions(original_width, original_height, container_width=1280, container_height=720):
-        """
-        Calculate optimal image dimensions for container
-        """
+        """Calculate optimal image dimensions for container"""
         aspect_ratio = original_width / original_height
         
         # Calculate maximum dimensions that fit in container
         if original_width > container_width or original_height > container_height:
             if aspect_ratio > (container_width / container_height):
-                # Width is the limiting factor
-                new_width = container_width * 0.8  # Leave some margin
+                new_width = container_width * 0.8
                 new_height = new_width / aspect_ratio
             else:
-                # Height is the limiting factor
-                new_height = container_height * 0.8  # Leave some margin
+                new_height = container_height * 0.8
                 new_width = new_height * aspect_ratio
         else:
-            # Image fits within container
             new_width = original_width
             new_height = original_height
         

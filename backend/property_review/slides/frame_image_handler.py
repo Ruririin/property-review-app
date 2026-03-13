@@ -32,40 +32,30 @@ class FrameImageHandlerService:
 
     @staticmethod
     def validate_image_data(base64_data):
-        """
-        Validate base64 image data before processing
-        Returns (is_valid, error_message)
-        """
+        """Validate base64 image data before processing"""
         try:
-            # Check if data is provided
             if not base64_data:
                 return False, "No image data provided"
 
-            # Remove data URL prefix if present
             if ',' in base64_data:
                 base64_data = base64_data.split(',')[1]
 
-            # Check base64 data length (rough file size check)
             estimated_size = len(base64_data) * 3 / 4
             if estimated_size > FrameImageHandlerService.MAX_FILE_SIZE:
                 return False, f"Image too large. Maximum size is {FrameImageHandlerService.MAX_FILE_SIZE / (1024*1024)}MB"
 
-            # Decode base64 data
             try:
                 image_data = base64.b64decode(base64_data)
             except Exception:
                 return False, "Invalid base64 data"
 
-            # Verify it's actually an image and check format
             try:
                 image = Image.open(io.BytesIO(image_data))
-                image.verify()  # Verify image integrity
+                image.verify()
 
-                # Check if format is allowed
                 if image.format not in FrameImageHandlerService.ALLOWED_FORMATS:
                     return False, f"Invalid image format. Allowed formats: {', '.join(FrameImageHandlerService.ALLOWED_FORMATS)}"
 
-                # Re-open image (verify() closes it)
                 image = Image.open(io.BytesIO(image_data))
 
                 # Check image dimensions (prevent extremely large images)

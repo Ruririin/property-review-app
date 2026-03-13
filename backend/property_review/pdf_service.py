@@ -27,10 +27,7 @@ from django.conf import settings
 import os
 
 class PropertyPDFExporter:
-    """
-    Handles PDF export for property review slides
-    Supports multiple export methods for different quality/performance needs
-    """
+    """Handles PDF export for property review slides"""
     
     def __init__(self):
         self.page_width = 1280
@@ -50,21 +47,18 @@ class PropertyPDFExporter:
     def _export_with_html_positioning(self, slides_data: List[Dict], filename: str, buffer: BytesIO) -> BytesIO:
         """Generate PDF with exact positioning using ReportLab with coordinate positioning"""
         
-        # Use ReportLab with precise coordinate positioning
         return self._export_with_coordinate_positioning(slides_data, filename, buffer)
     
     def _export_with_position_adjustments(self, slides_data: List[Dict], filename: str, buffer: BytesIO) -> BytesIO:
         """Apply positioning adjustments for specific slide types"""
         
-        # Process slides and apply position corrections
         for slide in slides_data:
             slide_type = slide.get('type', '')
             if slide_type in ['street_view', 'interior']:
-                # Apply 6% upward adjustment to websiteInfo field
                 if 'formData' in slide and 'websiteInfo' in slide['formData']:
                     slide['_positioning'] = {
                         'websiteInfo': {
-                            'adjustment': 'up_6_percent'  # Move up by 6%
+                            'adjustment': 'up_6_percent'
                         }
                     }
         
@@ -76,7 +70,6 @@ class PropertyPDFExporter:
         from reportlab.lib.pagesizes import landscape, A4
         from reportlab.pdfbase import pdfutils
         
-        # Create a new canvas with landscape orientation
         c = canvas.Canvas(buffer, pagesize=(1280, 720))
         
         for i, slide in enumerate(slides_data):
@@ -88,7 +81,6 @@ class PropertyPDFExporter:
             image_data = slide.get('imageData')
             image_position = slide.get('imagePosition', {})
             
-            # Draw background image based on slide type
             background_path = None
             if slide_type == 'street_view':
                 background_path = os.path.join(settings.BASE_DIR.parent, 'frontend', 'public', 'Template', 'Template-04.png')
@@ -103,55 +95,45 @@ class PropertyPDFExporter:
                 except Exception as e:
                     print(f"Could not load background image: {e}")
             
-            # Set up text properties
             c.setFont("Helvetica", 28)
             c.setFillColor(colors.Color(139/255, 154/255, 91/255))  # #8B9A5B
             
-            # Draw text fields with proper positioning
             for field_name, field_value in form_data.items():
                 if field_value and field_value.strip():
                     if field_name == 'websiteInfo':
-                        # Apply special positioning for websiteInfo on StreetView and Interior
                         if slide_type in ['street_view', 'interior']:
-                            # Move up by 6% (43.2px from -11.4px = 31.8px from bottom)
-                            x = 1280 - (1280 * 0.005)  # Right 0.5% from right edge
-                            y = 31.8  # Adjusted position (moved up by 6%)
-                            
-                            # Calculate text width for right alignment
+                            x = 1280 - (1280 * 0.005)
+                            y = 31.8
+
                             text_width = c.stringWidth(field_value, "Helvetica", 28)
                             x = x - text_width
                             
                             c.drawString(x, y, field_value)
                             print(f"Drew websiteInfo at coordinates: x={x}, y={y} (moved up 6%)")
                         else:
-                            # Default positioning for other slide types
                             x = 1280 - (1280 * 0.005)
-                            y = -11.4 + 720  # Convert to PDF coordinate system
+                            y = -11.4 + 720
                             text_width = c.stringWidth(field_value, "Helvetica", 28)
                             x = x - text_width
                             c.drawString(x, y, field_value)
                     
                     elif field_name == 'premiseLocation':
-                        # premiseLocation positioning
-                        x = 1280 - (1280 * 0.012)  # Right 1.2% from right edge
-                        y = 720 - 670  # Convert from top positioning to PDF coordinates
+                        x = 1280 - (1280 * 0.012)
+                        y = 720 - 670
                         
                         text_width = c.stringWidth(field_value, "Helvetica", 28)
                         x = x - text_width
                         
                         c.drawString(x, y, field_value)
             
-            # Draw pasted images if present
             if image_data and image_data.startswith('data:image'):
                 try:
-                    # Decode base64 image
                     img_str = image_data.split(',')[1]
                     img_bytes = base64.b64decode(img_str)
                     img = ImageReader(BytesIO(img_bytes))
-                    
-                    # Get position and size
+
                     x = image_position.get('x', 0)
-                    y = 720 - image_position.get('y', 0) - image_position.get('height', 150)  # Convert to PDF coordinates
+                    y = 720 - image_position.get('y', 0) - image_position.get('height', 150)
                     width = image_position.get('width', 200)
                     height = image_position.get('height', 150)
                     
@@ -164,13 +146,8 @@ class PropertyPDFExporter:
         return buffer
 
     def export_with_reportlab(self, slides_data: List[Dict], filename: str = "Property_Review.pdf") -> BytesIO:
-        """
-        Export slides to PDF using ReportLab (programmatic approach)
-        Good for simple layouts and fast generation
-        """
+        """Export slides to PDF using ReportLab"""
         buffer = BytesIO()
-        
-        # Create PDF document
         doc = SimpleDocTemplate(
             buffer,
             pagesize=self.pdf_size,
@@ -182,8 +159,7 @@ class PropertyPDFExporter:
         
         story = []
         styles = getSampleStyleSheet()
-        
-        # Custom style for slide content
+
         slide_style = ParagraphStyle(
             'SlideStyle',
             parent=styles['Normal'],
@@ -203,50 +179,40 @@ class PropertyPDFExporter:
         for i, slide in enumerate(slides_data):
             if i > 0:
                 story.append(Spacer(1, 0.5*inch))
-            
-            # Add slide title
+
             title = slide.get('title', f'Slide {i + 1}')
             story.append(Paragraph(title, title_style))
-            
-            # Add slide content
+
+
             content = slide.get('content', {})
             for key, value in content.items():
                 if isinstance(value, str) and value.strip():
                     story.append(Paragraph(f"<b>{key}:</b> {value}", slide_style))
-            
-            # Handle images (if base64 encoded)
+
             if 'images' in slide:
                 for img_data in slide['images']:
                     try:
                         if 'data:image' in str(img_data):
-                            # Decode base64 image
                             img_str = img_data.split(',')[1]
                             img_bytes = base64.b64decode(img_str)
                             img = ImageReader(BytesIO(img_bytes))
                             story.append(Spacer(1, 12))
-                            # Add image with reasonable size
                             story.append(img)
                     except Exception as e:
                         print(f"Error processing image: {e}")
         
-        # Build PDF
         doc.build(story)
         buffer.seek(0)
         return buffer
     
     def export_with_weasyprint(self, slides_data: List[Dict], filename: str = "Property_Review.pdf") -> BytesIO:
-        """
-        Export slides to PDF using WeasyPrint (HTML-to-PDF)
-        Better for complex layouts and matching web appearance
-        """
+        """Export slides to PDF using WeasyPrint (HTML-to-PDF)"""
         if not WEASYPRINT_AVAILABLE:
             print("WeasyPrint not available, falling back to ReportLab")
             return self.export_with_reportlab(slides_data, filename)
         
-        # Create HTML template for slides
         html_content = self._generate_html_for_slides(slides_data)
-        
-        # Define CSS for proper slide formatting
+
         css_content = """
         @page {
             size: 1280px 720px;
@@ -330,9 +296,7 @@ class PropertyPDFExporter:
         }
         """
         
-        # Generate PDF (fallback since WeasyPrint not available)
         buffer = BytesIO()
-        # This shouldn't be reached due to the check above, but just in case
         return buffer
     
     def _generate_html_for_slides(self, slides_data: List[Dict]) -> str:
@@ -351,7 +315,6 @@ class PropertyPDFExporter:
             html_parts.append(f'<h1 class="slide-title">{title}</h1>')
             html_parts.append('<div class="slide-content">')
             
-            # Text content column
             html_parts.append('<div class="text-content">')
             for key, value in content.items():
                 if isinstance(value, str) and value.strip():
@@ -362,18 +325,16 @@ class PropertyPDFExporter:
                         </div>
                     ''')
             html_parts.append('</div>')
-            
-            # Image content column
+
             html_parts.append('<div class="image-content">')
             if images and len(images) > 0:
-                # Use first image
                 img_src = images[0] if isinstance(images[0], str) else str(images[0])
                 if img_src:
                     html_parts.append(f'<img src="{img_src}" class="slide-image" alt="Property Image"/>')
             html_parts.append('</div>')
-            
-            html_parts.append('</div>')  # slide-content
-            html_parts.append('</div>')  # slide
+
+            html_parts.append('</div>')
+            html_parts.append('</div>')
         
         html_parts.append('</body></html>')
         return ''.join(html_parts)
@@ -451,7 +412,6 @@ class PropertyPDFExporter:
             image_data = slide.get('imageData')
             image_position = slide.get('imagePosition', {})
             
-            # Determine slide class for CSS targeting
             slide_class = 'slide'
             background_image = ''
             
@@ -465,13 +425,11 @@ class PropertyPDFExporter:
                 background_image = '/Template/Template-02.png'
             
             html_parts.append(f'<div class="{slide_class}" style="background-image: url(\'{background_image}\');">')
-            
-            # Add text fields with proper positioning
+
             for field_name, field_value in form_data.items():
                 if field_value and field_value.strip():
                     field_class = f'{field_name}-field'
-                    
-                    # Calculate dynamic width based on content
+
                     estimated_width = max(300, min(900, len(field_value) * 16 + 120))
                     
                     html_parts.append(f'''
@@ -479,8 +437,7 @@ class PropertyPDFExporter:
                             {field_value}
                         </div>
                     ''')
-            
-            # Add image if present
+
             if image_data:
                 x = image_position.get('x', 0)
                 y = image_position.get('y', 0)
@@ -491,16 +448,14 @@ class PropertyPDFExporter:
                     <img src="{image_data}" class="slide-image" 
                          style="left: {x}px; top: {y}px; width: {width}px; height: {height}px;" />
                 ''')
-            
-            html_parts.append('</div>')  # close slide
+
+            html_parts.append('</div>')
         
         html_parts.append('</body></html>')
         return ''.join(html_parts)
     
     def export_from_project(self, project_id: str, export_method: str = 'weasyprint') -> BytesIO:
-        """
-        Export slides from a Django project model
-        """
+        """Export slides from a Django project model"""
         from .models import Project
         
         try:
@@ -514,11 +469,9 @@ class PropertyPDFExporter:
                     'content': slide.content,
                     'images': []
                 }
-                
-                # Add images if any
+
                 for img in slide.images.all():
                     if img.image and os.path.exists(img.image.path):
-                        # Convert to base64 for embedding
                         with open(img.image.path, 'rb') as f:
                             img_data = base64.b64encode(f.read()).decode()
                             img_type = img.image.name.split('.')[-1].lower()
@@ -526,8 +479,7 @@ class PropertyPDFExporter:
                             slide_data['images'].append(img_src)
                 
                 slides_data.append(slide_data)
-            
-            # Choose export method
+
             if export_method == 'reportlab':
                 return self.export_with_reportlab(slides_data, f"{project.name}.pdf")
             else:
